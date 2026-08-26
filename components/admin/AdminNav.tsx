@@ -1,17 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 
-export function AdminNav({ username }: { username: string }) {
+export function AdminNav() {
   const pathname = usePathname();
-  const router = useRouter();
-
-  async function logout() {
-    await fetch("/api/auth/logout", { method: "POST" });
-    router.push("/admin/login");
-    router.refresh();
-  }
 
   const linkClass = (href: string) =>
     `rounded-md px-3 py-1.5 text-sm font-medium transition ${
@@ -33,15 +26,7 @@ export function AdminNav({ username }: { username: string }) {
             </Link>
           </nav>
         </div>
-        <div className="flex items-center gap-3 text-sm">
-          <span className="text-white/70">{username}</span>
-          <button
-            onClick={logout}
-            className="rounded-md border border-white/20 px-3 py-1.5 text-sm font-medium hover:bg-white/10"
-          >
-            Log out
-          </button>
-        </div>
+        <span className="text-sm text-white/60">Admin</span>
       </div>
     </header>
   );

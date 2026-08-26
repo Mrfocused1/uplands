@@ -1,5 +1,8 @@
-import { cookies } from "next/headers";
-import { getSessionAdmin, SESSION_COOKIE, type AdminSession } from "@/lib/auth/session";
+export interface AdminSession {
+  id: number;
+  username: string;
+  displayName: string;
+}
 
 export class UnauthorizedError extends Error {
   constructor() {
@@ -8,13 +11,16 @@ export class UnauthorizedError extends Error {
   }
 }
 
+/**
+ * The admin area is intentionally open (no login). These helpers remain so the
+ * existing route guards and layout stay intact as no-ops.
+ */
+const PUBLIC_ADMIN: AdminSession = { id: 0, username: "Admin", displayName: "Admin" };
+
 export async function getCurrentAdmin(): Promise<AdminSession | null> {
-  const store = await cookies();
-  return getSessionAdmin(store.get(SESSION_COOKIE)?.value);
+  return PUBLIC_ADMIN;
 }
 
 export async function requireAdmin(): Promise<AdminSession> {
-  const admin = await getCurrentAdmin();
-  if (!admin) throw new UnauthorizedError();
-  return admin;
+  return PUBLIC_ADMIN;
 }
