@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { formatFormDisplay } from "@/lib/admin/formDisplay";
+import { downloadPdf, viewPdf } from "@/lib/admin/pdfActions";
+import { Spinner } from "@/components/Spinner";
 import type { UHSF1601PrintData } from "@/types/UHSF1601PrintData";
 import type { EvidencePrintTransform, EvidenceType } from "@/types/evidence";
 
@@ -110,42 +112,18 @@ export function SubmissionDetail({ id }: { id: string }) {
     }
   }
 
-  function filenameFromDisposition(disposition: string | null) {
-    const match = disposition?.match(/filename="([^"]+)"/i);
-    return match?.[1] ?? `UHSF16.01_${(data?.fullName || "Inductee").replace(/\s+/g, "_")}.pdf`;
-  }
-
   async function handlePdf(mode: "view" | "download") {
-    const viewer = mode === "view" ? window.open("about:blank", "_blank") : null;
     setPdfBusy(mode);
     setError("");
 
+    const url = `/api/admin/submissions/${id}/pdf${mode === "download" ? "?download=1" : ""}`;
     try {
-      const response = await fetch(`/api/admin/submissions/${id}/pdf${mode === "download" ? "?download=1" : ""}`);
-      if (!response.ok) throw new Error("Unable to prepare the PDF.");
-
-      const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
-
       if (mode === "view") {
-        if (viewer) {
-          viewer.location.href = url;
-        } else {
-          window.open(url, "_blank", "noopener,noreferrer");
-        }
-        window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
-        return;
+        await viewPdf(url);
+      } else {
+        await downloadPdf(url, `UHSF16.01_${(data?.fullName || "Inductee").replace(/\s+/g, "_")}.pdf`);
       }
-
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = filenameFromDisposition(response.headers.get("content-disposition"));
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.setTimeout(() => URL.revokeObjectURL(url), 1_000);
     } catch (caught) {
-      if (viewer) viewer.close();
       setError(caught instanceof Error ? caught.message : "Unable to prepare the PDF.");
     } finally {
       setPdfBusy(null);
@@ -217,15 +195,17 @@ export function SubmissionDetail({ id }: { id: string }) {
           <button
             onClick={() => handlePdf("view")}
             disabled={pdfBusy !== null}
-            className="bg-uplands-magenta px-4 py-2 text-sm font-bold uppercase tracking-wide text-white hover:bg-[#8e0075] disabled:opacity-60"
+            className="inline-flex items-center gap-2 bg-uplands-magenta px-4 py-2 text-sm font-bold uppercase tracking-wide text-white hover:bg-[#8e0075] disabled:opacity-60"
           >
+            {pdfBusy === "view" && <Spinner />}
             {pdfBusy === "view" ? "Opening..." : "View PDF"}
           </button>
           <button
             onClick={() => handlePdf("download")}
             disabled={pdfBusy !== null}
-            className="bg-uplands-charcoal px-4 py-2 text-sm font-bold uppercase tracking-wide text-white hover:bg-zinc-700 disabled:opacity-60"
+            className="inline-flex items-center gap-2 bg-uplands-charcoal px-4 py-2 text-sm font-bold uppercase tracking-wide text-white hover:bg-zinc-700 disabled:opacity-60"
           >
+            {pdfBusy === "download" && <Spinner />}
             {pdfBusy === "download" ? "Preparing..." : "Download PDF"}
           </button>
           <button
@@ -239,9 +219,10 @@ export function SubmissionDetail({ id }: { id: string }) {
       </div>
 
       {pdfBusy && (
-        <p className="mt-5 border-l-4 border-uplands-magenta bg-white p-4 text-sm font-bold text-uplands-charcoal shadow-soft" role="status">
-          {pdfBusy === "view" ? "Preparing PDF viewer..." : "Preparing PDF download..."}
-        </p>
+        <div className="mt-5 flex items-center gap-3 border-l-4 border-uplands-magenta bg-white p-4 text-sm font-bold text-uplands-charcoal shadow-soft" role="status">
+          <Spinner />
+          <span>{pdfBusy === "view" ? "Preparing PDF viewer..." : "Preparing PDF download..."}</span>
+        </div>
       )}
 
       <div className="mt-6 flex gap-1 border-b border-zinc-200">
@@ -404,15 +385,17 @@ function ReviewTab({
         <button
           onClick={onView}
           disabled={pdfBusy !== null}
-          className="border border-zinc-300 px-4 py-2.5 text-sm font-bold uppercase tracking-wide text-zinc-700 hover:border-uplands-magenta hover:text-uplands-magenta disabled:opacity-60"
+          className="inline-flex items-center justify-center gap-2 border border-zinc-300 px-4 py-2.5 text-sm font-bold uppercase tracking-wide text-zinc-700 hover:border-uplands-magenta hover:text-uplands-magenta disabled:opacity-60"
         >
+          {pdfBusy === "view" && <Spinner />}
           {pdfBusy === "view" ? "Opening PDF..." : "View PDF"}
         </button>
         <button
           onClick={onDownload}
           disabled={pdfBusy !== null}
-          className="border border-zinc-300 px-4 py-2.5 text-sm font-bold uppercase tracking-wide text-zinc-700 hover:border-uplands-magenta hover:text-uplands-magenta disabled:opacity-60"
+          className="inline-flex items-center justify-center gap-2 border border-zinc-300 px-4 py-2.5 text-sm font-bold uppercase tracking-wide text-zinc-700 hover:border-uplands-magenta hover:text-uplands-magenta disabled:opacity-60"
         >
+          {pdfBusy === "download" && <Spinner />}
           {pdfBusy === "download" ? "Preparing PDF..." : "Download PDF"}
         </button>
         <button

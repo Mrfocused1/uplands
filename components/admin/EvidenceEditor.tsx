@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Spinner } from "@/components/Spinner";
 import {
   A4_HEIGHT_PT,
   A4_WIDTH_PT,
@@ -76,6 +77,7 @@ export function EvidenceEditor({ id }: { id: string }) {
   const [past, setPast] = useState<EvidencePrintTransform[]>([]);
   const [future, setFuture] = useState<EvidencePrintTransform[]>([]);
   const [saving, setSaving] = useState(false);
+  const [previewing, setPreviewing] = useState(false);
   const [toast, setToast] = useState("");
   const [error, setError] = useState("");
 
@@ -245,9 +247,9 @@ export function EvidenceEditor({ id }: { id: string }) {
   }
 
   async function saveAndPreview() {
-    setSaving(true);
+    setPreviewing(true);
     const ok = await saveTransforms();
-    setSaving(false);
+    setPreviewing(false);
     if (ok) {
       setToast("Saved — opening PDF");
       window.open(`/api/admin/submissions/${id}/pdf`, "_blank", "noopener,noreferrer");
@@ -299,8 +301,9 @@ export function EvidenceEditor({ id }: { id: string }) {
           <button onClick={saveLayout} disabled={saving} className="border border-zinc-300 px-4 py-2 text-sm font-bold uppercase tracking-wide text-zinc-700 hover:border-uplands-magenta hover:text-uplands-magenta disabled:opacity-60">
             Save layout
           </button>
-          <button onClick={saveAndPreview} disabled={saving} className="bg-uplands-magenta px-4 py-2 text-sm font-bold uppercase tracking-wide text-white hover:bg-[#8e0075] disabled:opacity-60">
-            Save &amp; preview PDF
+          <button onClick={saveAndPreview} disabled={saving || previewing} className="inline-flex items-center gap-2 bg-uplands-magenta px-4 py-2 text-sm font-bold uppercase tracking-wide text-white hover:bg-[#8e0075] disabled:opacity-60">
+            {previewing && <Spinner />}
+            {previewing ? "Preparing..." : "Save & preview PDF"}
           </button>
           <button onClick={saveAndMarkReady} disabled={saving} className="bg-emerald-600 px-4 py-2 text-sm font-bold uppercase tracking-wide text-white hover:bg-emerald-500 disabled:opacity-60">
             Save &amp; mark ready

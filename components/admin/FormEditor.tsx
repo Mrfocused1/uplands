@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { FORM_EDIT_SECTIONS, type FormEditorField, type FormFieldKey } from "@/lib/admin/formEditor";
+import { viewPdf } from "@/lib/admin/pdfActions";
+import { Spinner } from "@/components/Spinner";
 import type { UHSF1601PrintData } from "@/types/UHSF1601PrintData";
 
 type FormValue = string | boolean | null;
@@ -31,6 +33,7 @@ export function FormEditor({ id }: { id: string }) {
   const [values, setValues] = useState<Record<string, FormValue>>({});
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [viewing, setViewing] = useState(false);
   const [toast, setToast] = useState("");
 
   const load = useCallback(async () => {
@@ -80,6 +83,18 @@ export function FormEditor({ id }: { id: string }) {
     }
   }
 
+  async function viewPdfHandler() {
+    setViewing(true);
+    setError("");
+    try {
+      await viewPdf(`/api/admin/submissions/${id}/pdf`);
+    } catch {
+      setError("Unable to prepare the PDF.");
+    } finally {
+      setViewing(false);
+    }
+  }
+
   if (error && !submission) {
     return <div className="border border-red-200 bg-red-50 p-8 text-center text-red-700 shadow-soft">{error}</div>;
   }
@@ -104,14 +119,14 @@ export function FormEditor({ id }: { id: string }) {
           <p className="mt-2 text-sm text-uplands-muted">{submission.fullName || "Unknown inductee"} · {submission.reference}</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Link
-            href={`/api/admin/submissions/${id}/pdf`}
-            target="_blank"
-            rel="noreferrer"
-            className="border border-zinc-300 px-4 py-2 text-sm font-bold uppercase tracking-wide text-zinc-700 hover:border-uplands-magenta hover:text-uplands-magenta"
+          <button
+            onClick={viewPdfHandler}
+            disabled={viewing}
+            className="inline-flex items-center gap-2 border border-zinc-300 px-4 py-2 text-sm font-bold uppercase tracking-wide text-zinc-700 hover:border-uplands-magenta hover:text-uplands-magenta disabled:opacity-60"
           >
-            View PDF
-          </Link>
+            {viewing && <Spinner />}
+            {viewing ? "Opening..." : "View PDF"}
+          </button>
           <button
             onClick={save}
             disabled={saving}

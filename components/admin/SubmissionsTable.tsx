@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { downloadPdf, viewPdf } from "@/lib/admin/pdfActions";
+import { Spinner } from "@/components/Spinner";
 
 export interface SubmissionListItem {
   id: string;
@@ -108,45 +110,18 @@ export function SubmissionsTable({ submissions }: { submissions: SubmissionListI
     }
   }
 
-  function filenameFromDisposition(disposition: string | null, fallbackName: string) {
-    const match = disposition?.match(/filename="([^"]+)"/i);
-    return match?.[1] ?? fallbackName;
-  }
-
   async function handlePdf(submission: SubmissionListItem, mode: "view" | "download") {
-    const viewer = mode === "view" ? window.open("about:blank", "_blank") : null;
     setPdfBusy({ id: submission.id, mode });
     setError("");
 
+    const url = `/api/admin/submissions/${submission.id}/pdf${mode === "download" ? "?download=1" : ""}`;
     try {
-      const response = await fetch(`/api/admin/submissions/${submission.id}/pdf${mode === "download" ? "?download=1" : ""}`);
-      if (!response.ok) throw new Error("Unable to prepare the PDF.");
-
-      const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
-
       if (mode === "view") {
-        if (viewer) {
-          viewer.location.href = url;
-        } else {
-          window.open(url, "_blank", "noopener,noreferrer");
-        }
-        window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
-        return;
+        await viewPdf(url);
+      } else {
+        await downloadPdf(url, `UHSF16.01_${(submission.fullName || "Inductee").replace(/\s+/g, "_")}.pdf`);
       }
-
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = filenameFromDisposition(
-        response.headers.get("content-disposition"),
-        `UHSF16.01_${(submission.fullName || "Inductee").replace(/\s+/g, "_")}.pdf`,
-      );
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.setTimeout(() => URL.revokeObjectURL(url), 1_000);
     } catch (caught) {
-      if (viewer) viewer.close();
       setError(caught instanceof Error ? caught.message : "Unable to prepare the PDF.");
     } finally {
       setPdfBusy(null);
@@ -191,9 +166,10 @@ export function SubmissionsTable({ submissions }: { submissions: SubmissionListI
       )}
 
       {pdfBusy && (
-        <p className="mb-4 border-l-4 border-uplands-magenta bg-white p-4 text-sm font-bold text-uplands-charcoal shadow-soft" role="status">
-          {pdfBusy.mode === "view" ? "Preparing PDF viewer..." : "Preparing PDF download..."}
-        </p>
+        <div className="mb-4 flex items-center gap-3 border-l-4 border-uplands-magenta bg-white p-4 text-sm font-bold text-uplands-charcoal shadow-soft" role="status">
+          <Spinner />
+          <span>{pdfBusy.mode === "view" ? "Preparing PDF viewer..." : "Preparing PDF download..."}</span>
+        </div>
       )}
 
       <div className="overflow-x-auto border border-zinc-200 bg-white shadow-soft">
@@ -263,16 +239,18 @@ export function SubmissionsTable({ submissions }: { submissions: SubmissionListI
                       type="button"
                       onClick={() => handlePdf(submission, "view")}
                       disabled={pdfBusy?.id === submission.id || busyId === submission.id}
-                      className="bg-uplands-magenta px-2.5 py-1 text-xs font-bold uppercase text-white hover:bg-[#8e0075] disabled:opacity-60"
+                      className="inline-flex items-center gap-1.5 bg-uplands-magenta px-2.5 py-1 text-xs font-bold uppercase text-white hover:bg-[#8e0075] disabled:opacity-60"
                     >
+                      {pdfBusy?.id === submission.id && pdfBusy.mode === "view" && <Spinner className="h-3 w-3" />}
                       {pdfBusy?.id === submission.id && pdfBusy.mode === "view" ? "Opening..." : "View PDF"}
                     </button>
                     <button
                       type="button"
                       onClick={() => handlePdf(submission, "download")}
                       disabled={pdfBusy?.id === submission.id || busyId === submission.id}
-                      className="bg-uplands-charcoal px-2.5 py-1 text-xs font-bold uppercase text-white hover:bg-zinc-700 disabled:opacity-60"
+                      className="inline-flex items-center gap-1.5 bg-uplands-charcoal px-2.5 py-1 text-xs font-bold uppercase text-white hover:bg-zinc-700 disabled:opacity-60"
                     >
+                      {pdfBusy?.id === submission.id && pdfBusy.mode === "download" && <Spinner className="h-3 w-3" />}
                       {pdfBusy?.id === submission.id && pdfBusy.mode === "download" ? "Preparing..." : "Download PDF"}
                     </button>
                     <button
