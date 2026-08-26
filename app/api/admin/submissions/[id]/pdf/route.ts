@@ -9,7 +9,7 @@ import type { EvidenceType } from "@/types/evidence";
 
 export const runtime = "nodejs";
 
-export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
+export async function GET(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
     await requireAdmin();
   } catch (error) {
@@ -41,11 +41,14 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   const safeName =
     (row.full_name || "Inductee").replace(/[^a-zA-Z0-9-_ ]/g, "").trim().replace(/\s+/g, "_") || "Inductee";
 
+  const url = new URL(request.url);
+  const disposition = url.searchParams.get("download") === "1" ? "attachment" : "inline";
+
   return new NextResponse(Buffer.from(pdf), {
     status: 200,
     headers: {
       "Content-Type": "application/pdf",
-      "Content-Disposition": `attachment; filename="UHSF16.01_${safeName}.pdf"`,
+      "Content-Disposition": `${disposition}; filename="UHSF16.01_${safeName}.pdf"`,
       "Cache-Control": "no-store",
     },
   });

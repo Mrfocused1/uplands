@@ -273,7 +273,7 @@ export function EvidenceEditor({ id }: { id: string }) {
   }
 
   if (error) {
-    return <div className="rounded-xl border border-red-200 bg-red-50 p-8 text-center text-red-700">{error}</div>;
+    return <div className="border border-red-200 bg-red-50 p-8 text-center text-red-700 shadow-soft">{error}</div>;
   }
 
   if (!submission) {
@@ -285,30 +285,31 @@ export function EvidenceEditor({ id }: { id: string }) {
 
   return (
     <div>
-      <Link href={`/admin/submissions/${id}`} className="text-sm font-medium text-zinc-500 hover:text-zinc-800">
-        ← Back to submission
+      <Link href={`/admin/submissions/${id}`} className="text-sm font-bold uppercase tracking-wide text-zinc-600 hover:text-uplands-magenta">
+        Back to submission
       </Link>
 
-      <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-5 border-b border-zinc-200 bg-white px-6 py-6 shadow-soft">
         <div>
-          <h1 className="text-xl font-bold text-zinc-900">Evidence editor</h1>
-          <p className="text-sm text-zinc-500">{submission.fullName || "Unknown inductee"} · {submission.reference}</p>
+          <p className="text-xs font-bold uppercase tracking-[0.28em] text-uplands-magenta">Print evidence</p>
+          <h1 className="mt-2 font-slab text-3xl leading-tight text-uplands-charcoal sm:text-4xl">Evidence editor</h1>
+          <p className="mt-2 text-sm text-uplands-muted">{submission.fullName || "Unknown inductee"} · {submission.reference}</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <button onClick={saveLayout} disabled={saving} className="rounded-md border border-zinc-300 px-4 py-2 text-sm font-semibold text-zinc-700 hover:bg-zinc-50 disabled:opacity-60">
+          <button onClick={saveLayout} disabled={saving} className="border border-zinc-300 px-4 py-2 text-sm font-bold uppercase tracking-wide text-zinc-700 hover:border-uplands-magenta hover:text-uplands-magenta disabled:opacity-60">
             Save layout
           </button>
-          <button onClick={saveAndPreview} disabled={saving} className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-semibold text-white hover:bg-zinc-700 disabled:opacity-60">
+          <button onClick={saveAndPreview} disabled={saving} className="bg-uplands-magenta px-4 py-2 text-sm font-bold uppercase tracking-wide text-white hover:bg-[#8e0075] disabled:opacity-60">
             Save &amp; preview PDF
           </button>
-          <button onClick={saveAndMarkReady} disabled={saving} className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-500 disabled:opacity-60">
+          <button onClick={saveAndMarkReady} disabled={saving} className="bg-emerald-600 px-4 py-2 text-sm font-bold uppercase tracking-wide text-white hover:bg-emerald-500 disabled:opacity-60">
             Save &amp; mark ready
           </button>
         </div>
       </div>
 
       <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
-        <div className="overflow-x-auto rounded-xl border border-zinc-200 bg-zinc-100 p-4">
+        <div className="overflow-x-auto border border-zinc-200 bg-white p-4 shadow-soft">
           <div
             className="relative mx-auto bg-white shadow-md"
             style={{ width: A4_WIDTH_PT * DISPLAY_SCALE, height: A4_HEIGHT_PT * DISPLAY_SCALE }}
@@ -380,8 +381,8 @@ export function EvidenceEditor({ id }: { id: string }) {
         </div>
 
         <div className="space-y-4">
-          <div className="rounded-xl border border-zinc-200 bg-white p-5">
-            <h2 className="text-sm font-semibold text-zinc-700">Select a document</h2>
+          <div className="border border-zinc-200 bg-white p-5 shadow-soft">
+            <h2 className="font-din text-sm uppercase text-zinc-700">Select a document</h2>
             <div className="mt-3 space-y-2">
               {EVIDENCE_TYPES.map((type) => {
                 const doc = submission.evidence.find((item) => item.type === type);
@@ -390,8 +391,8 @@ export function EvidenceEditor({ id }: { id: string }) {
                     key={type}
                     onClick={() => doc?.hasOriginal && setActiveType(type)}
                     disabled={!doc?.hasOriginal}
-                    className={`w-full rounded-md border px-3 py-2 text-left text-sm transition disabled:cursor-not-allowed disabled:opacity-40 ${
-                      activeType === type ? "border-blue-500 bg-blue-50 text-blue-800" : "border-zinc-200 hover:bg-zinc-50"
+                    className={`w-full border px-3 py-2 text-left text-sm transition disabled:cursor-not-allowed disabled:opacity-40 ${
+                      activeType === type ? "border-uplands-magenta bg-uplands-paper text-uplands-charcoal" : "border-zinc-200 hover:border-uplands-magenta"
                     }`}
                   >
                     <span className="font-medium">{EVIDENCE_LABELS[type]}</span>
@@ -403,8 +404,8 @@ export function EvidenceEditor({ id }: { id: string }) {
           </div>
 
           {activeType && activeTransform && (
-            <div className="rounded-xl border border-zinc-200 bg-white p-5">
-              <h2 className="text-sm font-semibold text-zinc-700">{EVIDENCE_LABELS[activeType]}</h2>
+            <div className="border border-zinc-200 bg-white p-5 shadow-soft">
+              <h2 className="font-din text-sm uppercase text-zinc-700">{EVIDENCE_LABELS[activeType]}</h2>
 
               <div className="mt-4 space-y-3">
                 <div>
@@ -423,29 +424,29 @@ export function EvidenceEditor({ id }: { id: string }) {
                     className="mt-1 w-full"
                   />
                   <div className="mt-1 flex gap-2">
-                    <button onClick={() => setScale(activeTransform.scale / 1.15)} className="flex-1 rounded-md border border-zinc-300 py-1.5 text-sm hover:bg-zinc-50">−</button>
-                    <button onClick={() => setScale(activeTransform.scale * 1.15)} className="flex-1 rounded-md border border-zinc-300 py-1.5 text-sm hover:bg-zinc-50">+</button>
+                    <button onClick={() => setScale(activeTransform.scale / 1.15)} className="flex-1 border border-zinc-300 py-1.5 text-sm hover:border-uplands-magenta hover:text-uplands-magenta">−</button>
+                    <button onClick={() => setScale(activeTransform.scale * 1.15)} className="flex-1 border border-zinc-300 py-1.5 text-sm hover:border-uplands-magenta hover:text-uplands-magenta">+</button>
                   </div>
                 </div>
 
                 <div>
                   <span className="text-xs text-zinc-500">Rotation</span>
                   <div className="mt-1 flex gap-2">
-                    <button onClick={rotateCounterClockwise} className="flex-1 rounded-md border border-zinc-300 py-1.5 text-sm hover:bg-zinc-50">⟲ 90°</button>
-                    <button onClick={rotateClockwise} className="flex-1 rounded-md border border-zinc-300 py-1.5 text-sm hover:bg-zinc-50">⟳ 90°</button>
+                    <button onClick={rotateCounterClockwise} className="flex-1 border border-zinc-300 py-1.5 text-sm hover:border-uplands-magenta hover:text-uplands-magenta">⟲ 90°</button>
+                    <button onClick={rotateClockwise} className="flex-1 border border-zinc-300 py-1.5 text-sm hover:border-uplands-magenta hover:text-uplands-magenta">⟳ 90°</button>
                   </div>
                   <p className="mt-1 text-xs text-zinc-400">Current: {activeTransform.rotation}°</p>
                 </div>
 
                 <div className="flex gap-2">
-                  <button onClick={applyFit} className={`flex-1 rounded-md border py-1.5 text-sm ${activeTransform.fitMode === "fit" ? "border-blue-500 bg-blue-50 text-blue-700" : "border-zinc-300 hover:bg-zinc-50"}`}>Fit</button>
-                  <button onClick={applyFill} className={`flex-1 rounded-md border py-1.5 text-sm ${activeTransform.fitMode === "fill" ? "border-blue-500 bg-blue-50 text-blue-700" : "border-zinc-300 hover:bg-zinc-50"}`}>Fill</button>
-                  <button onClick={reset} className="flex-1 rounded-md border border-zinc-300 py-1.5 text-sm hover:bg-zinc-50">Reset</button>
+                  <button onClick={applyFit} className={`flex-1 border py-1.5 text-sm ${activeTransform.fitMode === "fit" ? "border-uplands-magenta bg-uplands-paper text-uplands-magenta" : "border-zinc-300 hover:border-uplands-magenta hover:text-uplands-magenta"}`}>Fit</button>
+                  <button onClick={applyFill} className={`flex-1 border py-1.5 text-sm ${activeTransform.fitMode === "fill" ? "border-uplands-magenta bg-uplands-paper text-uplands-magenta" : "border-zinc-300 hover:border-uplands-magenta hover:text-uplands-magenta"}`}>Fill</button>
+                  <button onClick={reset} className="flex-1 border border-zinc-300 py-1.5 text-sm hover:border-uplands-magenta hover:text-uplands-magenta">Reset</button>
                 </div>
 
                 <div className="flex gap-2 border-t border-zinc-100 pt-3">
-                  <button onClick={undo} disabled={past.length === 0} className="flex-1 rounded-md border border-zinc-300 py-1.5 text-sm hover:bg-zinc-50 disabled:opacity-40">Undo</button>
-                  <button onClick={redo} disabled={future.length === 0} className="flex-1 rounded-md border border-zinc-300 py-1.5 text-sm hover:bg-zinc-50 disabled:opacity-40">Redo</button>
+                  <button onClick={undo} disabled={past.length === 0} className="flex-1 border border-zinc-300 py-1.5 text-sm hover:border-uplands-magenta hover:text-uplands-magenta disabled:opacity-40">Undo</button>
+                  <button onClick={redo} disabled={future.length === 0} className="flex-1 border border-zinc-300 py-1.5 text-sm hover:border-uplands-magenta hover:text-uplands-magenta disabled:opacity-40">Redo</button>
                 </div>
 
                 {activeNatural && (
@@ -457,14 +458,14 @@ export function EvidenceEditor({ id }: { id: string }) {
             </div>
           )}
 
-          <div className="rounded-xl border border-zinc-200 bg-white p-5 text-xs text-zinc-500">
+          <div className="border border-zinc-200 bg-white p-5 text-xs text-zinc-500 shadow-soft">
             <p><strong className="text-zinc-700">Tip:</strong> drag the document to move it inside its frame. The frame position is fixed — only the document inside it is edited. Changes are non-destructive.</p>
           </div>
         </div>
       </div>
 
       {toast && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 rounded-md bg-zinc-900 px-4 py-2 text-sm text-white shadow-lg">
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-uplands-charcoal px-4 py-2 text-sm text-white shadow-lg">
           {toast}
         </div>
       )}

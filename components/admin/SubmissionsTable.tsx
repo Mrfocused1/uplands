@@ -22,9 +22,9 @@ export interface SubmissionListItem {
 
 function statusBadge(status: string) {
   if (status === "ready") {
-    return <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-semibold text-emerald-700">Ready</span>;
+    return <span className="bg-emerald-50 px-2.5 py-1 text-xs font-bold uppercase text-emerald-700">Ready</span>;
   }
-  return <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-700">Not reviewed</span>;
+  return <span className="bg-amber-50 px-2.5 py-1 text-xs font-bold uppercase text-amber-700">Not reviewed</span>;
 }
 
 function date(value: string | null) {
@@ -36,6 +36,7 @@ export function SubmissionsTable({ submissions }: { submissions: SubmissionListI
   const [items, setItems] = useState(submissions);
   const [query, setQuery] = useState("");
   const [busyId, setBusyId] = useState("");
+  const [pdfBusy, setPdfBusy] = useState<{ id: string; mode: "view" | "download" } | null>(null);
   const [error, setError] = useState("");
 
   const filtered = useMemo(() => {
@@ -107,10 +108,55 @@ export function SubmissionsTable({ submissions }: { submissions: SubmissionListI
     }
   }
 
+  function filenameFromDisposition(disposition: string | null, fallbackName: string) {
+    const match = disposition?.match(/filename="([^"]+)"/i);
+    return match?.[1] ?? fallbackName;
+  }
+
+  async function handlePdf(submission: SubmissionListItem, mode: "view" | "download") {
+    const viewer = mode === "view" ? window.open("about:blank", "_blank") : null;
+    setPdfBusy({ id: submission.id, mode });
+    setError("");
+
+    try {
+      const response = await fetch(`/api/admin/submissions/${submission.id}/pdf${mode === "download" ? "?download=1" : ""}`);
+      if (!response.ok) throw new Error("Unable to prepare the PDF.");
+
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+
+      if (mode === "view") {
+        if (viewer) {
+          viewer.location.href = url;
+        } else {
+          window.open(url, "_blank", "noopener,noreferrer");
+        }
+        window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+        return;
+      }
+
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filenameFromDisposition(
+        response.headers.get("content-disposition"),
+        `UHSF16.01_${(submission.fullName || "Inductee").replace(/\s+/g, "_")}.pdf`,
+      );
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1_000);
+    } catch (caught) {
+      if (viewer) viewer.close();
+      setError(caught instanceof Error ? caught.message : "Unable to prepare the PDF.");
+    } finally {
+      setPdfBusy(null);
+    }
+  }
+
   if (items.length === 0) {
     return (
-      <div className="rounded-xl border border-zinc-200 bg-white p-12 text-center">
-        <p className="font-semibold text-zinc-700">No inductions yet</p>
+      <div className="border border-zinc-200 bg-white p-12 text-center shadow-soft">
+        <p className="font-din text-base uppercase text-zinc-800">No inductions yet</p>
         <p className="mt-1 text-sm text-zinc-500">Completed inductions will appear here for review.</p>
       </div>
     );
@@ -118,10 +164,11 @@ export function SubmissionsTable({ submissions }: { submissions: SubmissionListI
 
   return (
     <div>
-      <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+      <div className="mb-7 flex flex-col gap-5 border-b border-zinc-200 bg-white px-6 py-6 shadow-soft sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-zinc-900">Inductions</h1>
-          <p className="mt-1 text-sm text-zinc-500">
+          <p className="text-xs font-bold uppercase tracking-[0.28em] text-uplands-magenta">Admin</p>
+          <h1 className="mt-2 font-slab text-3xl leading-tight text-uplands-charcoal sm:text-4xl">Inductions</h1>
+          <p className="mt-2 text-sm text-uplands-muted">
             {filtered.length} shown of {items.length} total
           </p>
         </div>
@@ -132,20 +179,26 @@ export function SubmissionsTable({ submissions }: { submissions: SubmissionListI
             onChange={(event) => setQuery(event.target.value)}
             type="search"
             placeholder="Search names, company, site, reference..."
-            className="min-h-11 w-full rounded-md border border-zinc-300 bg-white px-3 text-sm outline-none focus:border-uplands-magenta focus:ring-2 focus:ring-uplands-magenta/20"
+            className="min-h-12 w-full border border-zinc-300 bg-white px-4 text-sm outline-none focus:border-uplands-magenta focus:ring-2 focus:ring-uplands-magenta/20"
           />
         </label>
       </div>
 
       {error && (
-        <p className="mb-4 border-l-4 border-red-600 bg-white p-4 text-sm font-bold text-red-700" role="alert">
+        <p className="mb-4 border-l-4 border-red-600 bg-white p-4 text-sm font-bold text-red-700 shadow-soft" role="alert">
           {error}
         </p>
       )}
 
-      <div className="overflow-x-auto rounded-xl border border-zinc-200 bg-white">
+      {pdfBusy && (
+        <p className="mb-4 border-l-4 border-uplands-magenta bg-white p-4 text-sm font-bold text-uplands-charcoal shadow-soft" role="status">
+          {pdfBusy.mode === "view" ? "Preparing PDF viewer..." : "Preparing PDF download..."}
+        </p>
+      )}
+
+      <div className="overflow-x-auto border border-zinc-200 bg-white shadow-soft">
         <table className="w-full min-w-[980px] text-left text-sm">
-          <thead className="border-b border-zinc-200 bg-zinc-50 text-xs uppercase tracking-wide text-zinc-500">
+          <thead className="border-b border-zinc-200 bg-uplands-charcoal text-xs uppercase tracking-wide text-white">
             <tr>
               <th className="px-4 py-3 font-semibold">Pin</th>
               <th className="px-4 py-3 font-semibold">Inductee</th>
@@ -159,29 +212,29 @@ export function SubmissionsTable({ submissions }: { submissions: SubmissionListI
           </thead>
           <tbody className="divide-y divide-zinc-100">
             {filtered.map((submission) => (
-              <tr key={submission.id} className="transition hover:bg-zinc-50">
+              <tr key={submission.id} className="transition hover:bg-uplands-paper">
                 <td className="px-4 py-3">
                   <button
                     type="button"
                     onClick={() => updatePinned(submission)}
                     disabled={busyId === submission.id}
-                    className={`rounded-md border px-2.5 py-1 text-xs font-semibold disabled:opacity-60 ${
+                    className={`border px-2.5 py-1 text-xs font-bold uppercase disabled:opacity-60 ${
                       submission.pinned
                         ? "border-uplands-magenta bg-uplands-magenta text-white"
-                        : "border-zinc-300 text-zinc-700 hover:bg-zinc-50"
+                        : "border-zinc-300 text-zinc-700 hover:border-uplands-magenta hover:text-uplands-magenta"
                     }`}
                   >
                     {submission.pinned ? "Pinned" : "Pin"}
                   </button>
                 </td>
                 <td className="px-4 py-3">
-                  <Link href={`/admin/submissions/${submission.id}`} className="font-semibold text-zinc-900 hover:underline">
+                  <Link href={`/admin/submissions/${submission.id}`} className="font-din text-sm text-zinc-900 hover:text-uplands-magenta">
                     {submission.fullName || "Unknown inductee"}
                   </Link>
-                  <div className="flex flex-wrap items-center gap-2 text-xs text-zinc-400">
+                  <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-zinc-500">
                     <span>{submission.reference}</span>
                     {submission.isSample && (
-                      <span className="rounded-full bg-blue-100 px-2 py-0.5 font-semibold text-blue-700">Sample</span>
+                      <span className="bg-zinc-100 px-2 py-0.5 font-bold uppercase text-zinc-700">Sample</span>
                     )}
                   </div>
                 </td>
@@ -196,29 +249,37 @@ export function SubmissionsTable({ submissions }: { submissions: SubmissionListI
                   <div className="flex flex-wrap gap-2">
                     <Link
                       href={`/admin/submissions/${submission.id}`}
-                      className="rounded-md border border-zinc-300 px-2.5 py-1 text-xs font-semibold text-zinc-700 hover:bg-zinc-50"
+                      className="border border-zinc-300 px-2.5 py-1 text-xs font-bold uppercase text-zinc-700 hover:border-uplands-magenta hover:text-uplands-magenta"
                     >
                       View
                     </Link>
                     <Link
                       href={`/admin/submissions/${submission.id}/editor`}
-                      className="rounded-md border border-zinc-300 px-2.5 py-1 text-xs font-semibold text-zinc-700 hover:bg-zinc-50"
+                      className="border border-zinc-300 px-2.5 py-1 text-xs font-bold uppercase text-zinc-700 hover:border-uplands-magenta hover:text-uplands-magenta"
                     >
                       Edit
                     </Link>
-                    <a
-                      href={`/api/admin/submissions/${submission.id}/pdf`}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="rounded-md bg-zinc-900 px-2.5 py-1 text-xs font-semibold text-white hover:bg-zinc-700"
+                    <button
+                      type="button"
+                      onClick={() => handlePdf(submission, "view")}
+                      disabled={pdfBusy?.id === submission.id || busyId === submission.id}
+                      className="bg-uplands-magenta px-2.5 py-1 text-xs font-bold uppercase text-white hover:bg-[#8e0075] disabled:opacity-60"
                     >
-                      Download
-                    </a>
+                      {pdfBusy?.id === submission.id && pdfBusy.mode === "view" ? "Opening..." : "View PDF"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handlePdf(submission, "download")}
+                      disabled={pdfBusy?.id === submission.id || busyId === submission.id}
+                      className="bg-uplands-charcoal px-2.5 py-1 text-xs font-bold uppercase text-white hover:bg-zinc-700 disabled:opacity-60"
+                    >
+                      {pdfBusy?.id === submission.id && pdfBusy.mode === "download" ? "Preparing..." : "Download PDF"}
+                    </button>
                     <button
                       type="button"
                       onClick={() => deleteRow(submission)}
                       disabled={busyId === submission.id}
-                      className="rounded-md border border-red-200 px-2.5 py-1 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:opacity-60"
+                      className="border border-red-200 px-2.5 py-1 text-xs font-bold uppercase text-red-700 hover:bg-red-50 disabled:opacity-60"
                     >
                       Delete
                     </button>

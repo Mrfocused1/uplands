@@ -49,6 +49,7 @@ export function SubmissionDetail({ id }: { id: string }) {
   const [tab, setTab] = useState<Tab>("form");
   const [statusBusy, setStatusBusy] = useState(false);
   const [actionBusy, setActionBusy] = useState(false);
+  const [pdfBusy, setPdfBusy] = useState<"view" | "download" | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -109,13 +110,51 @@ export function SubmissionDetail({ id }: { id: string }) {
     }
   }
 
-  function downloadPdf() {
-    window.open(`/api/admin/submissions/${id}/pdf`, "_blank", "noopener,noreferrer");
+  function filenameFromDisposition(disposition: string | null) {
+    const match = disposition?.match(/filename="([^"]+)"/i);
+    return match?.[1] ?? `UHSF16.01_${(data?.fullName || "Inductee").replace(/\s+/g, "_")}.pdf`;
+  }
+
+  async function handlePdf(mode: "view" | "download") {
+    const viewer = mode === "view" ? window.open("about:blank", "_blank") : null;
+    setPdfBusy(mode);
+    setError("");
+
+    try {
+      const response = await fetch(`/api/admin/submissions/${id}/pdf${mode === "download" ? "?download=1" : ""}`);
+      if (!response.ok) throw new Error("Unable to prepare the PDF.");
+
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+
+      if (mode === "view") {
+        if (viewer) {
+          viewer.location.href = url;
+        } else {
+          window.open(url, "_blank", "noopener,noreferrer");
+        }
+        window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+        return;
+      }
+
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filenameFromDisposition(response.headers.get("content-disposition"));
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1_000);
+    } catch (caught) {
+      if (viewer) viewer.close();
+      setError(caught instanceof Error ? caught.message : "Unable to prepare the PDF.");
+    } finally {
+      setPdfBusy(null);
+    }
   }
 
   if (error) {
     return (
-      <div className="rounded-xl border border-red-200 bg-red-50 p-8 text-center text-red-700">{error}</div>
+      <div className="border border-red-200 bg-red-50 p-8 text-center text-red-700 shadow-soft">{error}</div>
     );
   }
 
@@ -132,63 +171,80 @@ export function SubmissionDetail({ id }: { id: string }) {
 
   return (
     <div>
-      <Link href="/admin/submissions" className="text-sm font-medium text-zinc-500 hover:text-zinc-800">
-        ← Back to inductions
+      <Link href="/admin/submissions" className="text-sm font-bold uppercase tracking-wide text-zinc-600 hover:text-uplands-magenta">
+        Back to inductions
       </Link>
 
-      <div className="mt-4 flex flex-wrap items-start justify-between gap-4">
+      <div className="mt-4 flex flex-wrap items-start justify-between gap-5 border-b border-zinc-200 bg-white px-6 py-6 shadow-soft">
         <div>
-          <h1 className="text-2xl font-bold text-zinc-900">{data.fullName || "Unknown inductee"}</h1>
-          <p className="mt-1 text-sm text-zinc-500">
+          <p className="text-xs font-bold uppercase tracking-[0.28em] text-uplands-magenta">Submission record</p>
+          <h1 className="mt-2 font-slab text-3xl leading-tight text-uplands-charcoal sm:text-4xl">
+            {data.fullName || "Unknown inductee"}
+          </h1>
+          <p className="mt-2 text-sm text-uplands-muted">
             {data.reference} · {data.companyName || "No company"} · {data.siteName || "No site"}
           </p>
           <div className="mt-2 flex flex-wrap gap-2">
-            {data.isSample && <span className="rounded-full bg-blue-100 px-2.5 py-1 text-xs font-semibold text-blue-700">Sample</span>}
-            {data.pinned && <span className="rounded-full bg-uplands-magenta px-2.5 py-1 text-xs font-semibold text-white">Pinned</span>}
+            {data.isSample && <span className="bg-zinc-100 px-2.5 py-1 text-xs font-bold uppercase text-zinc-700">Sample</span>}
+            {data.pinned && <span className="bg-uplands-magenta px-2.5 py-1 text-xs font-bold uppercase text-white">Pinned</span>}
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {ready ? (
-            <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">Ready to print</span>
+            <span className="bg-emerald-50 px-3 py-1 text-xs font-bold uppercase text-emerald-700">Ready to print</span>
           ) : (
-            <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-700">Not reviewed</span>
+            <span className="bg-amber-50 px-3 py-1 text-xs font-bold uppercase text-amber-700">Not reviewed</span>
           )}
           <button
             onClick={togglePinned}
             disabled={actionBusy}
-            className="rounded-md border border-zinc-300 px-4 py-2 text-sm font-semibold text-zinc-700 hover:bg-zinc-50 disabled:opacity-60"
+            className="border border-zinc-300 px-4 py-2 text-sm font-bold uppercase tracking-wide text-zinc-700 hover:border-uplands-magenta hover:text-uplands-magenta disabled:opacity-60"
           >
             {data.pinned ? "Unpin" : "Pin"}
           </button>
           <Link
             href={`/admin/submissions/${id}/editor`}
-            className="rounded-md border border-zinc-300 px-4 py-2 text-sm font-semibold text-zinc-700 hover:bg-zinc-50"
+            className="border border-zinc-300 px-4 py-2 text-sm font-bold uppercase tracking-wide text-zinc-700 hover:border-uplands-magenta hover:text-uplands-magenta"
           >
             Edit
           </Link>
           <button
-            onClick={downloadPdf}
-            className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-semibold text-white hover:bg-zinc-700"
+            onClick={() => handlePdf("view")}
+            disabled={pdfBusy !== null}
+            className="bg-uplands-magenta px-4 py-2 text-sm font-bold uppercase tracking-wide text-white hover:bg-[#8e0075] disabled:opacity-60"
           >
-            Download PDF
+            {pdfBusy === "view" ? "Opening..." : "View PDF"}
+          </button>
+          <button
+            onClick={() => handlePdf("download")}
+            disabled={pdfBusy !== null}
+            className="bg-uplands-charcoal px-4 py-2 text-sm font-bold uppercase tracking-wide text-white hover:bg-zinc-700 disabled:opacity-60"
+          >
+            {pdfBusy === "download" ? "Preparing..." : "Download PDF"}
           </button>
           <button
             onClick={deleteCurrent}
             disabled={actionBusy}
-            className="rounded-md border border-red-200 px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:opacity-60"
+            className="border border-red-200 px-4 py-2 text-sm font-bold uppercase tracking-wide text-red-700 hover:bg-red-50 disabled:opacity-60"
           >
             Delete
           </button>
         </div>
       </div>
 
+      {pdfBusy && (
+        <p className="mt-5 border-l-4 border-uplands-magenta bg-white p-4 text-sm font-bold text-uplands-charcoal shadow-soft" role="status">
+          {pdfBusy === "view" ? "Preparing PDF viewer..." : "Preparing PDF download..."}
+        </p>
+      )}
+
       <div className="mt-6 flex gap-1 border-b border-zinc-200">
         {tabs.map((item) => (
           <button
             key={item.key}
             onClick={() => setTab(item.key)}
-            className={`rounded-t-md px-4 py-2 text-sm font-medium transition ${
-              tab === item.key ? "border-b-2 border-zinc-900 bg-white text-zinc-900" : "text-zinc-500 hover:text-zinc-800"
+            className={`px-4 py-3 text-sm font-bold uppercase tracking-wide transition ${
+              tab === item.key ? "border-b-2 border-uplands-magenta bg-white text-uplands-charcoal" : "text-zinc-500 hover:text-uplands-magenta"
             }`}
           >
             {item.label}
@@ -205,7 +261,9 @@ export function SubmissionDetail({ id }: { id: string }) {
             ready={ready}
             statusBusy={statusBusy}
             onToggleStatus={toggleStatus}
-            onDownload={downloadPdf}
+            onView={() => handlePdf("view")}
+            onDownload={() => handlePdf("download")}
+            pdfBusy={pdfBusy}
           />
         )}
       </div>
@@ -218,8 +276,8 @@ function FormTab({ printData }: { printData: UHSF1601PrintData }) {
   return (
     <div className="grid gap-6">
       {sections.map((section) => (
-        <div key={section.title} className="overflow-hidden rounded-xl border border-zinc-200 bg-white">
-          <h2 className="border-b border-zinc-100 bg-zinc-50 px-5 py-3 text-sm font-semibold text-zinc-700">
+        <div key={section.title} className="overflow-hidden border border-zinc-200 bg-white shadow-soft">
+          <h2 className="border-b border-zinc-100 bg-uplands-charcoal px-5 py-3 text-sm font-bold uppercase tracking-wide text-white">
             {section.title}
           </h2>
           <dl className="divide-y divide-zinc-100">
@@ -228,7 +286,7 @@ function FormTab({ printData }: { printData: UHSF1601PrintData }) {
                 <dt className="text-sm text-zinc-500">{row.label}</dt>
                 <dd className="text-sm font-medium text-zinc-900 sm:col-span-2">
                   {row.imageDataUrl ? (
-                    <img src={row.imageDataUrl} alt={row.label} className="max-h-20 rounded border border-zinc-200 bg-white" />
+                    <img src={row.imageDataUrl} alt={row.label} className="max-h-20 border border-zinc-200 bg-white" />
                   ) : (
                     row.text
                   )}
@@ -244,7 +302,7 @@ function FormTab({ printData }: { printData: UHSF1601PrintData }) {
 
 function DocumentsTab({ id, evidence }: { id: string; evidence: EvidenceItem[] }) {
   if (evidence.length === 0) {
-    return <p className="rounded-xl border border-zinc-200 bg-white p-8 text-center text-sm text-zinc-500">No documents were uploaded.</p>;
+    return <p className="border border-zinc-200 bg-white p-8 text-center text-sm text-zinc-500 shadow-soft">No documents were uploaded.</p>;
   }
 
   return (
@@ -253,7 +311,7 @@ function DocumentsTab({ id, evidence }: { id: string; evidence: EvidenceItem[] }
         const transform = doc.printTransform;
         const fitModeLabel = transform.fitMode === "fill" ? "Fill" : transform.fitMode === "custom" ? "Custom" : "Fit";
         return (
-          <div key={doc.id} className="overflow-hidden rounded-xl border border-zinc-200 bg-white">
+          <div key={doc.id} className="overflow-hidden border border-zinc-200 bg-white shadow-soft">
             <div className="flex aspect-[4/3] items-center justify-center overflow-hidden bg-zinc-100">
               {doc.hasOriginal ? (
                 // eslint-disable-next-line @next/next/no-img-element
@@ -275,7 +333,7 @@ function DocumentsTab({ id, evidence }: { id: string; evidence: EvidenceItem[] }
               <div className="mt-3 flex gap-2">
                 <Link
                   href={`/admin/submissions/${id}/editor?type=${doc.type}`}
-                  className="rounded-md bg-zinc-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-zinc-700"
+                  className="bg-uplands-magenta px-3 py-1.5 text-xs font-bold uppercase text-white hover:bg-[#8e0075]"
                 >
                   Edit print crop
                 </Link>
@@ -284,7 +342,7 @@ function DocumentsTab({ id, evidence }: { id: string; evidence: EvidenceItem[] }
                     href={`/api/admin/submissions/${id}/original/${doc.type}`}
                     target="_blank"
                     rel="noreferrer"
-                    className="rounded-md border border-zinc-300 px-3 py-1.5 text-xs font-semibold text-zinc-700 hover:bg-zinc-50"
+                    className="border border-zinc-300 px-3 py-1.5 text-xs font-bold uppercase text-zinc-700 hover:border-uplands-magenta hover:text-uplands-magenta"
                   >
                     Original
                   </a>
@@ -303,17 +361,21 @@ function ReviewTab({
   ready,
   statusBusy,
   onToggleStatus,
+  onView,
   onDownload,
+  pdfBusy,
 }: {
   id: string;
   ready: boolean;
   statusBusy: boolean;
   onToggleStatus: () => void;
+  onView: () => void;
   onDownload: () => void;
+  pdfBusy: "view" | "download" | null;
 }) {
   return (
-    <div className="max-w-2xl rounded-xl border border-zinc-200 bg-white p-6">
-      <h2 className="text-lg font-semibold text-zinc-900">Print preparation</h2>
+    <div className="max-w-2xl border border-zinc-200 bg-white p-6 shadow-soft">
+      <h2 className="font-slab text-2xl text-uplands-charcoal">Print preparation</h2>
       <p className="mt-1 text-sm text-zinc-500">
         Adjust how each uploaded document appears on page 2, then mark the induction ready to print.
       </p>
@@ -321,22 +383,30 @@ function ReviewTab({
       <div className="mt-6 grid gap-3">
         <Link
           href={`/admin/submissions/${id}/editor`}
-          className="rounded-md bg-zinc-900 px-4 py-2.5 text-center text-sm font-semibold text-white hover:bg-zinc-700"
+          className="bg-uplands-magenta px-4 py-2.5 text-center text-sm font-bold uppercase tracking-wide text-white hover:bg-[#8e0075]"
         >
           Open evidence editor
         </Link>
         <button
-          onClick={onDownload}
-          className="rounded-md border border-zinc-300 px-4 py-2.5 text-sm font-semibold text-zinc-700 hover:bg-zinc-50"
+          onClick={onView}
+          disabled={pdfBusy !== null}
+          className="border border-zinc-300 px-4 py-2.5 text-sm font-bold uppercase tracking-wide text-zinc-700 hover:border-uplands-magenta hover:text-uplands-magenta disabled:opacity-60"
         >
-          Download PDF
+          {pdfBusy === "view" ? "Opening PDF..." : "View PDF"}
+        </button>
+        <button
+          onClick={onDownload}
+          disabled={pdfBusy !== null}
+          className="border border-zinc-300 px-4 py-2.5 text-sm font-bold uppercase tracking-wide text-zinc-700 hover:border-uplands-magenta hover:text-uplands-magenta disabled:opacity-60"
+        >
+          {pdfBusy === "download" ? "Preparing PDF..." : "Download PDF"}
         </button>
         <button
           onClick={onToggleStatus}
           disabled={statusBusy}
-          className={`rounded-md px-4 py-2.5 text-sm font-semibold disabled:opacity-60 ${
+          className={`px-4 py-2.5 text-sm font-bold uppercase tracking-wide disabled:opacity-60 ${
             ready
-              ? "border border-zinc-300 text-zinc-700 hover:bg-zinc-50"
+              ? "border border-zinc-300 text-zinc-700 hover:border-uplands-magenta hover:text-uplands-magenta"
               : "bg-emerald-600 text-white hover:bg-emerald-500"
           }`}
         >
