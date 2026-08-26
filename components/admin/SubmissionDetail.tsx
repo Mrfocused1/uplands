@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { formatFormDisplay } from "@/lib/admin/formDisplay";
 import type { UHSF1601PrintData } from "@/types/UHSF1601PrintData";
@@ -25,6 +26,8 @@ interface SubmissionDetailData {
   siteName: string | null;
   declarationDate: string | null;
   printReviewStatus: string;
+  pinned: boolean;
+  isSample: boolean;
   createdAt: string;
   updatedAt: string;
   printData: UHSF1601PrintData;
@@ -40,10 +43,12 @@ const EVIDENCE_LABELS: Record<EvidenceType, string> = {
 type Tab = "form" | "documents" | "review";
 
 export function SubmissionDetail({ id }: { id: string }) {
+  const router = useRouter();
   const [data, setData] = useState<SubmissionDetailData | null>(null);
   const [error, setError] = useState("");
   const [tab, setTab] = useState<Tab>("form");
   const [statusBusy, setStatusBusy] = useState(false);
+  const [actionBusy, setActionBusy] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -74,6 +79,34 @@ export function SubmissionDetail({ id }: { id: string }) {
     });
     await load();
     setStatusBusy(false);
+  }
+
+  async function togglePinned() {
+    if (!data) return;
+    setActionBusy(true);
+    const response = await fetch(`/api/admin/submissions/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pinned: !data.pinned }),
+    });
+    if (response.ok) {
+      setData({ ...data, pinned: !data.pinned });
+    } else {
+      setError("Unable to update pin status.");
+    }
+    setActionBusy(false);
+  }
+
+  async function deleteCurrent() {
+    if (!data || !window.confirm(`Delete ${data.fullName || data.reference || "this induction"}?`)) return;
+    setActionBusy(true);
+    const response = await fetch(`/api/admin/submissions/${id}`, { method: "DELETE" });
+    if (response.ok) {
+      router.push("/admin/submissions");
+    } else {
+      setError("Unable to delete this submission.");
+      setActionBusy(false);
+    }
   }
 
   function downloadPdf() {
@@ -109,18 +142,42 @@ export function SubmissionDetail({ id }: { id: string }) {
           <p className="mt-1 text-sm text-zinc-500">
             {data.reference} · {data.companyName || "No company"} · {data.siteName || "No site"}
           </p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {data.isSample && <span className="rounded-full bg-blue-100 px-2.5 py-1 text-xs font-semibold text-blue-700">Sample</span>}
+            {data.pinned && <span className="rounded-full bg-uplands-magenta px-2.5 py-1 text-xs font-semibold text-white">Pinned</span>}
+          </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {ready ? (
             <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">Ready to print</span>
           ) : (
             <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-700">Not reviewed</span>
           )}
           <button
+            onClick={togglePinned}
+            disabled={actionBusy}
+            className="rounded-md border border-zinc-300 px-4 py-2 text-sm font-semibold text-zinc-700 hover:bg-zinc-50 disabled:opacity-60"
+          >
+            {data.pinned ? "Unpin" : "Pin"}
+          </button>
+          <Link
+            href={`/admin/submissions/${id}/editor`}
+            className="rounded-md border border-zinc-300 px-4 py-2 text-sm font-semibold text-zinc-700 hover:bg-zinc-50"
+          >
+            Edit
+          </Link>
+          <button
             onClick={downloadPdf}
             className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-semibold text-white hover:bg-zinc-700"
           >
             Download PDF
+          </button>
+          <button
+            onClick={deleteCurrent}
+            disabled={actionBusy}
+            className="rounded-md border border-red-200 px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:opacity-60"
+          >
+            Delete
           </button>
         </div>
       </div>

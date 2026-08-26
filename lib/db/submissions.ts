@@ -28,6 +28,8 @@ export interface SubmissionRow {
   declaration_date: string | null;
   print_review_status: string;
   print_data: string;
+  pinned: number;
+  is_sample: number;
   created_at: string;
   updated_at: string;
 }
@@ -115,10 +117,10 @@ export function listSubmissions() {
   return getDb()
     .prepare(
       `SELECT s.id, s.reference, s.full_name, s.company_name, s.site_name, s.declaration_date,
-              s.print_review_status, s.created_at, s.updated_at,
+              s.print_review_status, s.print_data, s.pinned, s.is_sample, s.created_at, s.updated_at,
               (SELECT COUNT(*) FROM evidence_documents e WHERE e.submission_id = s.id AND e.storage_path IS NOT NULL) AS evidence_count
        FROM submissions s
-       ORDER BY s.created_at DESC`,
+       ORDER BY s.pinned DESC, s.created_at DESC`,
     )
     .all() as Array<SubmissionRow & { evidence_count: number }>;
 }
@@ -171,4 +173,33 @@ export function setPrintReviewStatus(submissionId: string, status: "not_reviewed
   getDb()
     .prepare("UPDATE submissions SET print_review_status = ?, updated_at = ? WHERE id = ?")
     .run(status, now, submissionId);
+}
+
+export function setPinned(submissionId: string, pinned: boolean) {
+  const now = new Date().toISOString();
+  getDb()
+    .prepare("UPDATE submissions SET pinned = ?, updated_at = ? WHERE id = ?")
+    .run(pinned ? 1 : 0, now, submissionId);
+}
+
+export function deleteSubmission(submissionId: string) {
+  const result = getSubmission(submissionId);
+  if (!result) return false;
+
+  const paths = result.evidence
+    .map((document) => document.storage_path)
+    .filter((storagePath): storagePath is string => Boolean(storagePath));
+
+  const run = getDb().transaction(() => {
+    getDb().prepare("DELETE FROM evidence_documents WHERE submission_id = ?").run(submissionId);
+    getDb().prepare("DELETE FROM submissions WHERE id = ?").run(submissionId);
+  });
+
+  run();
+
+  paths.forEach((storagePath) => {
+    fs.rmSync(path.dirname(storagePath), { recursive: true, force: true });
+  });
+
+  return true;
 }

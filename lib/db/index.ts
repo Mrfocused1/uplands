@@ -3,6 +3,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { hashPassword } from "@/lib/auth/password";
+import { seedSampleSubmissions } from "@/lib/db/sampleSubmissions";
 
 const DATA_DIR =
   process.env.UPLANDS_DATA_DIR ?? (process.env.VERCEL ? path.join(os.tmpdir(), "uplands") : path.join(process.cwd(), "data"));
@@ -12,6 +13,13 @@ const DB_PATH = path.join(DATA_DIR, "uplands.db");
 type Db = Database.Database;
 
 const globalForDb = globalThis as unknown as { __uplandsDb?: Db };
+
+function ensureColumn(db: Db, table: string, column: string, definition: string) {
+  const columns = db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>;
+  if (!columns.some((item) => item.name === column)) {
+    db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+  }
+}
 
 function migrate(db: Db) {
   db.exec(`
@@ -64,6 +72,9 @@ function migrate(db: Db) {
     CREATE INDEX IF NOT EXISTS idx_submissions_created ON submissions(created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_evidence_submission ON evidence_documents(submission_id);
   `);
+
+  ensureColumn(db, "submissions", "pinned", "INTEGER NOT NULL DEFAULT 0");
+  ensureColumn(db, "submissions", "is_sample", "INTEGER NOT NULL DEFAULT 0");
 }
 
 function seedAdmin(db: Db) {
@@ -91,6 +102,7 @@ export function getDb(): Db {
 
     migrate(db);
     seedAdmin(db);
+    seedSampleSubmissions(db, UPLOADS_DIR);
 
     globalForDb.__uplandsDb = db;
   }
