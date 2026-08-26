@@ -7,7 +7,8 @@ import { NavigationControls } from "./NavigationControls";
 import { ProgressBar } from "./ProgressBar";
 import { ModalActions } from "./ModalActions";
 import { SignaturePad } from "./SignaturePad";
-import { DocumentUpload } from "./DocumentUpload";
+import { EvidenceUpload } from "@/components/evidence-upload/EvidenceUpload";
+import { evidenceTypeFromFieldId } from "@/config/cameraGuides";
 
 type QuestionScreenProps = {
   field: InductionField;
@@ -301,7 +302,14 @@ export function QuestionScreen({
 
             {field.type === "signature" && <SignaturePad value={signatureValue} onChange={setSignatureValue} />}
 
-            {field.type === "upload" && <DocumentUpload value={uploadValue} onChange={setUploadValue} label={field.label} />}
+            {field.type === "upload" && (
+              <EvidenceUpload
+                value={uploadValue}
+                onChange={setUploadValue}
+                label={field.label}
+                docType={evidenceTypeFromFieldId(field.id)}
+              />
+            )}
 
             {answer?.skipped && (
               <p className="mt-5 border-l-4 border-zinc-400 bg-white p-4 text-sm text-zinc-700">Previously skipped. Answering this question will replace the skipped status.</p>

@@ -91,6 +91,20 @@ export function ProgressiveInduction() {
     });
   }
 
+  function submitInduction() {
+    // Best-effort server submission; the local completion flow continues either way.
+    const data = printDataFromRecord(induction.record);
+    fetch("/api/induction/submit", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    }).catch(() => {
+      // Server persistence is non-blocking for the inductee.
+    });
+
+    induction.submit();
+  }
+
   if (!induction.hasLoaded || !induction.currentStep) {
     return (
       <div className="min-h-screen bg-uplands-paper">
@@ -174,8 +188,8 @@ export function ProgressiveInduction() {
             record={induction.record}
             fields={induction.fields}
             onBack={induction.goBack}
-            onSkip={induction.submit}
-            onSubmit={induction.submit}
+            onSkip={submitInduction}
+            onSubmit={submitInduction}
             onEdit={induction.openEdit}
           />
         )}

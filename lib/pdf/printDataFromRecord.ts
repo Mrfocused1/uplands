@@ -1,5 +1,5 @@
 import type { FieldAnswer, InductionRecord, InductionValue } from "@/types/induction";
-import type { UHSF1601PrintData } from "@/types/UHSF1601PrintData";
+import type { EvidenceKey, UploadedDocument, UHSF1601PrintData } from "@/types/UHSF1601PrintData";
 
 function printableValue(answer?: FieldAnswer): InductionValue {
   if (!answer || answer.skipped || answer.notApplicable) return null;
@@ -47,9 +47,9 @@ function imageDataUrl(answer?: FieldAnswer) {
   return typeof value === "string" && value.startsWith("data:image/") ? value : null;
 }
 
-function imageDocument(label: string, answer?: FieldAnswer) {
+function imageDocument(id: EvidenceKey, label: string, answer?: FieldAnswer): UploadedDocument | null {
   const dataUrl = imageDataUrl(answer);
-  return dataUrl ? { label, dataUrl } : null;
+  return dataUrl ? { id, label, dataUrl } : null;
 }
 
 function medicalInformation(answer?: FieldAnswer) {
@@ -107,9 +107,9 @@ export function printDataFromRecord(record: InductionRecord): UHSF1601PrintData 
     ipafCopyTaken: copyTaken(answers.ipafCopy),
     spaCopyTaken: copyTaken(answers.spaCopy),
     uploadedDocuments: [
-      imageDocument("CSCS Card", answers.cscsUpload),
-      imageDocument("Asbestos Awareness Certificate", answers.asbestosAwarenessUpload),
-      imageDocument("Manual Handling Awareness Certificate", answers.manualHandlingUpload),
-    ].filter((document): document is { label: string; dataUrl: string } => document !== null),
+      imageDocument("cscs", "CSCS Card", answers.cscsUpload),
+      imageDocument("asbestos", "Asbestos Awareness Certificate", answers.asbestosAwarenessUpload),
+      imageDocument("manualHandling", "Manual Handling Awareness Certificate", answers.manualHandlingUpload),
+    ].filter((document): document is UploadedDocument => document !== null),
   };
 }

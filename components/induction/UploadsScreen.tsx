@@ -6,7 +6,8 @@ import { sectionLabels } from "@/config/uhsf1601Schema";
 import { NavigationControls } from "./NavigationControls";
 import { ProgressBar } from "./ProgressBar";
 import { ModalActions } from "./ModalActions";
-import { DocumentUpload } from "./DocumentUpload";
+import { EvidenceUpload } from "@/components/evidence-upload/EvidenceUpload";
+import { evidenceTypeFromFieldId } from "@/config/cameraGuides";
 
 type UploadsScreenProps = {
   fields: InductionField[];
@@ -92,10 +93,11 @@ export function UploadsScreen({
             <div key={field.id} className="border border-zinc-200 bg-white p-5 shadow-soft sm:p-6">
               <p className="mb-4 text-base font-bold text-uplands-charcoal">{field.label}</p>
               {field.description && <p className="mb-4 text-sm leading-6 text-zinc-600">{field.description}</p>}
-              <DocumentUpload
+              <EvidenceUpload
                 value={values[field.id]}
                 onChange={(next) => setValues((prev) => ({ ...prev, [field.id]: next }))}
                 label={field.label}
+                docType={evidenceTypeFromFieldId(field.id)}
               />
             </div>
           ))}

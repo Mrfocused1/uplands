@@ -1,6 +1,16 @@
+import type { EvidencePrintTransform, EvidenceType } from "@/types/evidence";
+
+export type EvidenceKey = EvidenceType;
+
 export interface UploadedDocument {
+  id: EvidenceKey;
   label: string;
-  dataUrl: string;
+  /** Inductee self-serve path: base64 data URL of the uploaded image/PDF. */
+  dataUrl?: string;
+  /** Admin path: filesystem path to the stored original. */
+  storagePath?: string;
+  mimeType?: string;
+  transform?: EvidencePrintTransform;
 }
 
 export interface UHSF1601PrintData {
