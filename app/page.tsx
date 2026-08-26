@@ -31,7 +31,7 @@ export default function Home() {
             <Link className="hover:text-uplands-magenta" href="#support">
               Support
             </Link>
-            <Link className="hover:text-uplands-magenta" href="/admin">
+            <Link className="hover:text-uplands-magenta" href="/admin/submissions">
               Admin
             </Link>
             <Link className="hover:text-uplands-magenta" href="/form">
@@ -58,7 +58,7 @@ export default function Home() {
               <Link className="block py-3 hover:text-uplands-magenta" href="#support">
                 Support
               </Link>
-              <Link className="block py-3 hover:text-uplands-magenta" href="/admin">
+              <Link className="block py-3 hover:text-uplands-magenta" href="/admin/submissions">
                 Admin
               </Link>
               <Link className="mt-3 block bg-uplands-magenta px-4 py-3 text-center text-white" href="/form">
@@ -130,9 +130,9 @@ export default function Home() {
             </div>
             <div className="space-y-5 text-lg leading-8 text-uplands-muted">
               <p>
-                The flow guides the inductee through personal details, competence and training, and declarations — and
-                prompts them to photograph their CSCS card, Asbestos Awareness and Manual Handling Awareness
-                certificates. The Uplands Inductor section is left blank on the printed form to be completed by hand.
+                The flow guides the inductee through personal details, competence and training, and declarations, then
+                gives the Uplands Inductor a dedicated acknowledgement section for the site, PPE checks, document-copy
+                checks and sign-off.
               </p>
               <p>
                 It is built for phones first, with large controls, clear progress, signature capture and a review stage

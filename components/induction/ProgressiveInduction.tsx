@@ -50,6 +50,8 @@ export function ProgressiveInduction() {
   const induction = useInduction();
   const [pdfBusy, setPdfBusy] = useState(false);
   const [pdfError, setPdfError] = useState("");
+  const [submitBusy, setSubmitBusy] = useState(false);
+  const [submitError, setSubmitError] = useState("");
 
   async function runPdfAction(action: (blob: Blob, data: UHSF1601PrintData) => void | Promise<void>) {
     setPdfBusy(true);
@@ -91,18 +93,33 @@ export function ProgressiveInduction() {
     });
   }
 
-  function submitInduction() {
-    // Best-effort server submission; the local completion flow continues either way.
-    const data = printDataFromRecord(induction.record);
-    fetch("/api/induction/submit", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
-    }).catch(() => {
-      // Server persistence is non-blocking for the inductee.
-    });
+  async function submitInduction() {
+    if (submitBusy) return;
 
-    induction.submit();
+    setSubmitBusy(true);
+    setSubmitError("");
+
+    const data = printDataFromRecord(induction.record);
+
+    try {
+      const response = await fetch("/api/induction/submit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+
+      const result = (await response.json().catch(() => null)) as { reference?: string; error?: string } | null;
+
+      if (!response.ok) {
+        throw new Error(result?.error || "Unable to save the induction to Admin.");
+      }
+
+      induction.submit(result?.reference);
+    } catch (error) {
+      setSubmitError(error instanceof Error ? error.message : "Unable to save the induction to Admin.");
+    } finally {
+      setSubmitBusy(false);
+    }
   }
 
   if (!induction.hasLoaded || !induction.currentStep) {
@@ -191,6 +208,8 @@ export function ProgressiveInduction() {
             onSkip={submitInduction}
             onSubmit={submitInduction}
             onEdit={induction.openEdit}
+            submitBusy={submitBusy}
+            submitError={submitError}
           />
         )}
 

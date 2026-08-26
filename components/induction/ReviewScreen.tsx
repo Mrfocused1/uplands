@@ -12,11 +12,13 @@ type ReviewScreenProps = {
   onSkip: () => void;
   onSubmit: () => void;
   onEdit: (fieldId: string) => void;
+  submitBusy?: boolean;
+  submitError?: string;
 };
 
-const sectionOrder = ["personal", "competence", "declaration"] as const;
+const sectionOrder = ["personal", "competence", "declaration", "acknowledgement"] as const;
 
-export function ReviewScreen({ record, fields, onBack, onSkip, onSubmit, onEdit }: ReviewScreenProps) {
+export function ReviewScreen({ record, fields, onBack, onSkip, onSubmit, onEdit, submitBusy = false, submitError = "" }: ReviewScreenProps) {
   const status = calculateCompletionStatus(record.answers);
   const ramsBriefingAnswer = record.answers.ramsBriefing;
   const needsRamsWarning = ramsBriefingAnswer?.value === "No" || ramsBriefingAnswer?.skipped;
@@ -35,6 +37,11 @@ export function ReviewScreen({ record, fields, onBack, onSkip, onSubmit, onEdit 
         {needsRamsWarning && (
           <div className="mt-6 border-l-4 border-uplands-magenta bg-white p-5 text-sm font-bold leading-6 text-uplands-charcoal shadow-soft">
             Your induction can be recorded, however the original Uplands form states that no one is permitted to commence work without being briefed on their Risk Assessment and Method Statement.
+          </div>
+        )}
+        {submitError && (
+          <div className="mt-6 border-l-4 border-red-600 bg-white p-5 text-sm font-bold leading-6 text-red-700 shadow-soft" role="alert">
+            {submitError}
           </div>
         )}
 
@@ -76,7 +83,15 @@ export function ReviewScreen({ record, fields, onBack, onSkip, onSubmit, onEdit 
           ))}
         </div>
       </div>
-      <NavigationControls canGoBack onBack={onBack} onSkip={onSkip} onContinue={onSubmit} continueLabel="Submit induction" />
+      <NavigationControls
+        canGoBack
+        onBack={onBack}
+        onSkip={onSkip}
+        onContinue={onSubmit}
+        continueLabel={submitBusy ? "Saving" : "Submit induction"}
+        continueDisabled={submitBusy}
+        showSkip={false}
+      />
     </div>
   );
 }

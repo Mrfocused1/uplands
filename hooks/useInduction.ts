@@ -9,6 +9,7 @@ import { createInitialRecord, useInductionPersistence } from "./useInductionPers
 const reviewStepId = "review";
 
 const inducteeFields = uhsf1601Schema.filter((field) => field.role === "inductee");
+const workflowFields = uhsf1601Schema;
 
 type WizardStep =
   | { kind: "field"; field: InductionField }
@@ -122,7 +123,7 @@ function evaluateVisibleFields(answers: InductionRecord["answers"]) {
   const workingAnswers = { ...answers };
   const visible: InductionField[] = [];
 
-  inducteeFields.forEach((field) => {
+  workflowFields.forEach((field) => {
     const nA = notApplicableAnswer(field, workingAnswers);
     if (nA) {
       workingAnswers[field.id] = nA;
@@ -345,11 +346,11 @@ export function useInduction() {
     });
   }, [applyConditionalNotApplicable, currentStep, screen, updateRecord]);
 
-  const submit = useCallback(() => {
+  const submit = useCallback((reference?: string) => {
     updateRecord((current) => {
       const submitted = {
         ...current,
-        reference: current.reference ?? generateReference(),
+        reference: reference ?? current.reference ?? generateReference(),
         submittedAt: current.submittedAt ?? now(),
         status: calculateCompletionStatus(current.answers),
       };
