@@ -11,6 +11,7 @@ type CompletionScreenProps = {
   onPrintPdf: () => void;
   onStartAnother: () => void;
   pdfBusy?: boolean;
+  pdfAction?: "view" | "download" | "print" | null;
   pdfError?: string;
 };
 
@@ -27,6 +28,7 @@ export function CompletionScreen({
   onPrintPdf,
   onStartAnother,
   pdfBusy,
+  pdfAction,
   pdfError,
 }: CompletionScreenProps) {
   const status = record.status ?? calculateCompletionStatus(record.answers);
@@ -38,6 +40,13 @@ export function CompletionScreen({
     ["Reference", record.reference ?? "Not submitted"],
     ["Status", status],
   ];
+  const loadingMessage = pdfAction
+    ? {
+        view: "Preparing completed form...",
+        download: "Preparing PDF download...",
+        print: "Preparing printable PDF...",
+      }[pdfAction]
+    : "Preparing PDF...";
 
   return (
     <div className="min-h-screen px-5 py-10 sm:px-8">
@@ -55,6 +64,13 @@ export function CompletionScreen({
           </dl>
         </div>
 
+        {pdfBusy && (
+          <div className="mt-5 flex items-center gap-3 border-l-4 border-uplands-magenta bg-white p-4 text-sm font-bold text-uplands-charcoal shadow-soft" role="status" aria-live="polite">
+            <span className="h-5 w-5 shrink-0 animate-spin rounded-full border-2 border-uplands-magenta border-t-transparent" aria-hidden="true" />
+            <span>{loadingMessage}</span>
+          </div>
+        )}
+
         {pdfError && (
           <p className="mt-5 border-l-4 border-red-600 bg-white p-4 text-sm font-bold text-red-700" role="alert">
             {pdfError}
@@ -68,7 +84,7 @@ export function CompletionScreen({
             disabled={pdfBusy}
             className="min-h-12 border border-zinc-300 bg-white px-4 font-bold text-uplands-charcoal disabled:cursor-not-allowed disabled:opacity-60"
           >
-            View completed form
+            {pdfAction === "view" ? "Preparing form..." : "View completed form"}
           </button>
           <button
             type="button"
@@ -76,7 +92,7 @@ export function CompletionScreen({
             disabled={pdfBusy}
             className="min-h-12 border border-zinc-300 bg-white px-4 font-bold text-uplands-charcoal disabled:cursor-not-allowed disabled:opacity-60"
           >
-            Download PDF
+            {pdfAction === "download" ? "Preparing download..." : "Download PDF"}
           </button>
           <button
             type="button"
@@ -84,7 +100,7 @@ export function CompletionScreen({
             disabled={pdfBusy}
             className="min-h-12 border border-zinc-300 bg-white px-4 font-bold text-uplands-charcoal disabled:cursor-not-allowed disabled:opacity-60"
           >
-            Print
+            {pdfAction === "print" ? "Preparing print..." : "Print"}
           </button>
           <button type="button" onClick={onStartAnother} className="min-h-12 bg-uplands-magenta px-4 font-bold text-white">
             Start another induction

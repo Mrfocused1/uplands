@@ -13,6 +13,8 @@ import { documentMetadata, sectionLabels } from "@/config/uhsf1601Schema";
 import { printDataFromRecord } from "@/lib/pdf/printDataFromRecord";
 import type { UHSF1601PrintData } from "@/types/UHSF1601PrintData";
 
+type PdfAction = "view" | "download" | "print";
+
 function pdfFilename(data: UHSF1601PrintData) {
   const safeName =
     data.fullName
@@ -50,11 +52,16 @@ export function ProgressiveInduction() {
   const induction = useInduction();
   const [pdfBusy, setPdfBusy] = useState(false);
   const [pdfError, setPdfError] = useState("");
+  const [pdfAction, setPdfAction] = useState<PdfAction | null>(null);
   const [submitBusy, setSubmitBusy] = useState(false);
   const [submitError, setSubmitError] = useState("");
 
-  async function runPdfAction(action: (blob: Blob, data: UHSF1601PrintData) => void | Promise<void>) {
+  async function runPdfAction(
+    actionName: PdfAction,
+    action: (blob: Blob, data: UHSF1601PrintData) => void | Promise<void>,
+  ) {
     setPdfBusy(true);
+    setPdfAction(actionName);
     setPdfError("");
 
     try {
@@ -65,17 +72,18 @@ export function ProgressiveInduction() {
       setPdfError(error instanceof Error ? error.message : "Unable to generate UHSF16.01 PDF");
     } finally {
       setPdfBusy(false);
+      setPdfAction(null);
     }
   }
 
   function viewCompletedForm() {
-    void runPdfAction((blob) => {
+    void runPdfAction("view", (blob) => {
       openPdfUrl(blob);
     });
   }
 
   function downloadPdf() {
-    void runPdfAction((blob, data) => {
+    void runPdfAction("download", (blob, data) => {
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
@@ -88,7 +96,7 @@ export function ProgressiveInduction() {
   }
 
   function printPdf() {
-    void runPdfAction((blob) => {
+    void runPdfAction("print", (blob) => {
       openPdfUrl(blob);
     });
   }
@@ -222,6 +230,7 @@ export function ProgressiveInduction() {
             onPrintPdf={printPdf}
             onStartAnother={induction.startAnother}
             pdfBusy={pdfBusy}
+            pdfAction={pdfAction}
             pdfError={pdfError}
           />
         )}
