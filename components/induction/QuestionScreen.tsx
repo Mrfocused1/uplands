@@ -5,6 +5,7 @@ import type { FieldAnswer, InductionField, InductionValue } from "@/types/induct
 import { sectionLabels } from "@/config/uhsf1601Schema";
 import { NavigationControls } from "./NavigationControls";
 import { ProgressBar } from "./ProgressBar";
+import { ModalActions } from "./ModalActions";
 import { SignaturePad } from "./SignaturePad";
 import { DocumentUpload } from "./DocumentUpload";
 
@@ -20,6 +21,7 @@ type QuestionScreenProps = {
   onSkip: () => void;
   onContinue: (value: InductionValue) => void;
   onInformationContinue: () => void;
+  onCancel?: () => void;
 };
 
 function valueToString(value: InductionValue | undefined) {
@@ -38,6 +40,7 @@ export function QuestionScreen({
   onSkip,
   onContinue,
   onInformationContinue,
+  onCancel,
 }: QuestionScreenProps) {
   const [textValue, setTextValue] = useState(valueToString(answer?.value ?? defaultValue));
   const [choiceValue, setChoiceValue] = useState<string | boolean | null>(answer?.value ?? null);
@@ -318,9 +321,13 @@ export function QuestionScreen({
           </div>
         </div>
 
-        <ProgressBar progress={progress} current={current} total={total} />
+        {!onCancel && <ProgressBar progress={progress} current={current} total={total} />}
       </div>
-      <NavigationControls canGoBack={canGoBack} onBack={onBack} onSkip={onSkip} onContinue={continueCurrent} continueLabel={continueLabel} showSkip={field.type !== "information"} />
+      {onCancel ? (
+        <ModalActions onCancel={onCancel} onSave={continueCurrent} />
+      ) : (
+        <NavigationControls canGoBack={canGoBack} onBack={onBack} onSkip={onSkip} onContinue={continueCurrent} continueLabel={continueLabel} showSkip={field.type !== "information"} />
+      )}
     </div>
   );
 }

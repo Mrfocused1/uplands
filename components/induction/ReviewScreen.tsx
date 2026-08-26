@@ -60,13 +60,15 @@ export function ReviewScreen({ record, fields, onBack, onSkip, onSubmit, onEdit 
                       ) : (
                         <p className="text-zinc-700">{displayAnswer(field, record.answers[field.id])}</p>
                       )}
-                      <button
-                        type="button"
-                        onClick={() => onEdit(field.id)}
-                        className="min-h-11 justify-self-start border border-zinc-300 px-4 font-bold text-uplands-magenta focus:outline-none focus:ring-2 focus:ring-uplands-magenta"
-                      >
-                        Edit
-                      </button>
+                      {field.type !== "information" && (
+                        <button
+                          type="button"
+                          onClick={() => onEdit(field.id)}
+                          className="min-h-11 justify-self-start border border-zinc-300 px-4 font-bold text-uplands-magenta focus:outline-none focus:ring-2 focus:ring-uplands-magenta"
+                        >
+                          Edit
+                        </button>
+                      )}
                     </div>
                   ))}
               </div>

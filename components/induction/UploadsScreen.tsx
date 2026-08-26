@@ -5,6 +5,7 @@ import type { FieldAnswer, InductionField, InductionValue } from "@/types/induct
 import { sectionLabels } from "@/config/uhsf1601Schema";
 import { NavigationControls } from "./NavigationControls";
 import { ProgressBar } from "./ProgressBar";
+import { ModalActions } from "./ModalActions";
 import { DocumentUpload } from "./DocumentUpload";
 
 type UploadsScreenProps = {
@@ -17,6 +18,7 @@ type UploadsScreenProps = {
   onBack: () => void;
   onSkip: () => void;
   onContinue: (values: Record<string, InductionValue>) => void;
+  onCancel?: () => void;
 };
 
 function stringValue(answer: FieldAnswer | undefined) {
@@ -33,6 +35,7 @@ export function UploadsScreen({
   onBack,
   onSkip,
   onContinue,
+  onCancel,
 }: UploadsScreenProps) {
   const [values, setValues] = useState<Record<string, string | null>>(() => {
     const initial: Record<string, string | null> = {};
@@ -98,9 +101,13 @@ export function UploadsScreen({
           ))}
         </div>
 
-        <ProgressBar progress={progress} current={current} total={total} />
+        {!onCancel && <ProgressBar progress={progress} current={current} total={total} />}
       </div>
-      <NavigationControls canGoBack={canGoBack} onBack={onBack} onSkip={onSkip} onContinue={continueUploads} />
+      {onCancel ? (
+        <ModalActions onCancel={onCancel} onSave={continueUploads} />
+      ) : (
+        <NavigationControls canGoBack={canGoBack} onBack={onBack} onSkip={onSkip} onContinue={continueUploads} />
+      )}
     </div>
   );
 }

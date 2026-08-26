@@ -5,6 +5,7 @@ import type { FieldAnswer, InductionField, InductionValue } from "@/types/induct
 import { sectionLabels } from "@/config/uhsf1601Schema";
 import { NavigationControls } from "./NavigationControls";
 import { ProgressBar } from "./ProgressBar";
+import { ModalActions } from "./ModalActions";
 import { SignaturePad } from "./SignaturePad";
 
 type DeclarationScreenProps = {
@@ -17,6 +18,7 @@ type DeclarationScreenProps = {
   onBack: () => void;
   onSkip: () => void;
   onContinue: (values: Record<string, InductionValue>) => void;
+  onCancel?: () => void;
 };
 
 function today() {
@@ -37,6 +39,7 @@ export function DeclarationScreen({
   onBack,
   onSkip,
   onContinue,
+  onCancel,
 }: DeclarationScreenProps) {
   const declarationFields = fields.filter((field) => field.type === "declaration");
   const signatureField = fields.find((field) => field.type === "signature");
@@ -174,9 +177,13 @@ export function DeclarationScreen({
           </p>
         )}
 
-        <ProgressBar progress={progress} current={current} total={total} />
+        {!onCancel && <ProgressBar progress={progress} current={current} total={total} />}
       </div>
-      <NavigationControls canGoBack={canGoBack} onBack={onBack} onSkip={onSkip} onContinue={continueDeclaration} />
+      {onCancel ? (
+        <ModalActions onCancel={onCancel} onSave={continueDeclaration} />
+      ) : (
+        <NavigationControls canGoBack={canGoBack} onBack={onBack} onSkip={onSkip} onContinue={continueDeclaration} />
+      )}
     </div>
   );
 }

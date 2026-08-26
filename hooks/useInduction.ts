@@ -45,6 +45,35 @@ function nextStepAfter(answers: InductionRecord["answers"], fromId: string) {
   return nextStep ? stepIdOf(nextStep) : null;
 }
 
+function stepForField(fieldId: string, visibleFields: InductionField[]): WizardStep {
+  const target = uhsf1601Schema.find((field) => field.id === fieldId);
+  const fallback = uhsf1601Schema[0];
+  if (!target) return { kind: "field", field: fallback };
+
+  if (target.group) {
+    return {
+      kind: "group",
+      groupId: target.group,
+      fields: uhsf1601Schema.filter((field) => field.group === target.group),
+    };
+  }
+
+  if (visibleFields.some((field) => field.id === fieldId)) {
+    return { kind: "field", field: target };
+  }
+
+  const controllingId = target.conditional?.field ?? fieldId;
+  const controlling = uhsf1601Schema.find((field) => field.id === controllingId) ?? target;
+  if (controlling.group) {
+    return {
+      kind: "group",
+      groupId: controlling.group,
+      fields: uhsf1601Schema.filter((field) => field.group === controlling.group),
+    };
+  }
+  return { kind: "field", field: controlling };
+}
+
 function now() {
   return new Date().toISOString();
 }
@@ -147,6 +176,7 @@ export function useInduction() {
   const { record, updateRecord, resetRecord, hasLoaded } = useInductionPersistence(firstStepId);
   const [screen, setScreen] = useState<"wizard" | "review" | "completion" | "record">("wizard");
   const [stepId, setStepId] = useState(firstStepId);
+  const [editStep, setEditStep] = useState<WizardStep | null>(null);
 
   useEffect(() => {
     if (hasLoaded && record.currentStepId && record.currentStepId !== reviewStepId) {
@@ -335,21 +365,45 @@ export function useInduction() {
     setScreen("wizard");
   }, [firstStepId, resetRecord]);
 
-  const editField = useCallback(
+  const openEdit = useCallback(
     (fieldId: string) => {
-      const targetField = uhsf1601Schema.find((field) => field.id === fieldId);
-      if (targetField?.group) {
-        setStepId(targetField.group);
-      } else if (visibleFields.some((field) => field.id === fieldId)) {
-        setStepId(fieldId);
-      } else {
-        const controllingId = targetField?.conditional?.field ?? fieldId;
-        const controllingField = uhsf1601Schema.find((field) => field.id === controllingId);
-        setStepId(controllingField?.group ?? controllingId);
-      }
-      setScreen("wizard");
+      setEditStep(stepForField(fieldId, visibleFields));
     },
     [visibleFields],
+  );
+
+  const closeEdit = useCallback(() => {
+    setEditStep(null);
+  }, []);
+
+  const saveEdit = useCallback(
+    (values: Record<string, InductionValue>) => {
+      if (!editStep) return;
+      const fields = editStep.kind === "field" ? [editStep.field] : editStep.fields;
+      updateRecord((current) => {
+        const nextAnswers = { ...current.answers };
+        fields.forEach((field) => {
+          if (field.id in values) {
+            const value = values[field.id];
+            nextAnswers[field.id] =
+              value === null
+                ? { value: null, skipped: true, skippedAt: now(), updatedAt: now() }
+                : { value, updatedAt: now() };
+          }
+        });
+        return { ...current, answers: applyConditionalNotApplicable(nextAnswers) };
+      });
+      setEditStep(null);
+    },
+    [editStep, applyConditionalNotApplicable, updateRecord],
+  );
+
+  const saveFieldEdit = useCallback(
+    (value: InductionValue) => {
+      if (!editStep || editStep.kind !== "field") return;
+      saveEdit({ [editStep.field.id]: value });
+    },
+    [editStep, saveEdit],
   );
 
   const continueInfo = useCallback(() => {
@@ -388,7 +442,11 @@ export function useInduction() {
     continueInfo,
     persistAnswer,
     skipCurrent,
-    editField,
+    editStep,
+    openEdit,
+    closeEdit,
+    saveEdit,
+    saveFieldEdit,
     submit,
     startAnother,
     setScreen,

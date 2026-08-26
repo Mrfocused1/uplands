@@ -101,6 +101,7 @@ export function ProgressiveInduction() {
   }
 
   const currentStep = induction.currentStep;
+  const editStep = induction.editStep;
 
   return (
     <div className="min-h-screen bg-uplands-paper">
@@ -175,7 +176,7 @@ export function ProgressiveInduction() {
             onBack={induction.goBack}
             onSkip={induction.submit}
             onSubmit={induction.submit}
-            onEdit={induction.editField}
+            onEdit={induction.openEdit}
           />
         )}
 
@@ -203,6 +204,77 @@ export function ProgressiveInduction() {
           {sectionLabels.acknowledgement.title}
         </p>
       </footer>
+
+      {editStep && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/50">
+          <div className="mx-auto my-4 max-w-3xl bg-uplands-paper shadow-2xl sm:my-8">
+            {editStep.kind === "field" && (
+              <QuestionScreen
+                field={editStep.field}
+                answer={induction.record.answers[editStep.field.id]}
+                defaultValue={null}
+                current={1}
+                total={1}
+                progress={100}
+                canGoBack={false}
+                onBack={induction.closeEdit}
+                onSkip={induction.closeEdit}
+                onContinue={induction.saveFieldEdit}
+                onInformationContinue={induction.closeEdit}
+                onCancel={induction.closeEdit}
+              />
+            )}
+
+            {editStep.kind === "group" && editStep.groupId === "competence-checklist" && (
+              <ChecklistScreen
+                key={editStep.groupId}
+                fields={editStep.fields}
+                answers={induction.record.answers}
+                current={1}
+                total={1}
+                progress={100}
+                canGoBack={false}
+                onBack={induction.closeEdit}
+                onSkip={induction.closeEdit}
+                onContinue={induction.saveEdit}
+                onCancel={induction.closeEdit}
+              />
+            )}
+
+            {editStep.kind === "group" && editStep.groupId === "declaration-group" && (
+              <DeclarationScreen
+                key={editStep.groupId}
+                fields={editStep.fields}
+                answers={induction.record.answers}
+                current={1}
+                total={1}
+                progress={100}
+                canGoBack={false}
+                onBack={induction.closeEdit}
+                onSkip={induction.closeEdit}
+                onContinue={induction.saveEdit}
+                onCancel={induction.closeEdit}
+              />
+            )}
+
+            {editStep.kind === "group" && editStep.groupId === "document-uploads" && (
+              <UploadsScreen
+                key={editStep.groupId}
+                fields={editStep.fields}
+                answers={induction.record.answers}
+                current={1}
+                total={1}
+                progress={100}
+                canGoBack={false}
+                onBack={induction.closeEdit}
+                onSkip={induction.closeEdit}
+                onContinue={induction.saveEdit}
+                onCancel={induction.closeEdit}
+              />
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

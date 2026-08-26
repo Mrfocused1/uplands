@@ -5,6 +5,7 @@ import type { FieldAnswer, InductionField, InductionValue } from "@/types/induct
 import { sectionLabels } from "@/config/uhsf1601Schema";
 import { NavigationControls } from "./NavigationControls";
 import { ProgressBar } from "./ProgressBar";
+import { ModalActions } from "./ModalActions";
 
 type ChecklistScreenProps = {
   fields: InductionField[];
@@ -16,6 +17,7 @@ type ChecklistScreenProps = {
   onBack: () => void;
   onSkip: () => void;
   onContinue: (values: Record<string, InductionValue>) => void;
+  onCancel?: () => void;
 };
 
 type YesNo = "Yes" | "No";
@@ -34,6 +36,7 @@ export function ChecklistScreen({
   onBack,
   onSkip,
   onContinue,
+  onCancel,
 }: ChecklistScreenProps) {
   const [values, setValues] = useState<Record<string, YesNo | null>>(() => {
     const initial: Record<string, YesNo | null> = {};
@@ -135,9 +138,13 @@ export function ChecklistScreen({
           </p>
         )}
 
-        <ProgressBar progress={progress} current={current} total={total} />
+        {!onCancel && <ProgressBar progress={progress} current={current} total={total} />}
       </div>
-      <NavigationControls canGoBack={canGoBack} onBack={onBack} onSkip={onSkip} onContinue={continueChecklist} />
+      {onCancel ? (
+        <ModalActions onCancel={onCancel} onSave={continueChecklist} />
+      ) : (
+        <NavigationControls canGoBack={canGoBack} onBack={onBack} onSkip={onSkip} onContinue={continueChecklist} />
+      )}
     </div>
   );
 }
