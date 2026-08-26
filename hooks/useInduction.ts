@@ -9,6 +9,8 @@ import { createInitialRecord, useInductionPersistence } from "./useInductionPers
 const reviewStepId = "review";
 const completionStepId = "completion";
 
+const inducteeFields = uhsf1601Schema.filter((field) => field.role === "inductee");
+
 function now() {
   return new Date().toISOString();
 }
@@ -57,7 +59,7 @@ function evaluateVisibleFields(answers: InductionRecord["answers"]) {
   const workingAnswers = { ...answers };
   const visible: InductionField[] = [];
 
-  uhsf1601Schema.forEach((field) => {
+  inducteeFields.forEach((field) => {
     const nA = notApplicableAnswer(field, workingAnswers);
     if (nA) {
       workingAnswers[field.id] = nA;
@@ -85,8 +87,8 @@ export function calculateCompletionStatus(answers: InductionRecord["answers"]): 
     return "REQUIRES REVIEW";
   }
 
-  const anySkipped = uhsf1601Schema.some((field) => answers[field.id]?.skipped);
-  const anyMissingVisible = uhsf1601Schema.some((field) => conditionMet(field, answers) && !answers[field.id]);
+  const anySkipped = inducteeFields.some((field) => answers[field.id]?.skipped);
+  const anyMissingVisible = inducteeFields.some((field) => conditionMet(field, answers) && !answers[field.id]);
 
   if (anySkipped || anyMissingVisible) return "INCOMPLETE";
   return "COMPLETE";
@@ -100,6 +102,7 @@ export function displayAnswer(field: InductionField, answer?: FieldAnswer) {
   if (field.type === "presence") return answer.value === "Present" ? "Present" : "Not present";
   if (field.type === "copy-status") return answer.value === "Copy taken" ? "Copy taken" : "Not taken";
   if (field.type === "signature") return answer.value ? "Signature provided" : "Signature not provided";
+  if (field.type === "upload") return answer.value ? "Image attached" : "Image not attached";
   if (answer.value === true) return "Yes";
   if (answer.value === false) return "No";
   return answer.value ? String(answer.value) : "Not provided";

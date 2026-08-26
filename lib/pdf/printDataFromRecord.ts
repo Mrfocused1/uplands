@@ -42,6 +42,16 @@ function signature(answer?: FieldAnswer) {
   return typeof value === "string" && value.startsWith("data:image/png;base64,") ? value : null;
 }
 
+function imageDataUrl(answer?: FieldAnswer) {
+  const value = printableValue(answer);
+  return typeof value === "string" && value.startsWith("data:image/") ? value : null;
+}
+
+function imageDocument(label: string, answer?: FieldAnswer) {
+  const dataUrl = imageDataUrl(answer);
+  return dataUrl ? { label, dataUrl } : null;
+}
+
 function medicalInformation(answer?: FieldAnswer) {
   const value = text(answer);
   return value && value !== "No" ? value : null;
@@ -96,5 +106,10 @@ export function printDataFromRecord(record: InductionRecord): UHSF1601PrintData 
     aaCertificateCopyTaken: copyTaken(answers.aaCertCopy),
     ipafCopyTaken: copyTaken(answers.ipafCopy),
     spaCopyTaken: copyTaken(answers.spaCopy),
+    uploadedDocuments: [
+      imageDocument("CSCS Card", answers.cscsUpload),
+      imageDocument("Asbestos Awareness Certificate", answers.asbestosAwarenessUpload),
+      imageDocument("Manual Handling Awareness Certificate", answers.manualHandlingUpload),
+    ].filter((document): document is { label: string; dataUrl: string } => document !== null),
   };
 }

@@ -66,7 +66,7 @@ export function CompletionScreen({
           </div>
           <p className="mt-4 text-center text-sm leading-6 text-zinc-600">
             The completed form is generated as a real A4 PDF using the immutable UHSF16.01 PNG background with answers
-            overlaid onto the original blank fields.
+            overlaid onto the original blank fields, and any uploaded documents appended as extra pages.
           </p>
         </div>
 

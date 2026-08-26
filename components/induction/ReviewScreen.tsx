@@ -14,7 +14,7 @@ type ReviewScreenProps = {
   onEdit: (fieldId: string) => void;
 };
 
-const sectionOrder = ["personal", "competence", "declaration", "acknowledgement"] as const;
+const sectionOrder = ["personal", "competence", "declaration"] as const;
 
 export function ReviewScreen({ record, fields, onBack, onSkip, onSubmit, onEdit }: ReviewScreenProps) {
   const status = calculateCompletionStatus(record.answers);
@@ -51,7 +51,15 @@ export function ReviewScreen({ record, fields, onBack, onSkip, onSubmit, onEdit 
                         <p className="font-bold text-zinc-900">{field.label}</p>
                         {field.originalLabel && <p className="mt-1 text-sm uppercase text-zinc-500">{field.originalLabel}</p>}
                       </div>
-                      <p className="text-zinc-700">{displayAnswer(field, record.answers[field.id])}</p>
+                      {field.type === "upload" && typeof record.answers[field.id]?.value === "string" ? (
+                        <img
+                          src={record.answers[field.id].value as string}
+                          alt={field.label}
+                          className="max-h-40 w-full max-w-[240px] rounded border border-zinc-200 bg-white object-contain"
+                        />
+                      ) : (
+                        <p className="text-zinc-700">{displayAnswer(field, record.answers[field.id])}</p>
+                      )}
                       <button
                         type="button"
                         onClick={() => onEdit(field.id)}

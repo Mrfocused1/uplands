@@ -14,7 +14,8 @@ export type InductionFieldType =
   | "declaration"
   | "signature"
   | "information"
-  | "medical";
+  | "medical"
+  | "upload";
 
 export type InductionValue = string | boolean | null;
 

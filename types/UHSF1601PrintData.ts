@@ -1,3 +1,8 @@
+export interface UploadedDocument {
+  label: string;
+  dataUrl: string;
+}
+
 export interface UHSF1601PrintData {
   fullName?: string | null;
   contactNumber?: string | null;
@@ -44,4 +49,5 @@ export interface UHSF1601PrintData {
   aaCertificateCopyTaken?: boolean | null;
   ipafCopyTaken?: boolean | null;
   spaCopyTaken?: boolean | null;
+  uploadedDocuments?: UploadedDocument[];
 }

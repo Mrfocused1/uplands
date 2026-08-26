@@ -1,6 +1,6 @@
-import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf-lib";
+import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage, type PDFImage } from "pdf-lib";
 import { UHSF1601_PRINT_MAP, type PixelRect } from "@/config/uhsf1601PrintMap";
-import type { UHSF1601PrintData } from "@/types/UHSF1601PrintData";
+import type { UHSF1601PrintData, UploadedDocument } from "@/types/UHSF1601PrintData";
 
 const TEMPLATE_WIDTH = 1055;
 const TEMPLATE_HEIGHT = 1491;
@@ -199,6 +199,52 @@ async function drawSignature(pdfDoc: PDFDocument, page: PDFPage, dataUrl: string
   });
 }
 
+async function embedImageFromDataUrl(pdfDoc: PDFDocument, dataUrl: string): Promise<PDFImage> {
+  const comma = dataUrl.indexOf(",");
+  if (comma === -1) throw new Error("Invalid image data");
+
+  const header = dataUrl.slice(0, comma);
+  const binary = Buffer.from(dataUrl.slice(comma + 1), "base64");
+  return header.includes("image/png") ? pdfDoc.embedPng(binary) : pdfDoc.embedJpg(binary);
+}
+
+async function addDocumentPages(pdfDoc: PDFDocument, boldFont: PDFFont, documents: UploadedDocument[]) {
+  for (const document of documents) {
+    if (!document.dataUrl) continue;
+
+    const page = pdfDoc.addPage([A4_WIDTH_PT, A4_HEIGHT_PT]);
+    const image = await embedImageFromDataUrl(pdfDoc, document.dataUrl);
+
+    page.drawText(document.label, {
+      x: 48,
+      y: A4_HEIGHT_PT - 60,
+      size: 13,
+      font: boldFont,
+      color: ANSWER_COLOR,
+    });
+
+    const margin = 48;
+    const top = A4_HEIGHT_PT - 84;
+    const maxWidth = A4_WIDTH_PT - margin * 2;
+    const maxHeight = top - margin;
+    const aspect = image.width / image.height;
+
+    let width = maxWidth;
+    let height = maxWidth / aspect;
+    if (height > maxHeight) {
+      height = maxHeight;
+      width = maxHeight * aspect;
+    }
+
+    page.drawImage(image, {
+      x: (A4_WIDTH_PT - width) / 2,
+      y: margin + (maxHeight - height) / 2,
+      width,
+      height,
+    });
+  }
+}
+
 function formatUKDate(value: string | Date | null | undefined) {
   if (!value) return "";
 
@@ -308,6 +354,8 @@ export async function generateUHSF1601Pdf(data: UHSF1601PrintData, templateBytes
   if (data.aaCertificateCopyTaken === true) drawTick(page, M.aaCertificateCopyTaken);
   if (data.ipafCopyTaken === true) drawTick(page, M.ipafCopyTaken);
   if (data.spaCopyTaken === true) drawTick(page, M.spaCopyTaken);
+
+  await addDocumentPages(pdfDoc, boldFont, data.uploadedDocuments ?? []);
 
   drawDebugFields(page);
 

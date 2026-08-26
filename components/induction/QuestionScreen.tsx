@@ -6,6 +6,7 @@ import { sectionLabels } from "@/config/uhsf1601Schema";
 import { NavigationControls } from "./NavigationControls";
 import { ProgressBar } from "./ProgressBar";
 import { SignaturePad } from "./SignaturePad";
+import { DocumentUpload } from "./DocumentUpload";
 
 type QuestionScreenProps = {
   field: InductionField;
@@ -46,12 +47,14 @@ export function QuestionScreen({
     return "";
   });
   const [signatureValue, setSignatureValue] = useState<string | null>(valueToString(answer?.value));
+  const [uploadValue, setUploadValue] = useState<string | null>(valueToString(answer?.value));
   const [error, setError] = useState("");
 
   useEffect(() => {
     setTextValue(valueToString(answer?.value ?? defaultValue));
     setChoiceValue(answer?.value ?? null);
     setSignatureValue(valueToString(answer?.value));
+    setUploadValue(valueToString(answer?.value));
     setMedicalChoice(() => {
       if (answer?.value === "No") return "No";
       if (typeof answer?.value === "string" && answer.value.length > 0) return "Yes";
@@ -67,6 +70,7 @@ export function QuestionScreen({
   const selectedValue = useMemo<InductionValue>(() => {
     if (field.type === "declaration") return choiceValue === true;
     if (field.type === "signature") return signatureValue || null;
+    if (field.type === "upload") return uploadValue || null;
     if (field.type === "information") return "Viewed";
     if (field.type === "medical") {
       if (medicalChoice === "No") return "No";
@@ -75,7 +79,7 @@ export function QuestionScreen({
     }
     if (["yes-no", "presence", "copy-status"].includes(field.type)) return typeof choiceValue === "string" ? choiceValue : null;
     return textValue.trim();
-  }, [choiceValue, field.type, medicalChoice, signatureValue, textValue]);
+  }, [choiceValue, field.type, medicalChoice, signatureValue, textValue, uploadValue]);
 
   function continueCurrent() {
     if (field.type === "information") {
@@ -99,6 +103,9 @@ export function QuestionScreen({
       return;
     } else if (field.type === "signature" && !signatureValue) {
       setError("Confirm a signature or use Skip.");
+      return;
+    } else if (field.type === "upload" && !uploadValue) {
+      setError("Add a photo or use Skip.");
       return;
     } else if (["text", "phone", "address", "textarea", "date"].includes(field.type) && !String(selectedValue ?? "").trim()) {
       setError("Enter a response or use Skip.");
@@ -290,6 +297,8 @@ export function QuestionScreen({
             )}
 
             {field.type === "signature" && <SignaturePad value={signatureValue} onChange={setSignatureValue} />}
+
+            {field.type === "upload" && <DocumentUpload value={uploadValue} onChange={setUploadValue} label={field.label} />}
 
             {answer?.skipped && (
               <p className="mt-5 border-l-4 border-zinc-400 bg-white p-4 text-sm text-zinc-700">Previously skipped. Answering this question will replace the skipped status.</p>

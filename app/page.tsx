@@ -124,8 +124,9 @@ export default function Home() {
             </div>
             <div className="space-y-5 text-lg leading-8 text-uplands-muted">
               <p>
-                The form flow separates inductee and Uplands Inductor sections, saves progress automatically, and
-                keeps skipped, not-applicable and negative answers distinct.
+                The flow guides the inductee through personal details, competence and training, and declarations — and
+                prompts them to photograph their CSCS card, Asbestos Awareness and Manual Handling Awareness
+                certificates. The Uplands Inductor section is left blank on the printed form to be completed by hand.
               </p>
               <p>
                 It is built for phones first, with large controls, clear progress, signature capture and a review stage
@@ -144,8 +145,8 @@ export default function Home() {
             <div className="grid gap-6 md:grid-cols-3">
               {[
                 ["Inductee details", "Personal details, competence and training, declarations and signature."],
-                ["Uplands acknowledgement", "Site PPE checks, inductor details, inductor signature and copies taken."],
-                ["Digital record", "Review answers, submit the induction and produce a printable record."],
+                ["Document uploads", "Photograph your CSCS card, Asbestos Awareness and Manual Handling Awareness certificates."],
+                ["Digital record", "Review answers, submit the induction and produce a printable record with your documents appended."],
               ].map(([title, copy]) => (
                 <article key={title} className="bg-white p-7 shadow-soft">
                   <h3 className="text-xl font-bold">{title}</h3>
