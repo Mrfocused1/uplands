@@ -47,6 +47,7 @@ export type InductionField = {
   type: InductionFieldType;
   role: InductionRole;
   allowSkip: true;
+  group?: string;
   options?: string[];
   confirmLabel?: string;
   conditional?: ConditionalRule;

@@ -110,9 +110,6 @@ export function DocumentUpload({ value, onChange, label }: DocumentUploadProps) 
           disabled={busy}
           className="flex min-h-32 w-full flex-col items-center justify-center gap-3 border-2 border-dashed border-zinc-300 bg-white p-6 text-center transition hover:border-uplands-magenta disabled:cursor-not-allowed disabled:opacity-60"
         >
-          <span className="text-3xl" aria-hidden="true">
-            📷
-          </span>
           <span className="font-bold text-uplands-charcoal">{busy ? "Processing photo…" : "Take or upload a photo"}</span>
         </button>
       )}

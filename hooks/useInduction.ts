@@ -7,9 +7,43 @@ import type { CompletionStatus, FieldAnswer, InductionField, InductionRecord, In
 import { createInitialRecord, useInductionPersistence } from "./useInductionPersistence";
 
 const reviewStepId = "review";
-const completionStepId = "completion";
 
 const inducteeFields = uhsf1601Schema.filter((field) => field.role === "inductee");
+
+type WizardStep =
+  | { kind: "field"; field: InductionField }
+  | { kind: "group"; groupId: string; fields: InductionField[] };
+
+function stepIdOf(step: WizardStep) {
+  return step.kind === "field" ? step.field.id : step.groupId;
+}
+
+function buildSteps(visibleFields: InductionField[]): WizardStep[] {
+  const steps: WizardStep[] = [];
+  const emittedGroups = new Set<string>();
+  const visibleIds = new Set(visibleFields.map((field) => field.id));
+
+  for (const field of visibleFields) {
+    if (field.group) {
+      if (emittedGroups.has(field.group)) continue;
+      emittedGroups.add(field.group);
+      const groupFields = uhsf1601Schema.filter((item) => item.group === field.group && visibleIds.has(item.id));
+      steps.push({ kind: "group", groupId: field.group, fields: groupFields });
+      continue;
+    }
+    steps.push({ kind: "field", field });
+  }
+
+  return steps;
+}
+
+function nextStepAfter(answers: InductionRecord["answers"], fromId: string) {
+  const nextVisible = evaluateVisibleFields(answers);
+  const nextSteps = buildSteps(nextVisible);
+  const index = nextSteps.findIndex((step) => stepIdOf(step) === fromId);
+  const nextStep = nextSteps[index + 1];
+  return nextStep ? stepIdOf(nextStep) : null;
+}
 
 function now() {
   return new Date().toISOString();
@@ -121,10 +155,13 @@ export function useInduction() {
   }, [hasLoaded, record.currentStepId]);
 
   const visibleFields = useMemo(() => evaluateVisibleFields(record.answers), [record.answers]);
+  const steps = useMemo(() => buildSteps(visibleFields), [visibleFields]);
 
-  const currentIndex = Math.max(0, visibleFields.findIndex((field) => field.id === stepId));
-  const currentField = visibleFields[currentIndex] ?? visibleFields[0];
-  const progress = visibleFields.length ? Math.round(((currentIndex + 1) / visibleFields.length) * 100) : 0;
+  const currentIndex = Math.max(0, steps.findIndex((step) => stepIdOf(step) === stepId));
+  const currentStep = steps[currentIndex] ?? steps[0];
+  const currentField = currentStep?.kind === "field" ? currentStep.field : undefined;
+  const currentGroup = currentStep?.kind === "group" ? currentStep.fields : undefined;
+  const progress = steps.length ? Math.round(((currentIndex + 1) / steps.length) * 100) : 0;
 
   const persistAnswer = useCallback(
     (fieldId: string, answer: FieldAnswer) => {
@@ -152,15 +189,20 @@ export function useInduction() {
     [],
   );
 
+  const goToStep = useCallback(
+    (id: string) => {
+      setStepId(id);
+      updateRecord((current) => ({ ...current, currentStepId: id }));
+    },
+    [updateRecord],
+  );
+
   const goToIndex = useCallback(
     (index: number) => {
-      const target = visibleFields[Math.max(0, Math.min(index, visibleFields.length - 1))];
-      if (target) {
-        setStepId(target.id);
-        updateRecord((current) => ({ ...current, currentStepId: target.id }));
-      }
+      const target = steps[Math.max(0, Math.min(index, steps.length - 1))];
+      if (target) goToStep(stepIdOf(target));
     },
-    [updateRecord, visibleFields],
+    [goToStep, steps],
   );
 
   const continueWithValue = useCallback(
@@ -174,22 +216,50 @@ export function useInduction() {
             updatedAt: now(),
           },
         });
-        const nextVisible = evaluateVisibleFields(answers);
-        const nextIndex = nextVisible.findIndex((field) => field.id === currentField.id) + 1;
-        const nextStep = nextVisible[nextIndex];
-        if (nextStep) {
-          setStepId(nextStep.id);
+        const nextId = nextStepAfter(answers, currentField.id);
+        if (nextId) {
+          setStepId(nextId);
         } else {
           setScreen("review");
         }
         return {
           ...current,
-          currentStepId: nextStep?.id ?? reviewStepId,
+          currentStepId: nextId ?? reviewStepId,
           answers,
         };
       });
     },
     [applyConditionalNotApplicable, currentField, updateRecord],
+  );
+
+  const continueGroup = useCallback(
+    (values: Record<string, InductionValue>) => {
+      if (!currentStep || currentStep.kind !== "group") return;
+      const { groupId, fields } = currentStep;
+
+      updateRecord((current) => {
+        const nextAnswers = { ...current.answers };
+        fields.forEach((field) => {
+          const value = values[field.id];
+          if (value === "Yes" || value === "No") {
+            nextAnswers[field.id] = { value, updatedAt: now() };
+          }
+        });
+        const answers = applyConditionalNotApplicable(nextAnswers);
+        const nextId = nextStepAfter(answers, groupId);
+        if (nextId) {
+          setStepId(nextId);
+        } else {
+          setScreen("review");
+        }
+        return {
+          ...current,
+          currentStepId: nextId ?? reviewStepId,
+          answers,
+        };
+      });
+    },
+    [applyConditionalNotApplicable, currentStep, updateRecord],
   );
 
   const skipCurrent = useCallback(() => {
@@ -198,32 +268,49 @@ export function useInduction() {
       return;
     }
 
-    if (!currentField) return;
+    if (!currentStep) return;
     updateRecord((current) => {
-      const answers = applyConditionalNotApplicable({
-        ...current.answers,
-        [currentField.id]: {
-          value: null,
-          skipped: true,
-          skippedAt: now(),
-          updatedAt: now(),
-        },
-      });
-      const nextVisible = evaluateVisibleFields(answers);
-      const nextIndex = nextVisible.findIndex((field) => field.id === currentField.id) + 1;
-      const nextStep = nextVisible[nextIndex];
-      if (nextStep) {
-        setStepId(nextStep.id);
+      let answers: InductionRecord["answers"];
+      let fromId: string;
+
+      if (currentStep.kind === "group") {
+        const nextAnswers = { ...current.answers };
+        currentStep.fields.forEach((field) => {
+          nextAnswers[field.id] = {
+            value: null,
+            skipped: true,
+            skippedAt: now(),
+            updatedAt: now(),
+          };
+        });
+        answers = applyConditionalNotApplicable(nextAnswers);
+        fromId = currentStep.groupId;
+      } else {
+        answers = applyConditionalNotApplicable({
+          ...current.answers,
+          [currentStep.field.id]: {
+            value: null,
+            skipped: true,
+            skippedAt: now(),
+            updatedAt: now(),
+          },
+        });
+        fromId = currentStep.field.id;
+      }
+
+      const nextId = nextStepAfter(answers, fromId);
+      if (nextId) {
+        setStepId(nextId);
       } else {
         setScreen("review");
       }
       return {
         ...current,
-        currentStepId: nextStep?.id ?? reviewStepId,
+        currentStepId: nextId ?? reviewStepId,
         answers,
       };
     });
-  }, [applyConditionalNotApplicable, currentField, screen, updateRecord]);
+  }, [applyConditionalNotApplicable, currentStep, screen, updateRecord]);
 
   const submit = useCallback(() => {
     updateRecord((current) => {
@@ -248,8 +335,15 @@ export function useInduction() {
   const editField = useCallback(
     (fieldId: string) => {
       const targetField = uhsf1601Schema.find((field) => field.id === fieldId);
-      const isVisible = visibleFields.some((field) => field.id === fieldId);
-      setStepId(isVisible ? fieldId : targetField?.conditional?.field ?? fieldId);
+      if (targetField?.group) {
+        setStepId(targetField.group);
+      } else if (visibleFields.some((field) => field.id === fieldId)) {
+        setStepId(fieldId);
+      } else {
+        const controllingId = targetField?.conditional?.field ?? fieldId;
+        const controllingField = uhsf1601Schema.find((field) => field.id === controllingId);
+        setStepId(controllingField?.group ?? controllingId);
+      }
       setScreen("wizard");
     },
     [visibleFields],
@@ -266,8 +360,12 @@ export function useInduction() {
     hasLoaded,
     fields: uhsf1601Schema,
     visibleFields,
+    steps,
+    currentStep,
     currentField,
+    currentGroup,
     currentIndex,
+    total: steps.length,
     progress,
     screen,
     stepId,
@@ -276,13 +374,14 @@ export function useInduction() {
     goBack: () => {
       if (screen === "review") {
         setScreen("wizard");
-        goToIndex(visibleFields.length - 1);
+        goToIndex(steps.length - 1);
       } else {
         goToIndex(currentIndex - 1);
       }
     },
     canGoBack: screen === "review" || currentIndex > 0,
     continueWithValue,
+    continueGroup,
     continueInfo,
     persistAnswer,
     skipCurrent,

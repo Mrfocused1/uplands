@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { InductionHeader } from "./InductionHeader";
 import { QuestionScreen } from "./QuestionScreen";
+import { ChecklistScreen } from "./ChecklistScreen";
 import { ReviewScreen } from "./ReviewScreen";
 import { CompletionScreen } from "./CompletionScreen";
 import { useInduction } from "@/hooks/useInduction";
@@ -88,7 +89,7 @@ export function ProgressiveInduction() {
     });
   }
 
-  if (!induction.hasLoaded || !induction.currentField) {
+  if (!induction.hasLoaded || !induction.currentStep) {
     return (
       <div className="min-h-screen bg-uplands-paper">
         <InductionHeader />
@@ -97,18 +98,35 @@ export function ProgressiveInduction() {
     );
   }
 
+  const currentStep = induction.currentStep;
+
   return (
     <div className="min-h-screen bg-uplands-paper">
       <InductionHeader />
 
       <main>
-        {induction.screen === "wizard" && (
+        {induction.screen === "wizard" && currentStep.kind === "group" && (
+          <ChecklistScreen
+            key={currentStep.groupId}
+            fields={currentStep.fields}
+            answers={induction.record.answers}
+            current={induction.currentIndex + 1}
+            total={induction.total}
+            progress={induction.progress}
+            canGoBack={induction.canGoBack}
+            onBack={induction.goBack}
+            onSkip={induction.skipCurrent}
+            onContinue={induction.continueGroup}
+          />
+        )}
+
+        {induction.screen === "wizard" && currentStep.kind === "field" && (
           <QuestionScreen
-            field={induction.currentField}
+            field={currentStep.field}
             answer={induction.currentAnswer}
             defaultValue={induction.defaultValue}
             current={induction.currentIndex + 1}
-            total={induction.visibleFields.length}
+            total={induction.total}
             progress={induction.progress}
             canGoBack={induction.canGoBack}
             onBack={induction.goBack}

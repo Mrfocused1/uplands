@@ -4,9 +4,10 @@ type NavigationControlsProps = {
   onSkip: () => void;
   onContinue: () => void;
   continueLabel?: string;
+  showSkip?: boolean;
 };
 
-export function NavigationControls({ canGoBack, onBack, onSkip, onContinue, continueLabel = "Continue" }: NavigationControlsProps) {
+export function NavigationControls({ canGoBack, onBack, onSkip, onContinue, continueLabel = "Continue", showSkip = true }: NavigationControlsProps) {
   return (
     <div className="no-print sticky bottom-0 z-20 -mx-5 mt-10 border-t border-zinc-200 bg-white/95 px-5 py-4 backdrop-blur sm:-mx-8 sm:px-8">
       <div className="mx-auto flex max-w-3xl items-center justify-between gap-3">
@@ -18,13 +19,15 @@ export function NavigationControls({ canGoBack, onBack, onSkip, onContinue, cont
         >
           ← Back
         </button>
-        <button
-          type="button"
-          onClick={onSkip}
-          className="min-h-12 px-5 text-base font-bold text-uplands-magenta underline-offset-4 transition hover:underline focus:outline-none focus:ring-2 focus:ring-uplands-magenta focus:ring-offset-2"
-        >
-          Skip
-        </button>
+        {showSkip && (
+          <button
+            type="button"
+            onClick={onSkip}
+            className="min-h-12 px-5 text-base font-bold text-uplands-magenta underline-offset-4 transition hover:underline focus:outline-none focus:ring-2 focus:ring-uplands-magenta focus:ring-offset-2"
+          >
+            Skip
+          </button>
+        )}
         <button
           type="button"
           onClick={onContinue}

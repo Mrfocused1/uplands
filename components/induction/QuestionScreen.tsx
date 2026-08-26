@@ -154,7 +154,7 @@ export function QuestionScreen({
           <div className="mt-9">
             {field.type === "information" && (
               <div className="border border-zinc-200 bg-white p-6 shadow-soft">
-                <p className="text-lg text-zinc-700">Continue to move to the next stage, or Skip to record that this stage was not completed now.</p>
+                <p className="text-lg text-zinc-700">Continue to move to the next stage.</p>
               </div>
             )}
 
@@ -320,7 +320,7 @@ export function QuestionScreen({
 
         <ProgressBar progress={progress} current={current} total={total} />
       </div>
-      <NavigationControls canGoBack={canGoBack} onBack={onBack} onSkip={onSkip} onContinue={continueCurrent} continueLabel={continueLabel} />
+      <NavigationControls canGoBack={canGoBack} onBack={onBack} onSkip={onSkip} onContinue={continueCurrent} continueLabel={continueLabel} showSkip={field.type !== "information"} />
     </div>
   );
 }
