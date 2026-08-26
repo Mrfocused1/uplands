@@ -55,21 +55,6 @@ export function CompletionScreen({
           </dl>
         </div>
 
-        <div className="mt-8 border border-zinc-200 bg-white p-5 shadow-soft">
-          <div className="mx-auto aspect-[210/297] w-40 border border-zinc-300 bg-zinc-50 p-3 shadow-sm">
-            <div className="h-full border border-zinc-300 bg-white">
-              <div className="h-5 border-b border-zinc-300" />
-              <div className="m-3 h-16 border border-zinc-200" />
-              <div className="mx-3 mt-3 h-24 border border-zinc-200" />
-              <div className="mx-3 mt-3 h-12 bg-zinc-900" />
-            </div>
-          </div>
-          <p className="mt-4 text-center text-sm leading-6 text-zinc-600">
-            The completed form is generated as a real A4 PDF using the immutable UHSF16.01 PNG background with answers
-            overlaid onto the original blank fields, and any uploaded documents appended as extra pages.
-          </p>
-        </div>
-
         {pdfError && (
           <p className="mt-5 border-l-4 border-red-600 bg-white p-4 text-sm font-bold text-red-700" role="alert">
             {pdfError}
