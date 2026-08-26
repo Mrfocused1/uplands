@@ -4,6 +4,8 @@ import { useState } from "react";
 import { InductionHeader } from "./InductionHeader";
 import { QuestionScreen } from "./QuestionScreen";
 import { ChecklistScreen } from "./ChecklistScreen";
+import { DeclarationScreen } from "./DeclarationScreen";
+import { UploadsScreen } from "./UploadsScreen";
 import { ReviewScreen } from "./ReviewScreen";
 import { CompletionScreen } from "./CompletionScreen";
 import { useInduction } from "@/hooks/useInduction";
@@ -105,8 +107,38 @@ export function ProgressiveInduction() {
       <InductionHeader />
 
       <main>
-        {induction.screen === "wizard" && currentStep.kind === "group" && (
+        {induction.screen === "wizard" && currentStep.kind === "group" && currentStep.groupId === "competence-checklist" && (
           <ChecklistScreen
+            key={currentStep.groupId}
+            fields={currentStep.fields}
+            answers={induction.record.answers}
+            current={induction.currentIndex + 1}
+            total={induction.total}
+            progress={induction.progress}
+            canGoBack={induction.canGoBack}
+            onBack={induction.goBack}
+            onSkip={induction.skipCurrent}
+            onContinue={induction.continueGroup}
+          />
+        )}
+
+        {induction.screen === "wizard" && currentStep.kind === "group" && currentStep.groupId === "declaration-group" && (
+          <DeclarationScreen
+            key={currentStep.groupId}
+            fields={currentStep.fields}
+            answers={induction.record.answers}
+            current={induction.currentIndex + 1}
+            total={induction.total}
+            progress={induction.progress}
+            canGoBack={induction.canGoBack}
+            onBack={induction.goBack}
+            onSkip={induction.skipCurrent}
+            onContinue={induction.continueGroup}
+          />
+        )}
+
+        {induction.screen === "wizard" && currentStep.kind === "group" && currentStep.groupId === "document-uploads" && (
+          <UploadsScreen
             key={currentStep.groupId}
             fields={currentStep.fields}
             answers={induction.record.answers}

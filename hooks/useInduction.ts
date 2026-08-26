@@ -240,9 +240,12 @@ export function useInduction() {
       updateRecord((current) => {
         const nextAnswers = { ...current.answers };
         fields.forEach((field) => {
-          const value = values[field.id];
-          if (value === "Yes" || value === "No") {
-            nextAnswers[field.id] = { value, updatedAt: now() };
+          if (field.id in values) {
+            const value = values[field.id];
+            nextAnswers[field.id] =
+              value === null
+                ? { value: null, skipped: true, skippedAt: now(), updatedAt: now() }
+                : { value, updatedAt: now() };
           }
         });
         const answers = applyConditionalNotApplicable(nextAnswers);
