@@ -168,6 +168,33 @@ export function saveEvidenceTransforms(
   run();
 }
 
+export function updateSubmissionFormData(submissionId: string, patch: Partial<UHSF1601PrintData>) {
+  const result = getSubmission(submissionId);
+  if (!result) return false;
+
+  const existing = JSON.parse(result.row.print_data) as UHSF1601PrintData;
+  const next: UHSF1601PrintData = { ...existing, ...patch };
+  const now = new Date().toISOString();
+
+  getDb()
+    .prepare(
+      `UPDATE submissions
+       SET print_data = ?, full_name = ?, company_name = ?, site_name = ?, declaration_date = ?, updated_at = ?
+       WHERE id = ?`,
+    )
+    .run(
+      JSON.stringify(next),
+      next.fullName ?? null,
+      next.companyName ?? null,
+      next.siteName ?? null,
+      next.declarationDate ?? null,
+      now,
+      submissionId,
+    );
+
+  return true;
+}
+
 export function setPrintReviewStatus(submissionId: string, status: "not_reviewed" | "ready") {
   const now = new Date().toISOString();
   getDb()

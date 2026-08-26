@@ -1,7 +1,38 @@
 import { NextResponse } from "next/server";
 import { requireAdmin, UnauthorizedError } from "@/lib/auth/admin";
-import { deleteSubmission, getSubmission, setPinned, setPrintReviewStatus, transformFromRow } from "@/lib/db/submissions";
+import { deleteSubmission, getSubmission, setPinned, setPrintReviewStatus, transformFromRow, updateSubmissionFormData } from "@/lib/db/submissions";
+import { FORM_EDIT_FIELDS, isStringField } from "@/lib/admin/formEditor";
 import type { UHSF1601PrintData } from "@/types/UHSF1601PrintData";
+
+function sanitizePrintData(input: unknown): Record<string, string | boolean | null> | null {
+  if (!input || typeof input !== "object" || Array.isArray(input)) return null;
+  const raw = input as Record<string, unknown>;
+  const out: Record<string, string | boolean | null> = {};
+
+  for (const field of FORM_EDIT_FIELDS) {
+    if (!(field.key in raw)) continue;
+    const value = raw[field.key];
+
+    if (isStringField(field.kind)) {
+      if (value === null || value === undefined) {
+        out[field.key] = null;
+      } else if (typeof value === "string") {
+        const trimmed = value.trim();
+        out[field.key] = trimmed === "" ? null : trimmed;
+      } else {
+        return null;
+      }
+    } else if (value === null || value === undefined) {
+      out[field.key] = null;
+    } else if (value === true || value === false) {
+      out[field.key] = value;
+    } else {
+      return null;
+    }
+  }
+
+  return out;
+}
 
 export const runtime = "nodejs";
 
@@ -59,6 +90,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   const body = await request.json().catch(() => null);
   const status = body?.printReviewStatus;
   const pinned = body?.pinned;
+  const printData = body?.printData;
 
   if (
     status !== undefined &&
@@ -74,6 +106,13 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
 
   if (status !== undefined) setPrintReviewStatus(id, status);
   if (pinned !== undefined) setPinned(id, pinned);
+
+  if (printData !== undefined) {
+    const patch = sanitizePrintData(printData);
+    if (patch === null) return NextResponse.json({ error: "Invalid form data." }, { status: 400 });
+    const updated = updateSubmissionFormData(id, patch);
+    if (!updated) return NextResponse.json({ error: "Submission not found." }, { status: 404 });
+  }
 
   return NextResponse.json({ ok: true });
 }

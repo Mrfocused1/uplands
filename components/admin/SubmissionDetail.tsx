@@ -203,10 +203,16 @@ export function SubmissionDetail({ id }: { id: string }) {
             {data.pinned ? "Unpin" : "Pin"}
           </button>
           <Link
+            href={`/admin/submissions/${id}/form`}
+            className="border border-zinc-300 px-4 py-2 text-sm font-bold uppercase tracking-wide text-zinc-700 hover:border-uplands-magenta hover:text-uplands-magenta"
+          >
+            Edit form
+          </Link>
+          <Link
             href={`/admin/submissions/${id}/editor`}
             className="border border-zinc-300 px-4 py-2 text-sm font-bold uppercase tracking-wide text-zinc-700 hover:border-uplands-magenta hover:text-uplands-magenta"
           >
-            Edit
+            Edit documents
           </Link>
           <button
             onClick={() => handlePdf("view")}
@@ -253,7 +259,7 @@ export function SubmissionDetail({ id }: { id: string }) {
       </div>
 
       <div className="mt-6">
-        {tab === "form" && <FormTab printData={data.printData} />}
+        {tab === "form" && <FormTab id={id} printData={data.printData} />}
         {tab === "documents" && <DocumentsTab id={id} evidence={data.evidence} />}
         {tab === "review" && (
           <ReviewTab
@@ -271,10 +277,18 @@ export function SubmissionDetail({ id }: { id: string }) {
   );
 }
 
-function FormTab({ printData }: { printData: UHSF1601PrintData }) {
+function FormTab({ id, printData }: { id: string; printData: UHSF1601PrintData }) {
   const sections = formatFormDisplay(printData);
   return (
     <div className="grid gap-6">
+      <div className="flex justify-end">
+        <Link
+          href={`/admin/submissions/${id}/form`}
+          className="bg-uplands-magenta px-4 py-2 text-sm font-bold uppercase tracking-wide text-white hover:bg-[#8e0075]"
+        >
+          Edit form
+        </Link>
+      </div>
       {sections.map((section) => (
         <div key={section.title} className="overflow-hidden border border-zinc-200 bg-white shadow-soft">
           <h2 className="border-b border-zinc-100 bg-uplands-charcoal px-5 py-3 text-sm font-bold uppercase tracking-wide text-white">
