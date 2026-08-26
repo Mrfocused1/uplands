@@ -1,9 +1,11 @@
 import Database from "better-sqlite3";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { hashPassword } from "@/lib/auth/password";
 
-const DATA_DIR = path.join(process.cwd(), "data");
+const DATA_DIR =
+  process.env.UPLANDS_DATA_DIR ?? (process.env.VERCEL ? path.join(os.tmpdir(), "uplands") : path.join(process.cwd(), "data"));
 export const UPLOADS_DIR = path.join(DATA_DIR, "uploads");
 const DB_PATH = path.join(DATA_DIR, "uplands.db");
 
