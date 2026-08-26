@@ -1,0 +1,255 @@
+export type PixelRect = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
+
+export const UHSF1601_PRINT_MAP = {
+  fullName: {
+    x: 305,
+    y: 153,
+    width: 252,
+    height: 31,
+  },
+  contactNumber: {
+    x: 305,
+    y: 190,
+    width: 252,
+    height: 31,
+  },
+  companyName: {
+    x: 305,
+    y: 227,
+    width: 252,
+    height: 29,
+  },
+  homeAddress: {
+    x: 730,
+    y: 157,
+    width: 265,
+    height: 93,
+  },
+  occupation: {
+    x: 305,
+    y: 264,
+    width: 685,
+    height: 29,
+  },
+  emergencyContactName: {
+    x: 305,
+    y: 301,
+    width: 685,
+    height: 29,
+  },
+  emergencyContactTelephone: {
+    x: 305,
+    y: 338,
+    width: 685,
+    height: 29,
+  },
+  medicalInformation: {
+    x: 48,
+    y: 436,
+    width: 940,
+    height: 43,
+  },
+  cscsCardNumber: {
+    x: 171,
+    y: 548,
+    width: 133,
+    height: 34,
+  },
+  cscsExpiry: {
+    x: 386,
+    y: 548,
+    width: 111,
+    height: 34,
+  },
+  asbestosCertificatePresent: {
+    x: 965,
+    y: 548,
+    width: 40,
+    height: 34,
+  },
+  scaffoldingYesNo: {
+    x: 307,
+    y: 588,
+    width: 70,
+    height: 36,
+  },
+  cisrsNumber: {
+    x: 500,
+    y: 588,
+    width: 208,
+    height: 36,
+  },
+  cisrsExpiry: {
+    x: 844,
+    y: 588,
+    width: 151,
+    height: 36,
+  },
+  plantYesNo: {
+    x: 307,
+    y: 629,
+    width: 70,
+    height: 36,
+  },
+  cpcsNumber: {
+    x: 500,
+    y: 629,
+    width: 208,
+    height: 36,
+  },
+  cpcsExpiry: {
+    x: 844,
+    y: 629,
+    width: 151,
+    height: 36,
+  },
+  clientSpecificTraining: {
+    x: 307,
+    y: 670,
+    width: 70,
+    height: 35,
+  },
+  clientTrainingCompletionDate: {
+    x: 500,
+    y: 670,
+    width: 208,
+    height: 35,
+  },
+  clientTrainingExpiryDate: {
+    x: 844,
+    y: 670,
+    width: 151,
+    height: 35,
+  },
+  firstAiderYesNo: {
+    x: 307,
+    y: 710,
+    width: 190,
+    height: 35,
+  },
+  fireWardenYesNo: {
+    x: 844,
+    y: 710,
+    width: 151,
+    height: 35,
+  },
+  supervisorYesNo: {
+    x: 307,
+    y: 751,
+    width: 190,
+    height: 35,
+  },
+  smstsOrSsstsYesNo: {
+    x: 844,
+    y: 751,
+    width: 151,
+    height: 35,
+  },
+  ramsBriefedYesNo: {
+    x: 844,
+    y: 795,
+    width: 151,
+    height: 31,
+  },
+  inducteeSignature: {
+    x: 130,
+    y: 1030,
+    width: 515,
+    height: 40,
+  },
+  declarationDate: {
+    x: 730,
+    y: 1030,
+    width: 265,
+    height: 40,
+  },
+  siteName: {
+    x: 186,
+    y: 1126,
+    width: 809,
+    height: 24,
+  },
+  hardHatPresent: {
+    x: 572,
+    y: 1165,
+    width: 47,
+    height: 25,
+  },
+  highVisPresent: {
+    x: 572,
+    y: 1192,
+    width: 47,
+    height: 25,
+  },
+  glovesPresent: {
+    x: 572,
+    y: 1219,
+    width: 47,
+    height: 25,
+  },
+  bootsPresent: {
+    x: 572,
+    y: 1246,
+    width: 47,
+    height: 25,
+  },
+  safetyEyewearPresent: {
+    x: 572,
+    y: 1274,
+    width: 47,
+    height: 25,
+  },
+  rpePresent: {
+    x: 572,
+    y: 1302,
+    width: 47,
+    height: 27,
+  },
+  inductorNameAndDate: {
+    x: 792,
+    y: 1165,
+    width: 203,
+    height: 51,
+  },
+  inductorSignature: {
+    x: 792,
+    y: 1218,
+    width: 203,
+    height: 53,
+  },
+  inductorJobTitle: {
+    x: 792,
+    y: 1274,
+    width: 203,
+    height: 54,
+  },
+  cscsCopyTaken: {
+    x: 235,
+    y: 1359,
+    width: 34,
+    height: 31,
+  },
+  aaCertificateCopyTaken: {
+    x: 489,
+    y: 1359,
+    width: 38,
+    height: 31,
+  },
+  ipafCopyTaken: {
+    x: 730,
+    y: 1359,
+    width: 37,
+    height: 31,
+  },
+  spaCopyTaken: {
+    x: 956,
+    y: 1359,
+    width: 39,
+    height: 31,
+  },
+} satisfies Record<string, PixelRect>;

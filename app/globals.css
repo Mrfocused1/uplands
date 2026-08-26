@@ -1,0 +1,80 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@font-face {
+  font-family: "Roboto Slab Local";
+  src: url("/wp-content/themes/uncode-child/webfonts/google/BngMUXZYTXPIvIBgJJSb6ufN5qWr4xCC.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Roboto Local";
+  src: url("/wp-content/themes/uncode-child/webfonts/google/KFO7CnqEu92Fr1ME7kSn66aGLdTylUAMa3yUBHMdazQ.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "FFDINStdBold";
+  src: url("/wp-content/themes/uncode-child/webfonts/361DBC_1_0.woff2") format("woff2"),
+    url("/wp-content/themes/uncode-child/webfonts/361DBC_1_0.woff") format("woff");
+  font-display: swap;
+}
+
+:root {
+  --font-roboto: "Roboto Local";
+  --font-roboto-slab: "Roboto Slab Local";
+  --font-din-bold: "FFDINStdBold";
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+@keyframes heroFade {
+  0%,
+  16% {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  20%,
+  96% {
+    opacity: 0;
+    transform: scale(1.02);
+  }
+
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+body {
+  color: #1d1d1f;
+  background: #f7f7f7;
+}
+
+button,
+input,
+textarea {
+  font: inherit;
+}
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+
+  .print-record {
+    display: block !important;
+  }
+
+  body {
+    background: #fff;
+  }
+}

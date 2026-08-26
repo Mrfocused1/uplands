@@ -1,0 +1,240 @@
+/*
+
+Theme Name: Uncode Child
+
+Description: Child theme for Uncode theme
+
+Author: Undsgn™
+
+Author URI: http://www.undsgn.com
+
+Template: uncode
+
+Version: 1.0.0
+
+Text Domain: uncode
+
+*/
+
+@import url("google-fonts.css");
+
+
+  
+@font-face {font-family: 'FFDINStdRegular';src: url('webfonts/361DBC_0_0.eot');src: url('webfonts/361DBC_0_0.eot') format('embedded-opentype'),url('webfonts/361DBC_0_0.woff2') format('woff2'),url('webfonts/361DBC_0_0.woff') format('woff'),url('webfonts/361DBC_0_0.ttf') format('truetype');}
+ 
+  
+@font-face {font-family: 'FFDINStdBold';src: url('webfonts/361DBC_1_0.eot');src: url('webfonts/361DBC_1_0.eot') format('embedded-opentype'),url('webfonts/361DBC_1_0.woff2') format('woff2'),url('webfonts/361DBC_1_0.woff') format('woff'),url('webfonts/361DBC_1_0.ttf') format('truetype');}
+ 
+ 
+
+h1,h2,h3.strong,h5,h6 {
+    
+ font-family: "Roboto Slab", serif;
+  font-optical-sizing: auto;
+  font-weight: 700;
+  font-style: normal;
+}
+
+
+h3, h4, h4 a {
+        
+ font-family: "Roboto Slab", serif;
+  font-optical-sizing: auto;
+  font-weight: 400;
+  font-style: normal;
+}
+
+h5.t-entry-title.h4.title-scale {
+ font-family: "Roboto Slab", serif;
+  font-optical-sizing: auto;
+  font-weight: 400;
+  font-style: normal
+
+}
+
+
+h2 {
+    font-size:29px !important;
+    font-weight:300 !important;
+    color:#000000;
+}
+
+
+.font-661911 {
+ font-family: "Roboto Slab", serif !important;
+  font-optical-sizing: auto;
+  font-weight: 700;
+  font-style: normal
+
+}
+
+
+.font-weight-500, .font-weight-500 *:not(strong):not(b), .btn-custom-typo.font-weight-500 {
+    
+ font-family: "Roboto", sans-serif !important;
+  font-weight: 700 !important;
+  font-style: normal !important;
+}
+
+span.btn.btn-link {
+  font-family: "Roboto", sans-serif !important;
+  font-weight: 700 !important;
+  font-style: normal !important;
+}
+
+
+p {
+  font-family: "Roboto", sans-serif !important;
+}
+
+.t-entry-date {
+    font-family: "Roboto", sans-serif !important;
+    font-weight:300 !important;
+}
+
+.isotope-filters ul.menu-smart.text-uppercase > li > span > a {
+      font-family: "Roboto", sans-serif !important;
+  font-weight: 700 !important;
+}
+
+
+#mega-menu-primary a {
+    font-family: "Roboto", sans-serif !important;
+    font-weight:400 !important;
+}
+
+.t-entry-text-tc.half-block-padding {
+    height:230px;
+}
+
+p.t-entry-readmore.btn-container {
+    position: absolute;
+    bottom: 0px;
+}
+
+
+
+.t-overlay-text.single-block-padding {
+    height: 100%;
+}
+
+
+p.t-entry-readmore.btn-container {
+    position: absolute;
+    bottom: 20px;
+}
+
+.t-entry-visual:hover .t-overlay-text {
+ opacity:1 !important;   
+
+}
+
+h5.t-entry-title.h4.title-scale {
+    color:#FFFFFF !important;
+}
+
+.style-light .btn-default, .style-dark .style-light .btn-default, .tmb-light .t-entry-text .btn-default, .style-dark .tmb-light .t-entry-text .btn-default, .tmb-dark .t-overlay-inner .btn-default {
+background: white  !important;;
+    padding: 13px 20px !important;
+    color: #b0008e !important;
+}
+
+
+
+
+.project-details ul {
+list-style: none !important;
+    padding: 0 !important;
+    margin: 0px 0px !important;
+}
+
+.project-details ul li {
+    padding-left: 50px;
+    background-repeat: no-repeat;
+    background-position: center left;
+    background-size: 11%;
+}
+
+.project-details ul li:first-child {
+    background-image: url('building.svg'); /* Path to first icon */
+}
+
+.project-details ul li:nth-child(2) {
+    background-image: url('clock.svg'); /* Path to second icon */
+}
+
+
+.grid-nav-link:hover {
+	background:#CCCCCC !important
+}
+
+.single-portfolio .row-container.row-navigation.row-navigation-light {
+	display:none !important
+}
+
+
+.quote-white p, .quote-white p strong {
+	color:#FFFFFF !important;
+	font-size:20px !important;
+	font-family: "Roboto Slab", serif;
+}
+
+.quote-black p {
+	color:#000000 !important;
+	font-size:20px !important;
+	font-family: "Roboto Slab", serif !important;
+}
+
+
+@media (min-width: 375px) and (max-width: 736px) and (orientation: portrait) {
+    .isotope-filters ul.menu-smart.text-uppercase > li > span > a {
+
+        padding: 10px 20px !important; 
+    }
+}
+@media (max-width: 959px) {
+    .grid-filters ul.menu-smart, .menu-smart--filter-cats_mobile-toggle {
+    margin-bottom:0px !important;   
+}
+
+/* Keep the locally extracted homepage imagery visible if the archived Smart
+ * Slider bundle cannot initialise in the offline clone. */
+#n2-ss-10 .n2-ss-slide-background:first-child {
+	transform: translateX(0) !important;
+}
+
+#n2-ss-10 .n2-ss-slide-background:first-child img {
+	display: block !important;
+	visibility: visible !important;
+}
+
+.grid-filters ul.menu-smart li {
+    gap:10px !important;
+}
+
+/* Offline slider fallback: keep the first extracted hero image on canvas. */
+#n2-ss-10 .n2-ss-slide-background:first-child {
+	transform: translateX(0) !important;
+}
+
+#n2-ss-10 .n2-ss-slide-background:first-child img {
+	display: block !important;
+	visibility: visible !important;
+}
+
+}
+
+
+.box-content .uncode_text_column {
+   min-height:115px;
+}
+
+/* Offline slider fallback: keep the first extracted hero image on canvas. */
+#n2-ss-10 .n2-ss-slide-background:first-child {
+	transform: translateX(0) !important;
+}
+
+#n2-ss-10 .n2-ss-slide-background:first-child img {
+	display: block !important;
+	visibility: visible !important;
+}
