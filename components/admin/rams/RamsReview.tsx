@@ -24,13 +24,24 @@ const documents = [
     title: "Completed Sheet 1",
     description: "Method statement / risk assessment details and hazard checklist.",
     href: "/rams/rams-review-sheet-1.png",
-    action: "Open Sheet 1",
+    action: "Open Completed Sheet 1",
   },
   {
     title: "Completed Sheet 2",
     description: "RAMS review questions with completed comments.",
     href: "/rams/rams-review-sheet-2.png",
-    action: "Open Sheet 2",
+    action: "Open Completed Sheet 2",
+  },
+];
+
+const ramsForms = [
+  {
+    id: "ca-drillers-waitrose-newport",
+    company: "CA Drillers Ltd",
+    project: "Waitrose Newport core holes",
+    status: "Reviewed",
+    date: "27 Aug 2026",
+    summary: "Diamond core drilling through external brick and internal block wall.",
   },
 ];
 
@@ -541,8 +552,10 @@ function EvidenceAccordion({ items }: { items: EvidenceItem[] }) {
 export function RamsReview() {
   const [showEvidence, setShowEvidence] = useState(false);
   const [activeTab, setActiveTab] = useState<"hazards" | "questions">("questions");
+  const [selectedFormId, setSelectedFormId] = useState<string | null>(null);
 
   const activeItems = useMemo(() => (activeTab === "questions" ? reviewEvidence : hazardEvidence), [activeTab]);
+  const selectedForm = useMemo(() => ramsForms.find((form) => form.id === selectedFormId) ?? null, [selectedFormId]);
 
   return (
     <div className="space-y-8">
@@ -555,46 +568,100 @@ export function RamsReview() {
               CA Drillers Ltd RAMS review for Waitrose Newport core holes, including the completed Uplands review sheets and the evidence trail for each answer.
             </p>
           </div>
-          <button
-            type="button"
-            onClick={() => setShowEvidence((value) => !value)}
-            className="min-h-11 bg-uplands-magenta px-5 text-sm font-bold uppercase text-white transition hover:bg-[#8e0075]"
-            aria-expanded={showEvidence}
-          >
-            {showEvidence ? "Hide Evidence" : "More"}
-          </button>
+          {selectedForm && (
+            <button
+              type="button"
+              onClick={() => setShowEvidence((value) => !value)}
+              className="min-h-11 bg-uplands-magenta px-5 text-sm font-bold uppercase text-white transition hover:bg-[#8e0075]"
+              aria-expanded={showEvidence}
+            >
+              {showEvidence ? "Hide Evidence" : "More"}
+            </button>
+          )}
         </div>
       </section>
 
-      <section className="grid gap-4 lg:grid-cols-3">
-        {documents.map((document) => (
-          <article key={document.href} className="border border-zinc-200 bg-white p-5 shadow-soft">
-            <h2 className="font-din text-lg text-uplands-charcoal">{document.title}</h2>
-            <p className="mt-2 min-h-12 text-sm leading-6 text-uplands-muted">{document.description}</p>
-            <a
-              href={document.href}
-              target="_blank"
-              rel="noreferrer"
-              className="mt-4 inline-flex min-h-10 items-center border border-uplands-magenta px-4 text-sm font-bold uppercase text-uplands-magenta transition hover:bg-uplands-magenta hover:text-white"
-            >
-              {document.action}
-            </a>
-          </article>
-        ))}
+      <section className="border border-zinc-200 bg-white p-5 shadow-soft">
+        <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h2 className="font-slab text-2xl text-uplands-charcoal">RAMS Forms</h2>
+            <p className="mt-1 text-sm text-uplands-muted">Select a company to open its current RAMS review.</p>
+          </div>
+          <span className="text-xs font-bold uppercase text-uplands-muted">{ramsForms.length} form</span>
+        </div>
+        <div className="divide-y divide-zinc-200 border border-zinc-200">
+          {ramsForms.map((form) => {
+            const isSelected = selectedFormId === form.id;
+            return (
+              <button
+                key={form.id}
+                type="button"
+                onClick={() => setSelectedFormId(form.id)}
+                className={`grid w-full gap-3 px-4 py-4 text-left transition sm:grid-cols-[1fr_auto] sm:items-center ${
+                  isSelected ? "bg-uplands-paper" : "bg-white hover:bg-uplands-paper"
+                }`}
+                aria-pressed={isSelected}
+              >
+                <span>
+                  <span className="block font-din text-lg text-uplands-charcoal">{form.company}</span>
+                  <span className="mt-1 block text-sm text-uplands-muted">{form.project}</span>
+                  <span className="mt-1 block text-xs text-uplands-muted">{form.summary}</span>
+                </span>
+                <span className="flex flex-wrap items-center gap-2 sm:justify-end">
+                  <span className="bg-emerald-50 px-2.5 py-1 text-xs font-bold uppercase text-emerald-700 ring-1 ring-emerald-200">{form.status}</span>
+                  <span className="px-2.5 py-1 text-xs font-bold uppercase text-zinc-600 ring-1 ring-zinc-200">{form.date}</span>
+                  <span className="px-2.5 py-1 text-xs font-bold uppercase text-uplands-magenta ring-1 ring-uplands-magenta">
+                    {isSelected ? "Open" : "View"}
+                  </span>
+                </span>
+              </button>
+            );
+          })}
+        </div>
       </section>
 
-      <section className="grid gap-6 lg:grid-cols-2">
-        <figure className="border border-zinc-200 bg-white p-4 shadow-soft">
-          <figcaption className="mb-3 font-din text-sm uppercase text-uplands-charcoal">Completed Sheet 1</figcaption>
-          <img src="/rams/rams-review-sheet-1.png" alt="Completed RAMS review sheet 1" className="w-full border border-zinc-200" />
-        </figure>
-        <figure className="border border-zinc-200 bg-white p-4 shadow-soft">
-          <figcaption className="mb-3 font-din text-sm uppercase text-uplands-charcoal">Completed Sheet 2</figcaption>
-          <img src="/rams/rams-review-sheet-2.png" alt="Completed RAMS review sheet 2" className="w-full border border-zinc-200" />
-        </figure>
-      </section>
+      {selectedForm && (
+        <>
+          <section className="border border-zinc-200 bg-white p-5 shadow-soft">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.22em] text-uplands-magenta">Selected RAMS</p>
+                <h2 className="mt-1 font-slab text-2xl text-uplands-charcoal">{selectedForm.company}</h2>
+                <p className="mt-1 text-sm text-uplands-muted">{selectedForm.project}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedFormId(null);
+                  setShowEvidence(false);
+                }}
+                className="min-h-10 border border-zinc-300 px-4 text-sm font-bold uppercase text-zinc-700 transition hover:border-uplands-magenta hover:text-uplands-magenta"
+              >
+                Back to Forms
+              </button>
+            </div>
+          </section>
 
-      {showEvidence && (
+          <section className="grid gap-4 lg:grid-cols-3">
+            {documents.map((document) => (
+              <article key={document.href} className="border border-zinc-200 bg-white p-5 shadow-soft">
+                <h2 className="font-din text-lg text-uplands-charcoal">{document.title}</h2>
+                <p className="mt-2 min-h-12 text-sm leading-6 text-uplands-muted">{document.description}</p>
+                <a
+                  href={document.href}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="mt-4 inline-flex min-h-10 items-center border border-uplands-magenta px-4 text-sm font-bold uppercase text-uplands-magenta transition hover:bg-uplands-magenta hover:text-white"
+                >
+                  {document.action}
+                </a>
+              </article>
+            ))}
+          </section>
+        </>
+      )}
+
+      {selectedForm && showEvidence && (
         <section className="border border-zinc-200 bg-white p-5 shadow-soft">
           <div className="mb-5 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div>
