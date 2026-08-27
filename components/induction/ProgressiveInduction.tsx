@@ -242,8 +242,7 @@ export function ProgressiveInduction() {
           Created by {documentMetadata.documentCreatedBy} · {documentMetadata.status} · Page {documentMetadata.page}
         </p>
         <p className="mt-2">
-          {sectionLabels.personal.title}, {sectionLabels.competence.title}, {sectionLabels.declaration.title}, and{" "}
-          {sectionLabels.acknowledgement.title}
+          {sectionLabels.personal.title}, {sectionLabels.competence.title}, and {sectionLabels.declaration.title}
         </p>
       </footer>
 

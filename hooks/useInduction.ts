@@ -9,7 +9,7 @@ import { createInitialRecord, useInductionPersistence } from "./useInductionPers
 const reviewStepId = "review";
 
 const inducteeFields = uhsf1601Schema.filter((field) => field.role === "inductee");
-const workflowFields = uhsf1601Schema;
+const workflowFields = inducteeFields;
 
 type WizardStep =
   | { kind: "field"; field: InductionField }
@@ -408,15 +408,15 @@ export function useInduction() {
   );
 
   const continueInfo = useCallback(() => {
-    continueWithValue(currentField?.id === "inducteeComplete" ? "Continue as Uplands Inductor" : "Viewed");
-  }, [continueWithValue, currentField?.id]);
+    continueWithValue("Viewed");
+  }, [continueWithValue]);
 
   const defaultValue = currentField?.defaultToday && !record.answers[currentField.id] ? today() : answerValue(record.answers[currentField?.id ?? ""]);
 
   return {
     record: record.sessionId ? record : createInitialRecord(firstStepId),
     hasLoaded,
-    fields: uhsf1601Schema,
+    fields: inducteeFields,
     visibleFields,
     steps,
     currentStep,

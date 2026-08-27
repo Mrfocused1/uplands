@@ -68,8 +68,6 @@ export function QuestionScreen({
   }, [answer, defaultValue, field.id]);
 
   const section = sectionLabels[field.section];
-  const roleLabel = field.role === "inductor" ? "Uplands Inductor" : "Inductee";
-  const continueLabel = field.id === "inducteeComplete" ? "Continue as Uplands Inductor" : "Continue";
 
   const selectedValue = useMemo<InductionValue>(() => {
     if (field.type === "declaration") return choiceValue === true;
@@ -137,17 +135,11 @@ export function QuestionScreen({
     <div className="min-h-[calc(100vh-6rem)] px-5 pb-0 pt-6 sm:px-8">
       <div className="mx-auto max-w-3xl">
         <div className="mb-8 flex flex-wrap items-center gap-3">
-          <span className="bg-uplands-magenta px-3 py-1 font-din text-xs uppercase text-white">{roleLabel}</span>
+          <span className="bg-uplands-magenta px-3 py-1 font-din text-xs uppercase text-white">Inductee</span>
           <span className="text-sm font-bold uppercase text-zinc-500">{section.title}</span>
         </div>
 
         <div className="transition duration-200">
-          {field.id === "inducteeComplete" && (
-            <div className="mb-6 border-l-4 border-uplands-magenta bg-white p-4 text-sm text-zinc-700 shadow-soft">
-              The inductee section is complete. The following acknowledgement screens are visually marked for Uplands Inductor completion.
-            </div>
-          )}
-
           <p className="mb-3 font-din text-sm uppercase text-uplands-magenta">{section.subtitle}</p>
           <h2 className="font-slab text-4xl font-light leading-tight text-uplands-charcoal sm:text-5xl">{field.label}</h2>
 
@@ -334,7 +326,7 @@ export function QuestionScreen({
       {onCancel ? (
         <ModalActions onCancel={onCancel} onSave={continueCurrent} />
       ) : (
-        <NavigationControls canGoBack={canGoBack} onBack={onBack} onSkip={onSkip} onContinue={continueCurrent} continueLabel={continueLabel} showSkip={field.type !== "information"} />
+        <NavigationControls canGoBack={canGoBack} onBack={onBack} onSkip={onSkip} onContinue={continueCurrent} continueLabel="Continue" showSkip={field.type !== "information"} />
       )}
     </div>
   );

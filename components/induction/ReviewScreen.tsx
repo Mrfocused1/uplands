@@ -16,7 +16,7 @@ type ReviewScreenProps = {
   submitError?: string;
 };
 
-const sectionOrder = ["personal", "competence", "declaration", "acknowledgement"] as const;
+const sectionOrder = ["personal", "competence", "declaration"] as const;
 
 export function ReviewScreen({ record, fields, onBack, onSkip, onSubmit, onEdit, submitBusy = false, submitError = "" }: ReviewScreenProps) {
   const status = calculateCompletionStatus(record.answers);

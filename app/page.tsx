@@ -130,9 +130,8 @@ export default function Home() {
             </div>
             <div className="space-y-5 text-lg leading-8 text-uplands-muted">
               <p>
-                The flow guides the inductee through personal details, competence and training, and declarations, then
-                gives the Uplands Inductor a dedicated acknowledgement section for the site, PPE checks, document-copy
-                checks and sign-off.
+                The flow guides the inductee through personal details, competence and training, declarations, document
+                uploads and signature capture.
               </p>
               <p>
                 It is built for phones first, with large controls, clear progress, signature capture and a review stage
