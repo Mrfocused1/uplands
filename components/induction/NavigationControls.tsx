@@ -28,15 +28,18 @@ export function NavigationControls({
         >
           ← Back
         </button>
-        {showSkip && (
-          <button
-            type="button"
-            onClick={onSkip}
-            className="min-h-12 px-5 text-base font-bold text-uplands-magenta underline-offset-4 transition hover:underline focus:outline-none focus:ring-2 focus:ring-uplands-magenta focus:ring-offset-2"
-          >
-            Skip
-          </button>
-        )}
+        <button
+          type="button"
+          onClick={onSkip}
+          disabled={!showSkip}
+          aria-hidden={!showSkip}
+          tabIndex={showSkip ? 0 : -1}
+          className={`min-h-12 px-5 text-base font-bold text-uplands-magenta underline-offset-4 transition hover:underline focus:outline-none focus:ring-2 focus:ring-uplands-magenta focus:ring-offset-2 ${
+            showSkip ? "" : "invisible pointer-events-none"
+          }`}
+        >
+          Skip
+        </button>
         <button
           type="button"
           onClick={onContinue}
