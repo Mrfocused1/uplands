@@ -576,7 +576,7 @@ export function RamsReview() {
             <p className="text-xs font-bold uppercase tracking-[0.28em] text-uplands-magenta">Admin</p>
             <h1 className="mt-2 font-slab text-3xl leading-tight text-uplands-charcoal sm:text-4xl">RAMS</h1>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-uplands-muted">
-              CA Drillers Ltd RAMS review for Waitrose Newport core holes, including the completed Uplands review sheets and the evidence trail for each answer.
+              Review company RAMS submissions, open source documents, view completed review form pages, and inspect the evidence recorded against each answer.
             </p>
           </div>
           {selectedForm && (
