@@ -425,6 +425,65 @@
         ["q11", "No", "Fuel bunding/spill kits and flue emissions are mentioned, but wider environmental, water pollution and waste controls are incomplete."],
         ["q12", "Yes", "Revise/resubmit as a complete site-specific RAMS pack with named personnel, permits, detailed risk assessments, emergency plan, training evidence and environmental controls."]
       ]
+    },
+    {
+      "id": "ampthill-flooring-waitrose-newport",
+      "company": "Ampthill Flooring Limited",
+      "account": "Waitrose",
+      "site": "Newport - 81978",
+      "title": "Flooring installation",
+      "dateSubmitted": "20.08.2026",
+      "submittedBy": "Luke Witham",
+      "status": "B",
+      "summary": "Flooring installation including latex smoothing compound, vinyl sheet and tile works, edge trims, stair nosings and entrance matting.",
+      "generalComments": "Generally suitable subject to comments. The pack includes method statements, risk assessments and COSHH/SDS information, but the front sheet must be completed with personnel, works supervisor, key plant/tools, key materials and clearer site-specific emergency/hospital details.",
+      "sourceRef": "Extracted text: afl-rams.txt",
+      "documents": [
+        {
+          "title": "Source RAMS PDF",
+          "description": "Original Ampthill Flooring RAMS for Waitrose Newport flooring installation.",
+          "href": "/rams/sources/ampthill-flooring-waitrose-newport-rams.pdf",
+          "type": "pdf"
+        }
+      ],
+      "downloadHref": "/rams/reviews/ampthill-flooring-waitrose-newport.pdf",
+      "frontHref": "/rams/reviews/ampthill-flooring-waitrose-newport-front.png",
+      "backHref": "/rams/reviews/ampthill-flooring-waitrose-newport-back.png",
+      "pressureSystems": "No",
+      "hazardsYes": [
+        "Hot Works",
+        "Lifting Operations",
+        "Electrical Work",
+        "Use of Plant and Equipment",
+        "PAT Testing",
+        "Restricted Access and Egress",
+        "Vehicle / Plant Movements",
+        "Segregation",
+        "Fire / Explosion",
+        "Sharp Objects",
+        "Flying Particles",
+        "Dust",
+        "Noise",
+        "Vibration",
+        "Manual Handling",
+        "Hazardous Substances",
+        "Falls of materials"
+      ],
+      "questions": [
+        ["q1", "Yes", "Controls are included for manual handling, floor preparation, latex smoothing compound, vinyl sheets/tiles, edge trims, stair nosings, entrance matting, hot welding, 110V tools, PPE, COSHH and waste."],
+        ["q2", "Yes", "Likely flooring hazards are covered, including dust, sharp tools, adhesives, smoothing compounds, hot weld guns, slips/trips, manual handling, 110V equipment, PAT testing and falling materials from scaffold/interface areas."],
+        ["q2p", "Yes", "Permits should be confirmed for hot works/hot weld guns, any 110V electrical-tool controls required by site rules, access/segregation of work areas and any main-contractor controlled lifting/offloading interface."],
+        ["q3", "Yes", "The scope is identified as flooring installation at Waitrose Newport, Audley Road, TF10 7DS, with start and finish dates shown as 02/09/26 to 23/09/26."],
+        ["q4", "No", "Works supervisor is blank and the personnel table is not completed. Add named supervisor, operatives, roles/trades and contact details before final acceptance."],
+        ["q5", "Yes", "Monitoring is referenced through contracts manager responsibility, team leader checks, visual risk assessments, defect reporting and daily housekeeping/waste removal."],
+        ["q6", "Yes", "Training requirements are identified through site induction, CSCS at induction, toolbox talks, manual handling training, task competence and trained use of smoothing compounds, adhesives, knives, hot weld guns and 110V equipment."],
+        ["q7", "No", "No non-English speaking operatives are identified and no translation arrangements are stated."],
+        ["q8", "Yes", "Other trades are included as persons at risk and controls include barriers, warning notices, traffic exclusion from work areas, clear walkways, housekeeping and segregation."],
+        ["q9", "No", "Emergency arrangements rely on site induction only and state nearest hospital/first aid box as indicated at induction. Complete project-specific first aid, hospital and emergency details."],
+        ["q10", "Yes", "PPE includes hard hat, hi-vis, S3 safety boots, gloves, eye protection, knee pads and FFP3 respiratory protection where dust or mixing operations require it."],
+        ["q11", "Yes", "Waste disposal, segregated skips, housekeeping, COSHH controls, spillage clean-up and SDS environmental/disposal information are included."],
+        ["q12", "Yes", "Complete front-sheet personnel/supervisor/tool/material fields, confirm permit requirements for hot welding and 110V equipment, and add site-specific first aid/hospital details before close-out."]
+      ]
     }
   ]
 }
