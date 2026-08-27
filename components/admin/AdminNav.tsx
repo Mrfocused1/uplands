@@ -17,7 +17,7 @@ export function AdminNav() {
 
   return (
     <header className="no-print sticky top-0 z-40 border-b border-zinc-200 bg-white">
-      <div className="mx-auto flex min-h-24 w-full max-w-7xl items-center justify-between gap-5 px-5 py-5 sm:px-8">
+      <div className="mx-auto flex min-h-20 w-full max-w-7xl items-center justify-between gap-3 px-4 py-4 sm:min-h-24 sm:px-8 sm:py-5">
         <div className="flex items-center gap-7">
           <Link href="/" aria-label="Uplands home">
             <Image
@@ -26,7 +26,7 @@ export function AdminNav() {
               width={235}
               height={44}
               priority
-              className="h-auto w-44 sm:w-56"
+              className="h-auto w-36 sm:w-56"
             />
           </Link>
           <nav className="hidden items-center gap-7 md:flex">
@@ -44,9 +44,35 @@ export function AdminNav() {
             </Link>
           </nav>
         </div>
-        <div className="text-right">
-          <p className="font-din text-xs uppercase tracking-normal text-uplands-magenta">UHSF16.01</p>
-          <h1 className="mt-1 font-slab text-lg leading-tight text-uplands-charcoal sm:text-2xl">Admin Records</h1>
+        <div className="flex items-center gap-4">
+          <div className="text-right">
+            <p className="font-din text-xs uppercase tracking-normal text-uplands-magenta">UHSF16.01</p>
+            <h1 className="mt-1 hidden font-slab text-lg leading-tight text-uplands-charcoal sm:block sm:text-2xl">Admin Records</h1>
+          </div>
+          <details className="group relative md:hidden">
+            <summary
+              className="flex h-11 w-11 cursor-pointer list-none flex-col items-center justify-center gap-1.5 border border-zinc-200 bg-white shadow-sm marker:hidden"
+              aria-label="Open admin navigation menu"
+            >
+              <span className="h-0.5 w-6 bg-zinc-800" />
+              <span className="h-0.5 w-6 bg-zinc-800" />
+              <span className="h-0.5 w-6 bg-zinc-800" />
+            </summary>
+            <nav className="absolute right-0 top-14 z-50 w-64 border border-zinc-200 bg-white p-4 text-base font-bold uppercase tracking-wide text-zinc-700 shadow-soft">
+              <Link className="block py-3 hover:text-uplands-magenta" href="/">
+                Home
+              </Link>
+              <Link className="block py-3 hover:text-uplands-magenta" href="/form">
+                Form
+              </Link>
+              <Link className={`${linkClass("/admin/submissions")} block py-3`} href="/admin/submissions">
+                Admin
+              </Link>
+              <Link className={`${linkClass("/admin/rams")} block py-3`} href="/admin/rams">
+                RAMS
+              </Link>
+            </nav>
+          </details>
         </div>
       </div>
     </header>
