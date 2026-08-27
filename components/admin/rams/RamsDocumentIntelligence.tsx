@@ -1,0 +1,502 @@
+"use client";
+
+import { FormEvent, useEffect, useMemo, useState } from "react";
+import { Spinner } from "@/components/Spinner";
+
+type ProcessingStatus = "UPLOADED" | "PROCESSING" | "READY" | "FAILED" | "OCR_REQUIRED";
+
+interface RamsIntelligenceDocument {
+  id: string;
+  title: string;
+  siteName: string | null;
+  contractor: string;
+  documentReference: string | null;
+  revision: string | null;
+  revisionDate: string | null;
+  fileName: string;
+  fileSize: number;
+  pageCount: number | null;
+  processingStatus: ProcessingStatus;
+  processingError: string | null;
+  textExtractionStatus: string;
+  createdAt: string;
+  sectionCount: number;
+  chunkCount: number;
+}
+
+interface EvidenceBox {
+  page_number: number;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  page_width: number | null;
+  page_height: number | null;
+}
+
+interface SearchResult {
+  chunkId: string;
+  pageNumber: number;
+  endPageNumber: number;
+  sectionTitle: string | null;
+  snippet: string;
+  score: number;
+  text: string;
+  boxes: EvidenceBox[];
+}
+
+interface CopilotAnswer {
+  answer: string;
+  confidence: "low" | "medium" | "high";
+  model: string;
+  aiConfigured: boolean;
+  citations: SearchResult[];
+}
+
+function statusClass(status: ProcessingStatus) {
+  if (status === "READY") return "bg-emerald-50 text-emerald-700 ring-emerald-200";
+  if (status === "OCR_REQUIRED") return "bg-amber-50 text-amber-800 ring-amber-200";
+  if (status === "FAILED") return "bg-red-50 text-red-700 ring-red-200";
+  return "bg-zinc-100 text-zinc-700 ring-zinc-200";
+}
+
+function date(value: string | null) {
+  if (!value) return "";
+  return new Date(value).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+}
+
+function fileSize(bytes: number) {
+  if (bytes > 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)}MB`;
+  return `${Math.max(1, Math.round(bytes / 1024))}KB`;
+}
+
+function UploadModal({
+  onClose,
+  onUploaded,
+}: {
+  onClose: () => void;
+  onUploaded: (document: RamsIntelligenceDocument) => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setBusy(true);
+    setError("");
+
+    const form = event.currentTarget;
+    const formData = new FormData(form);
+    try {
+      const response = await fetch("/api/admin/rams", { method: "POST", body: formData });
+      const data = await response.json();
+      if (!response.ok && response.status !== 202) throw new Error(data.error || "Unable to upload RAMS.");
+      const refreshed = await fetch("/api/admin/rams").then((item) => item.json());
+      const document = refreshed.documents?.[0] as RamsIntelligenceDocument | undefined;
+      if (document) onUploaded(document);
+      form.reset();
+      onClose();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Unable to upload RAMS.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" role="dialog" aria-modal="true">
+      <form onSubmit={submit} className="w-full max-w-2xl border border-zinc-200 bg-white p-5 shadow-soft">
+        <div className="mb-5 flex items-start justify-between gap-4 border-b border-zinc-200 pb-4">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.22em] text-uplands-magenta">Upload RAMS</p>
+            <h2 className="mt-1 font-slab text-2xl text-uplands-charcoal">New RAMS Document</h2>
+          </div>
+          <button type="button" onClick={onClose} className="border border-zinc-300 px-3 py-2 text-xs font-bold uppercase text-zinc-700">
+            Close
+          </button>
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <label className="sm:col-span-2">
+            <span className="text-xs font-bold uppercase text-zinc-700">RAMS Title</span>
+            <input name="title" required className="mt-1 min-h-11 w-full border border-zinc-300 px-3 outline-none focus:border-uplands-magenta" />
+          </label>
+          <label>
+            <span className="text-xs font-bold uppercase text-zinc-700">Project / Site</span>
+            <input name="siteName" className="mt-1 min-h-11 w-full border border-zinc-300 px-3 outline-none focus:border-uplands-magenta" />
+          </label>
+          <label>
+            <span className="text-xs font-bold uppercase text-zinc-700">Contractor / Subcontractor</span>
+            <input name="contractor" required className="mt-1 min-h-11 w-full border border-zinc-300 px-3 outline-none focus:border-uplands-magenta" />
+          </label>
+          <label>
+            <span className="text-xs font-bold uppercase text-zinc-700">Document / Reference No.</span>
+            <input name="documentReference" className="mt-1 min-h-11 w-full border border-zinc-300 px-3 outline-none focus:border-uplands-magenta" />
+          </label>
+          <label>
+            <span className="text-xs font-bold uppercase text-zinc-700">Revision</span>
+            <input name="revision" className="mt-1 min-h-11 w-full border border-zinc-300 px-3 outline-none focus:border-uplands-magenta" />
+          </label>
+          <label>
+            <span className="text-xs font-bold uppercase text-zinc-700">Revision Date</span>
+            <input name="revisionDate" type="date" className="mt-1 min-h-11 w-full border border-zinc-300 px-3 outline-none focus:border-uplands-magenta" />
+          </label>
+          <label>
+            <span className="text-xs font-bold uppercase text-zinc-700">PDF File</span>
+            <input
+              name="file"
+              type="file"
+              accept="application/pdf,.pdf"
+              required
+              className="mt-1 block min-h-11 w-full border border-zinc-300 bg-white px-3 py-2 text-sm"
+            />
+          </label>
+        </div>
+
+        {error && <p className="mt-4 border-l-4 border-red-600 bg-red-50 p-3 text-sm font-bold text-red-700">{error}</p>}
+        {busy && (
+          <div className="mt-4 flex items-center gap-3 border-l-4 border-uplands-magenta bg-uplands-paper p-3 text-sm font-bold">
+            <Spinner />
+            <span>Uploading RAMS... Extracting document text... Creating search index...</span>
+          </div>
+        )}
+
+        <div className="mt-6 flex justify-end gap-3">
+          <button type="button" onClick={onClose} disabled={busy} className="min-h-11 border border-zinc-300 px-4 text-sm font-bold uppercase text-zinc-700">
+            Cancel
+          </button>
+          <button type="submit" disabled={busy} className="inline-flex min-h-11 items-center gap-2 bg-uplands-magenta px-5 text-sm font-bold uppercase text-white disabled:opacity-60">
+            {busy && <Spinner className="h-4 w-4" />}
+            {busy ? "Processing..." : "Upload & Process"}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+function PdfWorkspace({
+  document,
+  onClose,
+}: {
+  document: RamsIntelligenceDocument;
+  onClose: () => void;
+}) {
+  const [page, setPage] = useState(1);
+  const [zoom, setZoom] = useState(100);
+  const [query, setQuery] = useState("");
+  const [searching, setSearching] = useState(false);
+  const [results, setResults] = useState<SearchResult[]>([]);
+  const [question, setQuestion] = useState("");
+  const [asking, setAsking] = useState(false);
+  const [answer, setAnswer] = useState<CopilotAnswer | null>(null);
+  const [error, setError] = useState("");
+  const [highlight, setHighlight] = useState<SearchResult | null>(null);
+
+  const pageCount = document.pageCount ?? 1;
+  const highlightBoxes = useMemo(() => highlight?.boxes.filter((box) => box.page_number === page).slice(0, 10) ?? [], [highlight, page]);
+
+  function showEvidence(result: SearchResult) {
+    setHighlight(result);
+    setPage(result.pageNumber);
+  }
+
+  async function runSearch(event: FormEvent) {
+    event.preventDefault();
+    if (!query.trim()) return;
+    setSearching(true);
+    setError("");
+    try {
+      const response = await fetch(`/api/admin/rams/${document.id}/search`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Search failed.");
+      setResults(data.results ?? []);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Search failed.");
+    } finally {
+      setSearching(false);
+    }
+  }
+
+  async function askCopilot(event: FormEvent) {
+    event.preventDefault();
+    if (!question.trim()) return;
+    setAsking(true);
+    setError("");
+    try {
+      const response = await fetch(`/api/admin/rams/${document.id}/ask`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Unable to answer question.");
+      setAnswer(data);
+      setResults(data.citations ?? []);
+      if (data.citations?.[0]) showEvidence(data.citations[0]);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Unable to answer question.");
+    } finally {
+      setAsking(false);
+    }
+  }
+
+  return (
+    <section className="space-y-5">
+      <div className="border border-zinc-200 bg-white p-5 shadow-soft">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.22em] text-uplands-magenta">Document Intelligence</p>
+            <h2 className="mt-1 font-slab text-2xl text-uplands-charcoal">{document.contractor}</h2>
+            <p className="mt-1 text-sm text-uplands-muted">
+              {document.title}
+              {document.siteName ? ` · ${document.siteName}` : ""}
+              {document.revision ? ` · Rev ${document.revision}` : ""}
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-3">
+            <a href={`/api/admin/rams/${document.id}/pdf?download=1`} className="inline-flex min-h-10 items-center bg-uplands-charcoal px-4 text-sm font-bold uppercase text-white">
+              Download PDF
+            </a>
+            <button type="button" disabled className="min-h-10 border border-zinc-300 px-4 text-sm font-bold uppercase text-zinc-400">
+              Run Full AI Review
+            </button>
+            <button type="button" onClick={onClose} className="min-h-10 border border-zinc-300 px-4 text-sm font-bold uppercase text-zinc-700">
+              Close
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {error && <p className="border-l-4 border-red-600 bg-white p-4 text-sm font-bold text-red-700 shadow-soft">{error}</p>}
+
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(380px,0.85fr)]">
+        <div className="border border-zinc-200 bg-white p-4 shadow-soft">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <button type="button" onClick={() => setPage((value) => Math.max(1, value - 1))} className="border border-zinc-300 px-3 py-2 text-xs font-bold uppercase">
+                Prev
+              </button>
+              <span className="text-sm font-bold text-zinc-700">
+                Page {page} of {pageCount}
+              </span>
+              <button type="button" onClick={() => setPage((value) => Math.min(pageCount, value + 1))} className="border border-zinc-300 px-3 py-2 text-xs font-bold uppercase">
+                Next
+              </button>
+            </div>
+            <select value={zoom} onChange={(event) => setZoom(Number(event.target.value))} className="min-h-10 border border-zinc-300 bg-white px-3 text-sm font-bold">
+              <option value={80}>80%</option>
+              <option value={100}>100%</option>
+              <option value={125}>125%</option>
+              <option value={150}>150%</option>
+            </select>
+          </div>
+          <div className="max-h-[78vh] overflow-auto bg-zinc-100 p-3">
+            <div className="relative mx-auto bg-white shadow-soft" style={{ width: `${zoom}%`, maxWidth: "1200px" }}>
+              <img src={`/api/admin/rams/${document.id}/page/${page}`} alt={`RAMS page ${page}`} className="block h-auto w-full" />
+              {highlightBoxes.map((box, index) => {
+                const pageWidth = box.page_width || 595;
+                const pageHeight = box.page_height || 842;
+                return (
+                  <span
+                    key={`${box.x}-${box.y}-${index}`}
+                    className="pointer-events-none absolute border-2 border-uplands-magenta bg-uplands-magenta/20 shadow-[0_0_0_9999px_rgba(188,0,150,0.03)]"
+                    style={{
+                      left: `${(box.x / pageWidth) * 100}%`,
+                      top: `${(box.y / pageHeight) * 100}%`,
+                      width: `${(box.width / pageWidth) * 100}%`,
+                      height: `${(box.height / pageHeight) * 100}%`,
+                    }}
+                  />
+                );
+              })}
+            </div>
+          </div>
+        </div>
+
+        <div className="space-y-5">
+          <section className="border border-zinc-200 bg-white p-5 shadow-soft">
+            <h2 className="font-slab text-2xl text-uplands-charcoal">Search RAMS</h2>
+            <form onSubmit={runSearch} className="mt-4 flex gap-2">
+              <input
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                type="search"
+                placeholder="Search IPAF, PPE, asbestos..."
+                className="min-h-11 min-w-0 flex-1 border border-zinc-300 px-3 text-sm outline-none focus:border-uplands-magenta"
+              />
+              <button type="submit" disabled={searching} className="inline-flex min-h-11 items-center gap-2 bg-uplands-magenta px-4 text-sm font-bold uppercase text-white disabled:opacity-60">
+                {searching && <Spinner className="h-4 w-4" />}
+                Search
+              </button>
+            </form>
+            <div className="mt-4 divide-y divide-zinc-200 border border-zinc-200">
+              {results.map((result) => (
+                <button key={result.chunkId} type="button" onClick={() => showEvidence(result)} className="block w-full p-3 text-left hover:bg-uplands-paper">
+                  <span className="text-xs font-bold uppercase text-uplands-magenta">
+                    Page {result.pageNumber}
+                    {result.sectionTitle ? ` · ${result.sectionTitle}` : ""}
+                  </span>
+                  <span className="mt-1 block text-sm leading-5 text-zinc-800">{result.snippet}</span>
+                  <span className="mt-2 inline-block border border-uplands-magenta px-2 py-1 text-xs font-bold uppercase text-uplands-magenta">Show in RAMS</span>
+                </button>
+              ))}
+              {results.length === 0 && <p className="p-3 text-sm text-uplands-muted">No search results yet.</p>}
+            </div>
+          </section>
+
+          <section className="border border-zinc-200 bg-white p-5 shadow-soft">
+            <h2 className="font-slab text-2xl text-uplands-charcoal">RAMS Copilot</h2>
+            <form onSubmit={askCopilot} className="mt-4 space-y-3">
+              <textarea
+                value={question}
+                onChange={(event) => setQuestion(event.target.value)}
+                placeholder="Ask a question about this RAMS..."
+                rows={3}
+                className="w-full border border-zinc-300 p-3 text-sm outline-none focus:border-uplands-magenta"
+              />
+              <button type="submit" disabled={asking} className="inline-flex min-h-11 items-center gap-2 bg-uplands-magenta px-4 text-sm font-bold uppercase text-white disabled:opacity-60">
+                {asking && <Spinner className="h-4 w-4" />}
+                Ask RAMS
+              </button>
+            </form>
+            {answer && (
+              <div className="mt-4 border border-zinc-200 bg-uplands-paper p-4">
+                <p className="text-sm leading-6 text-zinc-800">{answer.answer}</p>
+                <p className="mt-3 text-xs font-bold uppercase text-zinc-500">
+                  Confidence: {answer.confidence} · Model: {answer.model}
+                </p>
+                {answer.citations.length > 0 && (
+                  <div className="mt-3 space-y-2">
+                    {answer.citations.map((citation) => (
+                      <button key={citation.chunkId} type="button" onClick={() => showEvidence(citation)} className="block w-full border border-zinc-300 bg-white p-3 text-left text-sm hover:border-uplands-magenta">
+                        Page {citation.pageNumber}
+                        {citation.sectionTitle ? ` · ${citation.sectionTitle}` : ""}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </section>
+
+          <section className="border border-zinc-200 bg-white p-5 shadow-soft">
+            <h2 className="font-slab text-2xl text-uplands-charcoal">Document Information</h2>
+            <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
+              <dt className="font-bold text-zinc-700">Pages</dt>
+              <dd>{document.pageCount ?? "-"}</dd>
+              <dt className="font-bold text-zinc-700">Sections</dt>
+              <dd>{document.sectionCount}</dd>
+              <dt className="font-bold text-zinc-700">Passages</dt>
+              <dd>{document.chunkCount}</dd>
+              <dt className="font-bold text-zinc-700">File</dt>
+              <dd>{fileSize(document.fileSize)}</dd>
+            </dl>
+          </section>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+export function RamsDocumentIntelligence({ onWorkspaceChange }: { onWorkspaceChange?: (active: boolean) => void }) {
+  const [documents, setDocuments] = useState<RamsIntelligenceDocument[]>([]);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [uploadOpen, setUploadOpen] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/admin/rams")
+      .then((response) => response.json())
+      .then((data) => {
+        if (!cancelled) setDocuments(data.documents ?? []);
+      })
+      .catch(() => {
+        if (!cancelled) setError("Unable to load uploaded RAMS documents.");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const selectedDocument = useMemo(() => documents.find((document) => document.id === selectedId) ?? null, [documents, selectedId]);
+
+  useEffect(() => {
+    onWorkspaceChange?.(Boolean(selectedDocument));
+  }, [onWorkspaceChange, selectedDocument]);
+
+  if (selectedDocument) {
+    return <PdfWorkspace document={selectedDocument} onClose={() => setSelectedId(null)} />;
+  }
+
+  return (
+    <section className="border border-zinc-200 bg-white p-5 shadow-soft">
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h2 className="font-slab text-2xl text-uplands-charcoal">Uploaded RAMS</h2>
+          <p className="mt-1 text-sm text-uplands-muted">Upload, process, search and query RAMS documents.</p>
+        </div>
+        <button type="button" onClick={() => setUploadOpen(true)} className="min-h-11 bg-uplands-magenta px-5 text-sm font-bold uppercase text-white">
+          + Upload RAMS
+        </button>
+      </div>
+
+      {error && <p className="mb-4 border-l-4 border-red-600 bg-red-50 p-3 text-sm font-bold text-red-700">{error}</p>}
+      {loading ? (
+        <div className="flex items-center gap-3 border border-zinc-200 p-4 text-sm font-bold">
+          <Spinner />
+          <span>Loading uploaded RAMS...</span>
+        </div>
+      ) : (
+        <div className="divide-y divide-zinc-200 border border-zinc-200">
+          {documents.map((document) => (
+            <button
+              key={document.id}
+              type="button"
+              onClick={() => setSelectedId(document.id)}
+              className="grid w-full gap-3 bg-white px-4 py-4 text-left transition hover:bg-uplands-paper sm:grid-cols-[1fr_auto] sm:items-center"
+            >
+              <span>
+                <span className="block font-din text-lg text-uplands-charcoal">{document.contractor}</span>
+                <span className="mt-1 block text-sm text-uplands-muted">
+                  {document.title}
+                  {document.siteName ? ` · ${document.siteName}` : ""}
+                  {document.revision ? ` · Rev ${document.revision}` : ""}
+                </span>
+                <span className="mt-1 block text-xs text-uplands-muted">
+                  {document.pageCount ?? 0} pages · {document.sectionCount} sections · {document.chunkCount} searchable passages
+                  {document.revisionDate ? ` · ${date(document.revisionDate)}` : ""}
+                </span>
+                {document.processingError && <span className="mt-1 block text-xs text-red-700">{document.processingError}</span>}
+              </span>
+              <span className="flex flex-wrap items-center gap-2 sm:justify-end">
+                <span className={`px-2.5 py-1 text-xs font-bold uppercase ring-1 ${statusClass(document.processingStatus)}`}>{document.processingStatus.replace("_", " ")}</span>
+                <span className="px-2.5 py-1 text-xs font-bold uppercase text-uplands-magenta ring-1 ring-uplands-magenta">Open</span>
+              </span>
+            </button>
+          ))}
+          {documents.length === 0 && <p className="p-5 text-sm text-uplands-muted">No uploaded RAMS documents yet.</p>}
+        </div>
+      )}
+
+      {uploadOpen && (
+        <UploadModal
+          onClose={() => setUploadOpen(false)}
+          onUploaded={(document) => {
+            setDocuments((current) => [document, ...current.filter((item) => item.id !== document.id)]);
+            setSelectedId(document.id);
+          }}
+        />
+      )}
+    </section>
+  );
+}

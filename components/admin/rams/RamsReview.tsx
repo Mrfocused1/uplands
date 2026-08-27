@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 
 import ramsData from "@/config/ramsReviews.json";
+import { RamsDocumentIntelligence } from "@/components/admin/rams/RamsDocumentIntelligence";
 
 type Answer = "Yes" | "No" | "N/A";
 type StatusCode = "A" | "B" | "C";
@@ -186,6 +187,7 @@ export function RamsReview() {
   const [activeTab, setActiveTab] = useState<"hazards" | "questions">("questions");
   const [selectedFormId, setSelectedFormId] = useState<string | null>(null);
   const [previewDocument, setPreviewDocument] = useState<RamsDocument | null>(null);
+  const [uploadedWorkspaceActive, setUploadedWorkspaceActive] = useState(false);
 
   const selectedForm = useMemo(() => forms.find((form) => form.id === selectedFormId) ?? null, [selectedFormId]);
 
@@ -225,7 +227,9 @@ export function RamsReview() {
         </div>
       </section>
 
-      {!selectedForm && (
+      <RamsDocumentIntelligence onWorkspaceChange={setUploadedWorkspaceActive} />
+
+      {!uploadedWorkspaceActive && !selectedForm && (
         <section className="border border-zinc-200 bg-white p-5 shadow-soft">
           <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
             <div>
@@ -259,7 +263,7 @@ export function RamsReview() {
         </section>
       )}
 
-      {selectedForm && (
+      {!uploadedWorkspaceActive && selectedForm && (
         <>
           <section className="border border-zinc-200 bg-white p-5 shadow-soft">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -320,7 +324,7 @@ export function RamsReview() {
         </>
       )}
 
-      {selectedForm && showEvidence && (
+      {!uploadedWorkspaceActive && selectedForm && showEvidence && (
         <section className="border border-zinc-200 bg-white p-5 shadow-soft">
           <div className="mb-5 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div>
