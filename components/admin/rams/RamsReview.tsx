@@ -13,6 +13,14 @@ type EvidenceItem = {
   note?: string;
 };
 
+type RamsDocument = {
+  title: string;
+  description: string;
+  href: string;
+  action: string;
+  preview?: boolean;
+};
+
 const documents = [
   {
     title: "Source RAMS PDF",
@@ -21,18 +29,20 @@ const documents = [
     action: "Open PDF",
   },
   {
-    title: "Completed Sheet 1",
+    title: "RAMS REVIEW FORM Front Page",
     description: "Method statement / risk assessment details and hazard checklist.",
     href: "/rams/rams-review-sheet-1.png",
-    action: "Open Completed Sheet 1",
+    action: "View",
+    preview: true,
   },
   {
-    title: "Completed Sheet 2",
+    title: "RAMS REVIEW FORM Back Page",
     description: "RAMS review questions with completed comments.",
     href: "/rams/rams-review-sheet-2.png",
-    action: "Open Completed Sheet 2",
+    action: "View",
+    preview: true,
   },
-];
+] satisfies RamsDocument[];
 
 const ramsForms = [
   {
@@ -553,6 +563,7 @@ export function RamsReview() {
   const [showEvidence, setShowEvidence] = useState(false);
   const [activeTab, setActiveTab] = useState<"hazards" | "questions">("questions");
   const [selectedFormId, setSelectedFormId] = useState<string | null>(null);
+  const [previewDocument, setPreviewDocument] = useState<RamsDocument | null>(null);
 
   const activeItems = useMemo(() => (activeTab === "questions" ? reviewEvidence : hazardEvidence), [activeTab]);
   const selectedForm = useMemo(() => ramsForms.find((form) => form.id === selectedFormId) ?? null, [selectedFormId]);
@@ -647,14 +658,24 @@ export function RamsReview() {
               <article key={document.href} className="border border-zinc-200 bg-white p-5 shadow-soft">
                 <h2 className="font-din text-lg text-uplands-charcoal">{document.title}</h2>
                 <p className="mt-2 min-h-12 text-sm leading-6 text-uplands-muted">{document.description}</p>
-                <a
-                  href={document.href}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="mt-4 inline-flex min-h-10 items-center border border-uplands-magenta px-4 text-sm font-bold uppercase text-uplands-magenta transition hover:bg-uplands-magenta hover:text-white"
-                >
-                  {document.action}
-                </a>
+                {document.preview ? (
+                  <button
+                    type="button"
+                    onClick={() => setPreviewDocument(document)}
+                    className="mt-4 inline-flex min-h-10 items-center border border-uplands-magenta px-4 text-sm font-bold uppercase text-uplands-magenta transition hover:bg-uplands-magenta hover:text-white"
+                  >
+                    {document.action}
+                  </button>
+                ) : (
+                  <a
+                    href={document.href}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="mt-4 inline-flex min-h-10 items-center border border-uplands-magenta px-4 text-sm font-bold uppercase text-uplands-magenta transition hover:bg-uplands-magenta hover:text-white"
+                  >
+                    {document.action}
+                  </a>
+                )}
               </article>
             ))}
           </section>
@@ -691,6 +712,32 @@ export function RamsReview() {
           </div>
           <EvidenceAccordion items={activeItems} />
         </section>
+      )}
+
+      {previewDocument && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label={previewDocument.title}
+          onClick={() => setPreviewDocument(null)}
+        >
+          <div className="max-h-[92vh] w-full max-w-5xl overflow-hidden border border-zinc-200 bg-white shadow-soft" onClick={(event) => event.stopPropagation()}>
+            <div className="flex items-center justify-between gap-4 border-b border-zinc-200 px-4 py-3">
+              <h2 className="font-din text-base text-uplands-charcoal sm:text-lg">{previewDocument.title}</h2>
+              <button
+                type="button"
+                onClick={() => setPreviewDocument(null)}
+                className="min-h-10 border border-zinc-300 px-4 text-sm font-bold uppercase text-zinc-700 transition hover:border-uplands-magenta hover:text-uplands-magenta"
+              >
+                Close
+              </button>
+            </div>
+            <div className="max-h-[calc(92vh-65px)] overflow-auto bg-zinc-100 p-4">
+              <img src={previewDocument.href} alt={previewDocument.title} className="mx-auto h-auto w-full max-w-4xl border border-zinc-300 bg-white" />
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
