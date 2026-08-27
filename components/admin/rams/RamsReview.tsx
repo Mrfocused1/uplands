@@ -235,26 +235,22 @@ export function RamsReview() {
         </div>
       </section>
 
-      <section className="border border-zinc-200 bg-white p-5 shadow-soft">
-        <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <h2 className="font-slab text-2xl text-uplands-charcoal">RAMS Forms</h2>
-            <p className="mt-1 text-sm text-uplands-muted">Select a company to open its current RAMS review.</p>
+      {!selectedForm && (
+        <section className="border border-zinc-200 bg-white p-5 shadow-soft">
+          <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <h2 className="font-slab text-2xl text-uplands-charcoal">RAMS Forms</h2>
+              <p className="mt-1 text-sm text-uplands-muted">Select a company to open its current RAMS review.</p>
+            </div>
+            <span className="text-xs font-bold uppercase text-uplands-muted">{forms.length} forms</span>
           </div>
-          <span className="text-xs font-bold uppercase text-uplands-muted">{forms.length} forms</span>
-        </div>
-        <div className="divide-y divide-zinc-200 border border-zinc-200">
-          {forms.map((form) => {
-            const isSelected = selectedFormId === form.id;
-            return (
+          <div className="divide-y divide-zinc-200 border border-zinc-200">
+            {forms.map((form) => (
               <button
                 key={form.id}
                 type="button"
                 onClick={() => setSelectedFormId(form.id)}
-                className={`grid w-full gap-3 px-4 py-4 text-left transition sm:grid-cols-[1fr_auto] sm:items-center ${
-                  isSelected ? "bg-uplands-paper" : "bg-white hover:bg-uplands-paper"
-                }`}
-                aria-pressed={isSelected}
+                className="grid w-full gap-3 bg-white px-4 py-4 text-left transition hover:bg-uplands-paper sm:grid-cols-[1fr_auto] sm:items-center"
               >
                 <span>
                   <span className="block font-din text-lg text-uplands-charcoal">{form.company}</span>
@@ -265,15 +261,13 @@ export function RamsReview() {
                   <span className={`px-2.5 py-1 text-xs font-bold uppercase ring-1 ${statusClass(form.status)}`}>
                     {form.status}: {statusText(form.status)}
                   </span>
-                  <span className="px-2.5 py-1 text-xs font-bold uppercase text-uplands-magenta ring-1 ring-uplands-magenta">
-                    {isSelected ? "Open" : "View"}
-                  </span>
+                  <span className="px-2.5 py-1 text-xs font-bold uppercase text-uplands-magenta ring-1 ring-uplands-magenta">View</span>
                 </span>
               </button>
-            );
-          })}
-        </div>
-      </section>
+            ))}
+          </div>
+        </section>
+      )}
 
       {selectedForm && (
         <>
@@ -302,7 +296,7 @@ export function RamsReview() {
                   }}
                   className="min-h-10 border border-zinc-300 px-4 text-sm font-bold uppercase text-zinc-700 transition hover:border-uplands-magenta hover:text-uplands-magenta"
                 >
-                  Back to Forms
+                  Close
                 </button>
               </div>
             </div>
