@@ -39,6 +39,9 @@ export function AdminNav() {
             <Link href="/admin/submissions" className={linkClass("/admin/submissions")}>
               Admin
             </Link>
+            <Link href="/admin/rams" className={linkClass("/admin/rams")}>
+              RAMS
+            </Link>
           </nav>
         </div>
         <div className="text-right">
