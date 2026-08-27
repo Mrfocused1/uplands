@@ -38,6 +38,7 @@ export const uhsf1601Schema: InductionField[] = [
     type: "text",
     role: "inductee",
     allowSkip: true,
+    group: "personal-details",
     placeholder: "Enter your full name",
   },
   {
@@ -48,6 +49,7 @@ export const uhsf1601Schema: InductionField[] = [
     type: "phone",
     role: "inductee",
     allowSkip: true,
+    group: "personal-details",
   },
   {
     id: "homeAddress",
@@ -66,6 +68,7 @@ export const uhsf1601Schema: InductionField[] = [
     type: "text",
     role: "inductee",
     allowSkip: true,
+    group: "personal-details",
   },
   {
     id: "occupation",
@@ -76,6 +79,7 @@ export const uhsf1601Schema: InductionField[] = [
     type: "text",
     role: "inductee",
     allowSkip: true,
+    group: "personal-details",
   },
   {
     id: "emergencyContactName",

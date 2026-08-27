@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { InductionHeader } from "./InductionHeader";
 import { QuestionScreen } from "./QuestionScreen";
+import { PersonalDetailsScreen } from "./PersonalDetailsScreen";
 import { ChecklistScreen } from "./ChecklistScreen";
 import { DeclarationScreen } from "./DeclarationScreen";
 import { UploadsScreen } from "./UploadsScreen";
@@ -147,6 +148,21 @@ export function ProgressiveInduction() {
       <InductionHeader />
 
       <main>
+        {induction.screen === "wizard" && currentStep.kind === "group" && currentStep.groupId === "personal-details" && (
+          <PersonalDetailsScreen
+            key={currentStep.groupId}
+            fields={currentStep.fields}
+            answers={induction.record.answers}
+            current={induction.currentIndex + 1}
+            total={induction.total}
+            progress={induction.progress}
+            canGoBack={induction.canGoBack}
+            onBack={induction.goBack}
+            onSkip={induction.skipCurrent}
+            onContinue={induction.continueGroup}
+          />
+        )}
+
         {induction.screen === "wizard" && currentStep.kind === "group" && currentStep.groupId === "competence-checklist" && (
           <ChecklistScreen
             key={currentStep.groupId}
@@ -262,6 +278,22 @@ export function ProgressiveInduction() {
                 onSkip={induction.closeEdit}
                 onContinue={induction.saveFieldEdit}
                 onInformationContinue={induction.closeEdit}
+                onCancel={induction.closeEdit}
+              />
+            )}
+
+            {editStep.kind === "group" && editStep.groupId === "personal-details" && (
+              <PersonalDetailsScreen
+                key={editStep.groupId}
+                fields={editStep.fields}
+                answers={induction.record.answers}
+                current={1}
+                total={1}
+                progress={100}
+                canGoBack={false}
+                onBack={induction.closeEdit}
+                onSkip={induction.closeEdit}
+                onContinue={induction.saveEdit}
                 onCancel={induction.closeEdit}
               />
             )}
