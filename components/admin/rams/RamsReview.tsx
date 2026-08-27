@@ -222,16 +222,6 @@ export function RamsReview() {
               Review company RAMS submissions, open source documents, view completed review form pages, and download completed review forms.
             </p>
           </div>
-          {selectedForm && (
-            <button
-              type="button"
-              onClick={() => setShowEvidence((value) => !value)}
-              className="min-h-11 bg-uplands-magenta px-5 text-sm font-bold uppercase text-white transition hover:bg-[#8e0075]"
-              aria-expanded={showEvidence}
-            >
-              {showEvidence ? "Hide Evidence" : "More"}
-            </button>
-          )}
         </div>
       </section>
 
