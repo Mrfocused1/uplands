@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { FieldAnswer, InductionField, InductionValue } from "@/types/induction";
 import { sectionLabels } from "@/config/uhsf1601Schema";
 import { NavigationControls } from "./NavigationControls";
@@ -41,9 +41,9 @@ export function DeclarationScreen({
   onContinue,
   onCancel,
 }: DeclarationScreenProps) {
-  const declarationFields = fields.filter((field) => field.type === "declaration");
-  const signatureField = fields.find((field) => field.type === "signature");
-  const dateField = fields.find((field) => field.type === "date");
+  const declarationFields = useMemo(() => fields.filter((field) => field.type === "declaration"), [fields]);
+  const signatureField = useMemo(() => fields.find((field) => field.type === "signature"), [fields]);
+  const dateField = useMemo(() => fields.find((field) => field.type === "date"), [fields]);
 
   const [confirmed, setConfirmed] = useState<Record<string, boolean>>(() => {
     const initial: Record<string, boolean> = {};

@@ -295,8 +295,8 @@ export const uhsf1601Schema: InductionField[] = [
   {
     id: "ipaf",
     section: "competence",
-    label: "Do you have IPAF?",
-    originalLabel: "DO YOU HAVE IPAF? (YES / NO)",
+    label: "Do you hold a current IPAF card?",
+    originalLabel: "DO YOU HOLD A CURRENT IPAF CARD? (YES / NO)",
     type: "yes-no",
     group: "competence-checklist",
     role: "inductee",
@@ -305,8 +305,8 @@ export const uhsf1601Schema: InductionField[] = [
   {
     id: "pasma",
     section: "competence",
-    label: "Do you have PASMA?",
-    originalLabel: "DO YOU HAVE PASMA? (YES / NO)",
+    label: "Do you hold a current PASMA card?",
+    originalLabel: "DO YOU HOLD A CURRENT PASMA CARD? (YES / NO)",
     type: "yes-no",
     group: "competence-checklist",
     role: "inductee",
