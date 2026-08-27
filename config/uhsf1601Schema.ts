@@ -89,6 +89,7 @@ export const uhsf1601Schema: InductionField[] = [
     type: "text",
     role: "inductee",
     allowSkip: true,
+    group: "emergency-contact",
   },
   {
     id: "emergencyContactTelephone",
@@ -98,6 +99,7 @@ export const uhsf1601Schema: InductionField[] = [
     type: "phone",
     role: "inductee",
     allowSkip: true,
+    group: "emergency-contact",
   },
   {
     id: "medicalInformation",
@@ -108,6 +110,7 @@ export const uhsf1601Schema: InductionField[] = [
     type: "medical",
     role: "inductee",
     allowSkip: true,
+    group: "emergency-contact",
   },
   {
     id: "competenceIntro",
@@ -126,6 +129,7 @@ export const uhsf1601Schema: InductionField[] = [
     type: "text",
     role: "inductee",
     allowSkip: true,
+    group: "competence-details",
   },
   {
     id: "cscsExpiry",
@@ -135,6 +139,7 @@ export const uhsf1601Schema: InductionField[] = [
     type: "date",
     role: "inductee",
     allowSkip: true,
+    group: "competence-details",
   },
   {
     id: "asbestosAwarenessCertificate",
@@ -219,6 +224,7 @@ export const uhsf1601Schema: InductionField[] = [
     type: "text",
     role: "inductee",
     allowSkip: true,
+    group: "competence-details",
   },
   {
     id: "clientTrainingCompletionDate",
