@@ -18,7 +18,7 @@ type RamsDocument = {
   description: string;
   href: string;
   action: string;
-  preview?: boolean;
+  type: "image" | "pdf";
 };
 
 const documents = [
@@ -26,21 +26,22 @@ const documents = [
     title: "Source RAMS PDF",
     description: "Original CA Drillers RAMS for Waitrose Newport core holes.",
     href: "/rams/RAMS.pdf",
-    action: "Open PDF",
+    action: "View",
+    type: "pdf",
   },
   {
     title: "RAMS REVIEW FORM Front Page",
     description: "Method statement / risk assessment details and hazard checklist.",
     href: "/rams/rams-review-sheet-1.png",
     action: "View",
-    preview: true,
+    type: "image",
   },
   {
     title: "RAMS REVIEW FORM Back Page",
     description: "RAMS review questions with completed comments.",
     href: "/rams/rams-review-sheet-2.png",
     action: "View",
-    preview: true,
+    type: "image",
   },
 ] satisfies RamsDocument[];
 
@@ -505,7 +506,7 @@ function answerClass(answer: EvidenceItem["answer"]) {
   return "bg-amber-50 text-amber-800 ring-amber-200";
 }
 
-function EvidenceAccordion({ items }: { items: EvidenceItem[] }) {
+function EvidenceAccordion({ items, onOpenReference }: { items: EvidenceItem[]; onOpenReference: (item: EvidenceItem) => void }) {
   const [openId, setOpenId] = useState<string | null>(null);
 
   return (
@@ -542,14 +543,13 @@ function EvidenceAccordion({ items }: { items: EvidenceItem[] }) {
                   <mark className="bg-yellow-100 px-1 text-zinc-950">{item.highlight}</mark>
                 </p>
                 {item.note && <p className="mt-3 border-l-4 border-amber-400 bg-white p-3 text-sm text-amber-900">{item.note}</p>}
-                <a
-                  href={item.href}
-                  target="_blank"
-                  rel="noreferrer"
+                <button
+                  type="button"
+                  onClick={() => onOpenReference(item)}
                   className="mt-3 inline-block text-sm font-bold text-uplands-magenta hover:text-[#8e0075]"
                 >
                   Open referenced RAMS page
-                </a>
+                </button>
               </div>
             )}
           </div>
@@ -658,24 +658,13 @@ export function RamsReview() {
               <article key={document.href} className="border border-zinc-200 bg-white p-5 shadow-soft">
                 <h2 className="font-din text-lg text-uplands-charcoal">{document.title}</h2>
                 <p className="mt-2 min-h-12 text-sm leading-6 text-uplands-muted">{document.description}</p>
-                {document.preview ? (
-                  <button
-                    type="button"
-                    onClick={() => setPreviewDocument(document)}
-                    className="mt-4 inline-flex min-h-10 items-center border border-uplands-magenta px-4 text-sm font-bold uppercase text-uplands-magenta transition hover:bg-uplands-magenta hover:text-white"
-                  >
-                    {document.action}
-                  </button>
-                ) : (
-                  <a
-                    href={document.href}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="mt-4 inline-flex min-h-10 items-center border border-uplands-magenta px-4 text-sm font-bold uppercase text-uplands-magenta transition hover:bg-uplands-magenta hover:text-white"
-                  >
-                    {document.action}
-                  </a>
-                )}
+                <button
+                  type="button"
+                  onClick={() => setPreviewDocument(document)}
+                  className="mt-4 inline-flex min-h-10 items-center border border-uplands-magenta px-4 text-sm font-bold uppercase text-uplands-magenta transition hover:bg-uplands-magenta hover:text-white"
+                >
+                  {document.action}
+                </button>
               </article>
             ))}
           </section>
@@ -710,7 +699,18 @@ export function RamsReview() {
               </button>
             </div>
           </div>
-          <EvidenceAccordion items={activeItems} />
+          <EvidenceAccordion
+            items={activeItems}
+            onOpenReference={(item) =>
+              setPreviewDocument({
+                title: item.title,
+                description: item.pages,
+                href: item.href,
+                action: "View",
+                type: "pdf",
+              })
+            }
+          />
         </section>
       )}
 
@@ -733,9 +733,13 @@ export function RamsReview() {
                 Close
               </button>
             </div>
-            <div className="max-h-[calc(92vh-65px)] overflow-auto bg-zinc-100 p-4">
-              <img src={previewDocument.href} alt={previewDocument.title} className="mx-auto h-auto w-full max-w-4xl border border-zinc-300 bg-white" />
-            </div>
+            {previewDocument.type === "pdf" ? (
+              <iframe src={previewDocument.href} title={previewDocument.title} className="h-[calc(92vh-65px)] w-full bg-white" />
+            ) : (
+              <div className="max-h-[calc(92vh-65px)] overflow-auto bg-zinc-100 p-4">
+                <img src={previewDocument.href} alt={previewDocument.title} className="mx-auto h-auto w-full max-w-4xl border border-zinc-300 bg-white" />
+              </div>
+            )}
           </div>
         </div>
       )}
