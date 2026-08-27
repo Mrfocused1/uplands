@@ -53,6 +53,7 @@ const ramsForms = [
     status: "Reviewed",
     date: "27 Aug 2026",
     summary: "Diamond core drilling through external brick and internal block wall.",
+    downloadHref: "/rams/rams-review-form.pdf",
   },
 ];
 
@@ -640,16 +641,25 @@ export function RamsReview() {
                 <h2 className="mt-1 font-slab text-2xl text-uplands-charcoal">{selectedForm.company}</h2>
                 <p className="mt-1 text-sm text-uplands-muted">{selectedForm.project}</p>
               </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setSelectedFormId(null);
-                  setShowEvidence(false);
-                }}
-                className="min-h-10 border border-zinc-300 px-4 text-sm font-bold uppercase text-zinc-700 transition hover:border-uplands-magenta hover:text-uplands-magenta"
-              >
-                Back to Forms
-              </button>
+              <div className="flex flex-wrap gap-3">
+                <a
+                  href={selectedForm.downloadHref}
+                  download
+                  className="inline-flex min-h-10 items-center border border-uplands-magenta bg-uplands-magenta px-4 text-sm font-bold uppercase text-white transition hover:bg-[#8e0075]"
+                >
+                  Download RAMS Review Form
+                </a>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedFormId(null);
+                    setShowEvidence(false);
+                  }}
+                  className="min-h-10 border border-zinc-300 px-4 text-sm font-bold uppercase text-zinc-700 transition hover:border-uplands-magenta hover:text-uplands-magenta"
+                >
+                  Back to Forms
+                </button>
+              </div>
             </div>
           </section>
 
