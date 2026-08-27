@@ -51,6 +51,8 @@ export const FORM_EDIT_SECTIONS: FormEditorSection[] = [
       { key: "trainedFireWarden", label: "Trained Fire Warden", kind: "yesNo", trueLabel: "Yes", falseLabel: "No" },
       { key: "supervisor", label: "Supervisor", kind: "yesNo", trueLabel: "Yes", falseLabel: "No" },
       { key: "currentSmstsOrSssts", label: "Current SMSTS / SSSTS", kind: "yesNo", trueLabel: "Yes", falseLabel: "No" },
+      { key: "ipaf", label: "IPAF", kind: "yesNo", trueLabel: "Yes", falseLabel: "No" },
+      { key: "pasma", label: "PASMA", kind: "yesNo", trueLabel: "Yes", falseLabel: "No" },
       { key: "ramsBriefed", label: "RAMS briefed", kind: "yesNo", trueLabel: "Yes", falseLabel: "No" },
     ],
   },

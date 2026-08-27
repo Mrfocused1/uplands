@@ -38,6 +38,8 @@ export interface UHSF1601PrintData {
   trainedFireWarden?: boolean | null;
   supervisor?: boolean | null;
   currentSmstsOrSssts?: boolean | null;
+  ipaf?: boolean | null;
+  pasma?: boolean | null;
   ramsBriefed?: boolean | null;
   confirmedRamsDeclaration?: boolean | null;
   confirmedSiteRulesDeclaration?: boolean | null;

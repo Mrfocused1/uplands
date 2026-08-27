@@ -85,6 +85,8 @@ export function printDataFromRecord(record: InductionRecord): UHSF1601PrintData 
     trainedFireWarden: yesNo(answers.trainedFireWarden),
     supervisor: yesNo(answers.supervisor),
     currentSmstsOrSssts: yesNo(answers.smstsSssts),
+    ipaf: yesNo(answers.ipaf),
+    pasma: yesNo(answers.pasma),
     ramsBriefed: yesNo(answers.ramsBriefing),
     confirmedRamsDeclaration: confirmed(answers.ramsDeclaration),
     confirmedSiteRulesDeclaration: confirmed(answers.siteRulesDeclaration),
@@ -110,6 +112,10 @@ export function printDataFromRecord(record: InductionRecord): UHSF1601PrintData 
       imageDocument("cscs", "CSCS Card", answers.cscsUpload),
       imageDocument("asbestos", "Asbestos Awareness Certificate", answers.asbestosAwarenessUpload),
       imageDocument("manualHandling", "Manual Handling Awareness Certificate", answers.manualHandlingUpload),
+      imageDocument("firstAid", "First Aid Certificate", answers.firstAiderUpload),
+      imageDocument("smstsSssts", "SMSTS / SSSTS Certificate", answers.smstsSsstsUpload),
+      imageDocument("ipaf", "IPAF Certificate", answers.ipafUpload),
+      imageDocument("pasma", "PASMA Certificate", answers.pasmaUpload),
     ].filter((document): document is UploadedDocument => document !== null),
   };
 }

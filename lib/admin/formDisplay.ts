@@ -76,6 +76,8 @@ export function formatFormDisplay(data: UHSF1601PrintData): FormDisplaySection[]
       { label: "Trained Fire Warden", text: yesNo(data.trainedFireWarden) },
       { label: "Supervisor", text: yesNo(data.supervisor) },
       { label: "Current SMSTS / SSSTS", text: yesNo(data.currentSmstsOrSssts) },
+      { label: "IPAF", text: yesNo(data.ipaf) },
+      { label: "PASMA", text: yesNo(data.pasma) },
       { label: "RAMS briefed", text: yesNo(data.ramsBriefed) },
     ]),
     section("Safe Working Declaration", [

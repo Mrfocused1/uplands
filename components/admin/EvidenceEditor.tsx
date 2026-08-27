@@ -14,6 +14,7 @@ import {
 import {
   defaultEvidenceTransform,
   EVIDENCE_TYPES,
+  type EditableEvidenceType,
   type EvidencePrintTransform,
   type EvidenceType,
 } from "@/types/evidence";
@@ -26,6 +27,10 @@ const EVIDENCE_LABELS: Record<EvidenceType, string> = {
   cscs: "CSCS Card",
   asbestos: "Asbestos Awareness Certificate",
   manualHandling: "Manual Handling Awareness Certificate",
+  firstAid: "First Aid Certificate",
+  smstsSssts: "SMSTS / SSSTS Certificate",
+  ipaf: "IPAF Certificate",
+  pasma: "PASMA Certificate",
 };
 
 interface EvidenceItem {
@@ -45,7 +50,11 @@ interface SubmissionData {
   evidence: EvidenceItem[];
 }
 
-function browserFrame(type: EvidenceType) {
+function isEditableEvidenceType(type: EvidenceType): type is EditableEvidenceType {
+  return (EVIDENCE_TYPES as readonly string[]).includes(type);
+}
+
+function browserFrame(type: EditableEvidenceType) {
   const frame = frameRectInPoints(type);
   return {
     left: frame.x * DISPLAY_SCALE,
@@ -63,17 +72,17 @@ export function EvidenceEditor({ id }: { id: string }) {
   const router = useRouter();
 
   const [submission, setSubmission] = useState<SubmissionData | null>(null);
-  const [transforms, setTransforms] = useState<Record<EvidenceType, EvidencePrintTransform>>(() => ({
+  const [transforms, setTransforms] = useState<Record<EditableEvidenceType, EvidencePrintTransform>>(() => ({
     cscs: defaultEvidenceTransform(),
     asbestos: defaultEvidenceTransform(),
     manualHandling: defaultEvidenceTransform(),
   }));
-  const [natural, setNatural] = useState<Record<EvidenceType, { width: number; height: number } | null>>({
+  const [natural, setNatural] = useState<Record<EditableEvidenceType, { width: number; height: number } | null>>({
     cscs: null,
     asbestos: null,
     manualHandling: null,
   });
-  const [activeType, setActiveType] = useState<EvidenceType | null>(null);
+  const [activeType, setActiveType] = useState<EditableEvidenceType | null>(null);
   const [past, setPast] = useState<EvidencePrintTransform[]>([]);
   const [future, setFuture] = useState<EvidencePrintTransform[]>([]);
   const [saving, setSaving] = useState(false);
@@ -82,7 +91,7 @@ export function EvidenceEditor({ id }: { id: string }) {
   const [error, setError] = useState("");
 
   const dragRef = useRef<{
-    type: EvidenceType;
+    type: EditableEvidenceType;
     startClientX: number;
     startClientY: number;
     startOffsetX: number;
@@ -103,20 +112,21 @@ export function EvidenceEditor({ id }: { id: string }) {
         const submissionData = body.submission as SubmissionData;
 
         setSubmission(submissionData);
-        const next: Record<EvidenceType, EvidencePrintTransform> = {
+        const next: Record<EditableEvidenceType, EvidencePrintTransform> = {
           cscs: defaultEvidenceTransform(),
           asbestos: defaultEvidenceTransform(),
           manualHandling: defaultEvidenceTransform(),
         };
         for (const doc of submissionData.evidence) {
+          if (!isEditableEvidenceType(doc.type)) continue;
           next[doc.type] = doc.printTransform;
         }
         setTransforms(next);
 
         // Preselect from the ?type= query param, else the first available document.
         const query = new URLSearchParams(window.location.search).get("type") as EvidenceType | null;
-        const available = submissionData.evidence.filter((doc) => doc.hasOriginal).map((doc) => doc.type);
-        if (query && EVIDENCE_TYPES.includes(query)) setActiveType(query);
+        const available = submissionData.evidence.flatMap((doc) => (doc.hasOriginal && isEditableEvidenceType(doc.type) ? [doc.type] : []));
+        if (query && isEditableEvidenceType(query)) setActiveType(query);
         else setActiveType(available[0] ?? null);
       } catch {
         if (!cancelled) setError("Unable to load this submission.");
@@ -133,16 +143,16 @@ export function EvidenceEditor({ id }: { id: string }) {
     return () => window.clearTimeout(timer);
   }, [toast]);
 
-  function pushHistory(type: EvidenceType) {
+  function pushHistory(type: EditableEvidenceType) {
     setPast((previous) => [...previous.slice(-49), transforms[type]]);
     setFuture([]);
   }
 
-  function applyTransform(type: EvidenceType, patch: Partial<EvidencePrintTransform>) {
+  function applyTransform(type: EditableEvidenceType, patch: Partial<EvidencePrintTransform>) {
     setTransforms((previous) => ({ ...previous, [type]: { ...previous[type], ...patch } }));
   }
 
-  function beginDrag(type: EvidenceType, event: React.PointerEvent<HTMLDivElement>) {
+  function beginDrag(type: EditableEvidenceType, event: React.PointerEvent<HTMLDivElement>) {
     const frame = browserFrame(type);
     setActiveType(type);
     pushHistory(type);

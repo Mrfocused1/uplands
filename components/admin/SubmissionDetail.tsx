@@ -7,7 +7,7 @@ import { formatFormDisplay } from "@/lib/admin/formDisplay";
 import { downloadPdf, viewPdf } from "@/lib/admin/pdfActions";
 import { Spinner } from "@/components/Spinner";
 import type { UHSF1601PrintData } from "@/types/UHSF1601PrintData";
-import type { EvidencePrintTransform, EvidenceType } from "@/types/evidence";
+import { EVIDENCE_TYPES, type EvidencePrintTransform, type EvidenceType } from "@/types/evidence";
 
 interface EvidenceItem {
   id: string;
@@ -40,6 +40,10 @@ const EVIDENCE_LABELS: Record<EvidenceType, string> = {
   cscs: "CSCS Card",
   asbestos: "Asbestos Awareness Certificate",
   manualHandling: "Manual Handling Awareness Certificate",
+  firstAid: "First Aid Certificate",
+  smstsSssts: "SMSTS / SSSTS Certificate",
+  ipaf: "IPAF Certificate",
+  pasma: "PASMA Certificate",
 };
 
 type Tab = "form" | "documents" | "review";
@@ -304,6 +308,7 @@ function DocumentsTab({ id, evidence }: { id: string; evidence: EvidenceItem[] }
     <div className="grid gap-4 sm:grid-cols-3">
       {evidence.map((doc) => {
         const transform = doc.printTransform;
+        const canEditCrop = (EVIDENCE_TYPES as readonly string[]).includes(doc.type);
         const fitModeLabel = transform.fitMode === "fill" ? "Fill" : transform.fitMode === "custom" ? "Custom" : "Fit";
         return (
           <div key={doc.id} className="overflow-hidden border border-zinc-200 bg-white shadow-soft">
@@ -326,12 +331,14 @@ function DocumentsTab({ id, evidence }: { id: string; evidence: EvidenceItem[] }
                 {fitModeLabel} · {transform.rotation}° · ×{transform.scale.toFixed(2)}
               </p>
               <div className="mt-3 flex gap-2">
-                <Link
-                  href={`/admin/submissions/${id}/editor?type=${doc.type}`}
-                  className="bg-uplands-magenta px-3 py-1.5 text-xs font-bold uppercase text-white hover:bg-[#8e0075]"
-                >
-                  Edit print crop
-                </Link>
+                {canEditCrop && (
+                  <Link
+                    href={`/admin/submissions/${id}/editor?type=${doc.type}`}
+                    className="bg-uplands-magenta px-3 py-1.5 text-xs font-bold uppercase text-white hover:bg-[#8e0075]"
+                  >
+                    Edit print crop
+                  </Link>
+                )}
                 {doc.hasOriginal && (
                   <a
                     href={`/api/admin/submissions/${id}/original/${doc.type}`}

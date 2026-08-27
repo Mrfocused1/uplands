@@ -1,6 +1,6 @@
 import sharp from "sharp";
 import { computeRenderedLayout, EVIDENCE_DPI, frameRectInPoints } from "@/lib/evidence/transform";
-import type { EvidencePrintTransform, EvidenceType } from "@/types/evidence";
+import type { EditableEvidenceType, EvidencePrintTransform } from "@/types/evidence";
 
 /**
  * Render a single evidence document into a fixed-size, frame-shaped PNG for
@@ -15,7 +15,7 @@ import type { EvidencePrintTransform, EvidenceType } from "@/types/evidence";
 export async function renderEvidenceForPrint(
   source: Buffer,
   mime: string,
-  type: EvidenceType,
+  type: EditableEvidenceType,
   transform: EvidencePrintTransform,
 ): Promise<Buffer> {
   const frame = frameRectInPoints(type);

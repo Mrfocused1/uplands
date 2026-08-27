@@ -1,4 +1,4 @@
-import type { EvidenceKey } from "@/types/UHSF1601PrintData";
+import type { EditableEvidenceType } from "@/types/evidence";
 
 export type EvidenceRect = {
   x: number;
@@ -23,7 +23,7 @@ export type EvidenceRect = {
 export const EVIDENCE_REFERENCE_WIDTH = 1241;
 export const EVIDENCE_REFERENCE_HEIGHT = 1755;
 
-export const EVIDENCE_PRINT_MAP: Record<EvidenceKey, EvidenceRect> = {
+export const EVIDENCE_PRINT_MAP: Record<EditableEvidenceType, EvidenceRect> = {
   cscs: { x: 301, y: 203, width: 639, height: 410 },
   asbestos: { x: 47, y: 712, width: 574, height: 829 },
   manualHandling: { x: 661, y: 712, width: 556, height: 829 },

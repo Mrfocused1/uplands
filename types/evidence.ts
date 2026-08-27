@@ -1,4 +1,7 @@
-export type EvidenceType = "cscs" | "asbestos" | "manualHandling";
+export const EVIDENCE_TYPES = ["cscs", "asbestos", "manualHandling"] as const;
+
+export type EditableEvidenceType = (typeof EVIDENCE_TYPES)[number];
+export type EvidenceType = EditableEvidenceType | "firstAid" | "smstsSssts" | "ipaf" | "pasma";
 export type EvidenceFitMode = "fit" | "fill" | "custom";
 export type EvidenceRotation = 0 | 90 | 180 | 270;
 
@@ -24,8 +27,6 @@ export interface EvidenceDocument {
   sourceHeight?: number;
   printTransform: EvidencePrintTransform;
 }
-
-export const EVIDENCE_TYPES: EvidenceType[] = ["cscs", "asbestos", "manualHandling"];
 
 export function defaultEvidenceTransform(): EvidencePrintTransform {
   return { fitMode: "fit", offsetX: 0, offsetY: 0, scale: 1, rotation: 0 };

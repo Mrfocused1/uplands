@@ -279,6 +279,13 @@ export function useInduction() {
                 : { value, updatedAt: now() };
           }
         });
+        Object.entries(values).forEach(([fieldId, value]) => {
+          if (fields.some((field) => field.id === fieldId)) return;
+          nextAnswers[fieldId] =
+            value === null
+              ? { value: null, skipped: true, skippedAt: now(), updatedAt: now() }
+              : { value, updatedAt: now() };
+        });
         const answers = applyConditionalNotApplicable(nextAnswers);
         const nextId = nextStepAfter(answers, groupId);
         if (nextId) {
@@ -391,6 +398,13 @@ export function useInduction() {
                 ? { value: null, skipped: true, skippedAt: now(), updatedAt: now() }
                 : { value, updatedAt: now() };
           }
+        });
+        Object.entries(values).forEach(([fieldId, value]) => {
+          if (fields.some((field) => field.id === fieldId)) return;
+          nextAnswers[fieldId] =
+            value === null
+              ? { value: null, skipped: true, skippedAt: now(), updatedAt: now() }
+              : { value, updatedAt: now() };
         });
         return { ...current, answers: applyConditionalNotApplicable(nextAnswers) };
       });

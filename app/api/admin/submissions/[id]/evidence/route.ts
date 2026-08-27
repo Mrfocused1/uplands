@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireAdmin, UnauthorizedError } from "@/lib/auth/admin";
 import { getSubmission, saveEvidenceTransforms } from "@/lib/db/submissions";
-import type { EvidencePrintTransform, EvidenceType } from "@/types/evidence";
+import { EVIDENCE_TYPES, type EvidencePrintTransform, type EvidenceType } from "@/types/evidence";
 
 export const runtime = "nodejs";
 
@@ -26,7 +26,7 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
 
   const sanitized: Partial<Record<EvidenceType, EvidencePrintTransform>> = {};
   for (const [type, transform] of Object.entries(transforms)) {
-    if (type !== "cscs" && type !== "asbestos" && type !== "manualHandling") continue;
+    if (!(EVIDENCE_TYPES as readonly string[]).includes(type)) continue;
     sanitized[type as EvidenceType] = {
       fitMode: transform?.fitMode === "fill" || transform?.fitMode === "custom" ? transform.fitMode : "fit",
       offsetX: Number(transform?.offsetX) || 0,

@@ -3,7 +3,7 @@ import {
   EVIDENCE_REFERENCE_HEIGHT,
   EVIDENCE_REFERENCE_WIDTH,
 } from "@/config/uhsf1601EvidencePrintMap";
-import type { EvidencePrintTransform, EvidenceType } from "@/types/evidence";
+import type { EditableEvidenceType, EvidencePrintTransform } from "@/types/evidence";
 
 export const A4_WIDTH_PT = 595.275590551;
 export const A4_HEIGHT_PT = 841.88976378;
@@ -23,7 +23,7 @@ export interface FrameRect {
  * The fixed print frame for a document type, in A4 points. These frames are
  * IMMUTABLE — the editor never moves them; only the document inside is edited.
  */
-export function frameRectInPoints(type: EvidenceType): FrameRect {
+export function frameRectInPoints(type: EditableEvidenceType): FrameRect {
   const rect = EVIDENCE_PRINT_MAP[type];
   const scaleX = A4_WIDTH_PT / EVIDENCE_REFERENCE_WIDTH;
   const scaleY = A4_HEIGHT_PT / EVIDENCE_REFERENCE_HEIGHT;
