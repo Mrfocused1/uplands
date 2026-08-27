@@ -12,8 +12,10 @@ type SignaturePadProps = {
 
 export function SignaturePad({ value, onChange }: SignaturePadProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const strokesRef = useRef<Stroke[]>([]);
+  const activeStrokeRef = useRef<Stroke | null>(null);
   const [strokes, setStrokes] = useState<Stroke[]>([]);
-  const [activeStroke, setActiveStroke] = useState<Stroke | null>(null);
+  const [confirmed, setConfirmed] = useState(Boolean(value));
 
   function draw(nextStrokes: Stroke[]) {
     const canvas = canvasRef.current;
@@ -44,6 +46,10 @@ export function SignaturePad({ value, onChange }: SignaturePadProps) {
   }, [strokes]);
 
   useEffect(() => {
+    setConfirmed(Boolean(value));
+  }, [value]);
+
+  useEffect(() => {
     const handleResize = () => draw(strokes);
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
@@ -60,7 +66,18 @@ export function SignaturePad({ value, onChange }: SignaturePadProps) {
   function commitSignature(nextStrokes: Stroke[]) {
     draw(nextStrokes);
     const canvas = canvasRef.current;
-    onChange(nextStrokes.length && canvas ? canvas.toDataURL("image/png") : null);
+    const nextValue = nextStrokes.length && canvas ? canvas.toDataURL("image/png") : null;
+    onChange(nextValue);
+    setConfirmed(Boolean(nextValue));
+  }
+
+  function updateStrokes(nextStrokes: Stroke[]) {
+    strokesRef.current = nextStrokes;
+    setStrokes(nextStrokes);
+  }
+
+  function updateActiveStroke(nextStroke: Stroke | null) {
+    activeStrokeRef.current = nextStroke;
   }
 
   return (
@@ -72,28 +89,33 @@ export function SignaturePad({ value, onChange }: SignaturePadProps) {
           aria-label="Digital signature pad"
           onPointerDown={(event) => {
             event.currentTarget.setPointerCapture(event.pointerId);
-            setActiveStroke([pointFromEvent(event)]);
+            updateActiveStroke([pointFromEvent(event)]);
+            setConfirmed(false);
           }}
           onPointerMove={(event) => {
-            if (!activeStroke) return;
-            const nextStroke = [...activeStroke, pointFromEvent(event)];
-            setActiveStroke(nextStroke);
-            draw([...strokes, nextStroke]);
+            const currentStroke = activeStrokeRef.current;
+            if (!currentStroke) return;
+            const nextStroke = [...currentStroke, pointFromEvent(event)];
+            updateActiveStroke(nextStroke);
+            draw([...strokesRef.current, nextStroke]);
           }}
           onPointerUp={() => {
-            if (!activeStroke) return;
-            const nextStrokes = [...strokes, activeStroke];
-            setStrokes(nextStrokes);
-            setActiveStroke(null);
+            const currentStroke = activeStrokeRef.current;
+            if (!currentStroke) return;
+            const nextStrokes = [...strokesRef.current, currentStroke];
+            updateStrokes(nextStrokes);
+            updateActiveStroke(null);
             commitSignature(nextStrokes);
           }}
+          onPointerCancel={() => updateActiveStroke(null)}
         />
       </div>
       <div className="flex flex-wrap gap-3">
         <button
           type="button"
           onClick={() => {
-            setStrokes([]);
+            updateStrokes([]);
+            updateActiveStroke(null);
             commitSignature([]);
           }}
           className="min-h-11 border border-zinc-300 px-4 font-bold text-zinc-700"
@@ -103,19 +125,19 @@ export function SignaturePad({ value, onChange }: SignaturePadProps) {
         <button
           type="button"
           onClick={() => {
-            const next = strokes.slice(0, -1);
-            setStrokes(next);
+            const next = strokesRef.current.slice(0, -1);
+            updateStrokes(next);
             commitSignature(next);
           }}
           className="min-h-11 border border-zinc-300 px-4 font-bold text-zinc-700"
         >
           Undo
         </button>
-        <button type="button" onClick={() => commitSignature(strokes)} className="min-h-11 bg-uplands-magenta px-4 font-bold text-white">
+        <button type="button" onClick={() => commitSignature(strokesRef.current)} className="min-h-11 bg-uplands-magenta px-4 font-bold text-white">
           Confirm signature
         </button>
       </div>
-      {!value && <p className="text-sm text-zinc-600">Signature not provided</p>}
+      <p className="text-sm text-zinc-600">{confirmed ? "Signature confirmed" : "Signature not provided"}</p>
     </div>
   );
 }

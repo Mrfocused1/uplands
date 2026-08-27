@@ -181,9 +181,13 @@ export function useInduction() {
 
   useEffect(() => {
     if (hasLoaded && record.currentStepId && record.currentStepId !== reviewStepId) {
-      setStepId(record.currentStepId);
+      const migratedStepId = record.currentStepId === "document-uploads" ? "declaration-group" : record.currentStepId;
+      setStepId(migratedStepId);
+      if (migratedStepId !== record.currentStepId) {
+        updateRecord((current) => ({ ...current, currentStepId: migratedStepId }));
+      }
     }
-  }, [hasLoaded, record.currentStepId]);
+  }, [hasLoaded, record.currentStepId, updateRecord]);
 
   const visibleFields = useMemo(() => evaluateVisibleFields(record.answers), [record.answers]);
   const steps = useMemo(() => buildSteps(visibleFields), [visibleFields]);

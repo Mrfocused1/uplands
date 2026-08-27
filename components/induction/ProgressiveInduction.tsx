@@ -8,7 +8,6 @@ import { EmergencyContactScreen } from "./EmergencyContactScreen";
 import { CompetenceDetailsScreen } from "./CompetenceDetailsScreen";
 import { ChecklistScreen } from "./ChecklistScreen";
 import { DeclarationScreen } from "./DeclarationScreen";
-import { UploadsScreen } from "./UploadsScreen";
 import { ReviewScreen } from "./ReviewScreen";
 import { CompletionScreen } from "./CompletionScreen";
 import { useInduction } from "@/hooks/useInduction";
@@ -225,21 +224,6 @@ export function ProgressiveInduction() {
           />
         )}
 
-        {induction.screen === "wizard" && currentStep.kind === "group" && currentStep.groupId === "document-uploads" && (
-          <UploadsScreen
-            key={currentStep.groupId}
-            fields={currentStep.fields}
-            answers={induction.record.answers}
-            current={induction.currentIndex + 1}
-            total={induction.total}
-            progress={induction.progress}
-            canGoBack={induction.canGoBack}
-            onBack={induction.goBack}
-            onSkip={induction.skipCurrent}
-            onContinue={induction.continueGroup}
-          />
-        )}
-
         {induction.screen === "wizard" && currentStep.kind === "field" && (
           <QuestionScreen
             field={currentStep.field}
@@ -394,21 +378,6 @@ export function ProgressiveInduction() {
               />
             )}
 
-            {editStep.kind === "group" && editStep.groupId === "document-uploads" && (
-              <UploadsScreen
-                key={editStep.groupId}
-                fields={editStep.fields}
-                answers={induction.record.answers}
-                current={1}
-                total={1}
-                progress={100}
-                canGoBack={false}
-                onBack={induction.closeEdit}
-                onSkip={induction.closeEdit}
-                onContinue={induction.saveEdit}
-                onCancel={induction.closeEdit}
-              />
-            )}
           </div>
         </div>
       )}
