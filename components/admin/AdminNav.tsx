@@ -42,6 +42,9 @@ export function AdminNav({ adminName }: { adminName?: string }) {
             <Link href="/admin/rams" className={linkClass("/admin/rams")}>
               RAMS
             </Link>
+            <Link href="/edit-images" className={linkClass("/edit-images")}>
+              Edit Images
+            </Link>
           </nav>
         </div>
         <div className="flex items-center gap-4">
@@ -78,6 +81,9 @@ export function AdminNav({ adminName }: { adminName?: string }) {
               </Link>
               <Link className={`${linkClass("/admin/rams")} block py-3`} href="/admin/rams">
                 RAMS
+              </Link>
+              <Link className={`${linkClass("/edit-images")} block py-3`} href="/edit-images">
+                Edit Images
               </Link>
               {adminName && (
                 <form action="/api/admin/logout" method="post">

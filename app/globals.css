@@ -70,6 +70,26 @@ textarea {
     display: none !important;
   }
 
+  .edit-images-page {
+    margin: 0 !important;
+  }
+
+  .edit-images-page .print-page {
+    break-after: page;
+    page-break-after: always;
+  }
+
+  .edit-images-page .print-page:last-child {
+    break-after: auto;
+    page-break-after: auto;
+  }
+
+  .edit-images-page textarea {
+    appearance: none;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
   .print-record {
     display: block !important;
   }

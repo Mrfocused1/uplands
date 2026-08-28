@@ -5,6 +5,9 @@ const nextConfig: NextConfig = {
   reactStrictMode: true,
   allowedDevOrigins: ["127.0.0.1", "localhost"],
   serverExternalPackages: ["better-sqlite3", "sharp"],
+  outputFileTracingIncludes: {
+    "/api/admin/edit-images/**/*": ["./private/edit-images/**/*"],
+  },
 };
 
 const sentryConfigured = Boolean(
