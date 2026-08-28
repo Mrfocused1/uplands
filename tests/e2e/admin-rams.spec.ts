@@ -73,6 +73,36 @@ test("legacy imported RAMS workspace falls back to PDF and shows review answers"
   await page.route("**/api/admin/rams/legacy-ampthill-test/pdf**", (route) =>
     route.fulfill({ contentType: "application/pdf", body: "%PDF-1.4\n1 0 obj\n<<>>\nendobj\ntrailer\n<<>>\n%%EOF" }),
   );
+  await page.route("**/api/admin/rams/legacy-ampthill-test/sections", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        sections: [
+          { id: "section-1", title: "PPE Requirements", startPage: 10, endPage: 12, sortOrder: 1 },
+          { id: "section-2", title: "Asbestos Controls", startPage: 60, endPage: 61, sortOrder: 2 },
+        ],
+      }),
+    }),
+  );
+  await page.route("**/api/admin/rams/legacy-ampthill-test/search", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        results: [
+          {
+            chunkId: "chunk-ppe",
+            pageNumber: 10,
+            endPageNumber: 10,
+            sectionTitle: "PPE Requirements",
+            snippet: "Suitable PPE is required for flooring preparation and installation.",
+            score: 0.9,
+            text: "Suitable PPE is required for flooring preparation and installation.",
+            boxes: [],
+          },
+        ],
+      }),
+    }),
+  );
 
   await page.goto("/admin/rams");
   const uploadedRams = page.locator("section").filter({ has: page.getByRole("heading", { name: "Uploaded RAMS" }) });
@@ -80,9 +110,18 @@ test("legacy imported RAMS workspace falls back to PDF and shows review answers"
   await uploadedRams.getByRole("button", { name: /Ampthill Flooring Limited/ }).click();
 
   await expect(page.locator('iframe[title="Ampthill Flooring Limited PDF"]')).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Document Information" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Read Summary" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Completed Review Form" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "RAMS REVIEW FORM Front Page" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "RAMS REVIEW FORM Back Page" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Review Answers" })).toBeVisible();
   await expect(page.getByText("10. Has appropriate PPE been identified?")).toBeVisible();
+
+  await page.getByText("Sections (10)").click();
+  await page.getByText("Asbestos Controls").click();
+  await expect(page.getByRole("button", { name: "Show Page" }).last()).toBeVisible();
+
+  await page.getByRole("button", { name: /PPE Requirements/ }).first().click();
+  await expect(page.getByText("Suitable PPE is required")).toBeVisible();
 });

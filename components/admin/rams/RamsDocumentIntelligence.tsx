@@ -69,6 +69,14 @@ interface SearchResult {
   boxes: EvidenceBox[];
 }
 
+interface RamsSection {
+  id: string;
+  title: string;
+  startPage: number;
+  endPage: number;
+  sortOrder: number;
+}
+
 interface CopilotAnswer {
   answer: string;
   confidence: "low" | "medium" | "high";
@@ -76,6 +84,15 @@ interface CopilotAnswer {
   aiConfigured: boolean;
   citations: SearchResult[];
 }
+
+const faqSearches = [
+  { id: "training", label: "Training Requirements", query: "training requirements CSCS IPAF PASMA asbestos awareness first aid" },
+  { id: "ppe", label: "PPE Requirements", query: "PPE personal protective equipment required" },
+  { id: "asbestos", label: "Asbestos", query: "asbestos" },
+  { id: "ipaf", label: "IPAF / MEWP", query: "IPAF MEWP mobile elevating work platform" },
+  { id: "emergency", label: "Emergency Arrangements", query: "emergency arrangements first aid fire evacuation accident" },
+  { id: "height", label: "Working At Height", query: "working at height ladder scaffold access equipment" },
+];
 
 const hazardLabels = [
   "Pressure Systems",
@@ -245,6 +262,134 @@ function PreviewModal({ document, onClose }: { document: PreviewDocument; onClos
   );
 }
 
+function DocumentInformation({
+  document,
+  sections,
+  loadingSections,
+  onShowPage,
+}: {
+  document: RamsIntelligenceDocument;
+  sections: RamsSection[];
+  loadingSections: boolean;
+  onShowPage: (page: number) => void;
+}) {
+  return (
+    <section className="border border-zinc-200 bg-white p-5 shadow-soft">
+      <h2 className="font-slab text-2xl text-uplands-charcoal">Document Information</h2>
+      <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
+        <dt className="font-bold text-zinc-700">Pages</dt>
+        <dd>{document.pageCount ?? "-"}</dd>
+        <dt className="font-bold text-zinc-700">Passages</dt>
+        <dd>{document.chunkCount}</dd>
+        <dt className="font-bold text-zinc-700">File</dt>
+        <dd>{fileSize(document.fileSize)}</dd>
+        <dt className="font-bold text-zinc-700">Status</dt>
+        <dd>
+          <span className={`px-2 py-1 text-xs font-bold uppercase ring-1 ${statusClass(document.processingStatus)}`}>{document.processingStatus.replace("_", " ")}</span>
+        </dd>
+      </dl>
+
+      <details className="mt-5 border border-zinc-200 bg-white">
+        <summary className="cursor-pointer px-4 py-3 font-din text-sm uppercase text-uplands-charcoal">
+          Sections ({document.sectionCount})
+        </summary>
+        <div className="max-h-96 overflow-auto border-t border-zinc-200">
+          {loadingSections && (
+            <div className="flex items-center gap-3 p-4 text-sm font-bold text-uplands-muted">
+              <Spinner className="h-4 w-4" />
+              <span>Loading sections...</span>
+            </div>
+          )}
+          {!loadingSections &&
+            sections.map((section) => (
+              <details key={section.id} className="border-b border-zinc-100 last:border-b-0">
+                <summary className="cursor-pointer px-4 py-3 text-sm font-bold text-zinc-800 hover:bg-uplands-paper">{section.title}</summary>
+                <div className="grid gap-3 bg-zinc-50 px-4 py-3 text-sm text-zinc-700 sm:grid-cols-[1fr_auto] sm:items-center">
+                  <span>
+                    Page {section.startPage}
+                    {section.endPage !== section.startPage ? ` to ${section.endPage}` : ""}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => onShowPage(section.startPage)}
+                    className="w-fit border border-uplands-magenta px-3 py-2 text-xs font-bold uppercase text-uplands-magenta hover:bg-uplands-magenta hover:text-white"
+                  >
+                    Show Page
+                  </button>
+                </div>
+              </details>
+            ))}
+          {!loadingSections && sections.length === 0 && <p className="p-4 text-sm text-uplands-muted">No section titles have been extracted for this RAMS.</p>}
+        </div>
+      </details>
+    </section>
+  );
+}
+
+function DocumentIntelligenceSummary({
+  document,
+  processing,
+  onProcess,
+  onClose,
+}: {
+  document: RamsIntelligenceDocument;
+  processing: boolean;
+  onProcess: () => void;
+  onClose: () => void;
+}) {
+  return (
+    <section className="border border-zinc-200 bg-white p-5 shadow-soft">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <p className="text-xs font-bold uppercase tracking-[0.22em] text-uplands-magenta">Document Intelligence</p>
+          <h2 className="mt-1 font-slab text-2xl text-uplands-charcoal">{document.contractor}</h2>
+          <p className="mt-1 text-sm text-uplands-muted">
+            {document.title}
+            {document.siteName ? ` · ${document.siteName}` : ""}
+            {document.revision ? ` · Rev ${document.revision}` : ""}
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-3">
+          <a href={`/api/admin/rams/${document.id}/pdf?download=1`} className="inline-flex min-h-10 items-center bg-uplands-charcoal px-4 text-sm font-bold uppercase text-white">
+            Download PDF
+          </a>
+          {document.processingStatus !== "PROCESSING" && document.processingStatus !== "READY" && (
+            <button type="button" onClick={onProcess} disabled={processing} className="inline-flex min-h-10 items-center gap-2 bg-uplands-magenta px-4 text-sm font-bold uppercase text-white disabled:opacity-60">
+              {processing && <Spinner className="h-4 w-4" />}
+              {processing ? "Processing..." : "Process RAMS"}
+            </button>
+          )}
+          <button type="button" disabled className="min-h-10 border border-zinc-300 px-4 text-sm font-bold uppercase text-zinc-400">
+            Read Summary
+          </button>
+          <button type="button" onClick={onClose} className="min-h-10 border border-zinc-300 px-4 text-sm font-bold uppercase text-zinc-700">
+            Close
+          </button>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function SearchResultsList({ results, onShowEvidence }: { results: SearchResult[]; onShowEvidence: (result: SearchResult) => void }) {
+  if (results.length === 0) return <p className="p-3 text-sm text-uplands-muted">No search results yet.</p>;
+
+  return (
+    <>
+      {results.map((result) => (
+        <button key={result.chunkId} type="button" onClick={() => onShowEvidence(result)} className="block w-full p-3 text-left hover:bg-uplands-paper">
+          <span className="text-xs font-bold uppercase text-uplands-magenta">
+            Page {result.pageNumber}
+            {result.sectionTitle ? ` · ${result.sectionTitle}` : ""}
+          </span>
+          <span className="mt-1 block text-sm leading-5 text-zinc-800">{result.snippet}</span>
+          <span className="mt-2 inline-block border border-uplands-magenta px-2 py-1 text-xs font-bold uppercase text-uplands-magenta">Show in RAMS</span>
+        </button>
+      ))}
+    </>
+  );
+}
+
 function statusClass(status: ProcessingStatus) {
   if (status === "READY") return "bg-emerald-50 text-emerald-700 ring-emerald-200";
   if (status === "OCR_REQUIRED") return "bg-amber-50 text-amber-800 ring-amber-200";
@@ -383,6 +528,9 @@ function PdfWorkspace({
   const [query, setQuery] = useState("");
   const [searching, setSearching] = useState(false);
   const [results, setResults] = useState<SearchResult[]>([]);
+  const [faqResults, setFaqResults] = useState<Record<string, SearchResult[]>>({});
+  const [openFaqId, setOpenFaqId] = useState<string | null>(null);
+  const [faqLoadingId, setFaqLoadingId] = useState<string | null>(null);
   const [question, setQuestion] = useState("");
   const [asking, setAsking] = useState(false);
   const [processing, setProcessing] = useState(false);
@@ -391,6 +539,8 @@ function PdfWorkspace({
   const [highlight, setHighlight] = useState<SearchResult | null>(null);
   const [pageImageFailed, setPageImageFailed] = useState(false);
   const [previewDocument, setPreviewDocument] = useState<PreviewDocument | null>(null);
+  const [sections, setSections] = useState<RamsSection[]>([]);
+  const [loadingSections, setLoadingSections] = useState(false);
 
   const pageCount = document.pageCount ?? 1;
   const reviewDocuments = useMemo(() => (legacyReview ? reviewDocumentsFor(legacyReview) : []), [legacyReview]);
@@ -400,9 +550,40 @@ function PdfWorkspace({
     setPageImageFailed(false);
   }, [document.id, page]);
 
+  useEffect(() => {
+    let cancelled = false;
+    setLoadingSections(true);
+    setSections([]);
+    fetch(`/api/admin/rams/${document.id}/sections`)
+      .then((response) => response.json())
+      .then((data) => {
+        if (!cancelled) setSections(data.sections ?? []);
+      })
+      .catch(() => {
+        if (!cancelled) setSections([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingSections(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [document.id]);
+
   function showEvidence(result: SearchResult) {
     setHighlight(result);
     setPage(result.pageNumber);
+  }
+
+  async function searchDocument(searchQuery: string) {
+    const response = await fetch(`/api/admin/rams/${document.id}/search`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query: searchQuery }),
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "Search failed.");
+    return (data.results ?? []) as SearchResult[];
   }
 
   async function runSearch(event: FormEvent) {
@@ -411,18 +592,32 @@ function PdfWorkspace({
     setSearching(true);
     setError("");
     try {
-      const response = await fetch(`/api/admin/rams/${document.id}/search`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query }),
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Search failed.");
-      setResults(data.results ?? []);
+      setResults(await searchDocument(query));
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Search failed.");
     } finally {
       setSearching(false);
+    }
+  }
+
+  async function toggleFaqSearch(item: (typeof faqSearches)[number]) {
+    if (openFaqId === item.id) {
+      setOpenFaqId(null);
+      return;
+    }
+
+    setOpenFaqId(item.id);
+    if (faqResults[item.id]) return;
+
+    setFaqLoadingId(item.id);
+    setError("");
+    try {
+      const found = await searchDocument(item.query);
+      setFaqResults((current) => ({ ...current, [item.id]: found }));
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Search failed.");
+    } finally {
+      setFaqLoadingId(null);
     }
   }
 
@@ -469,41 +664,10 @@ function PdfWorkspace({
 
   return (
     <section className="space-y-5">
-      <div className="border border-zinc-200 bg-white p-5 shadow-soft">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div>
-            <p className="text-xs font-bold uppercase tracking-[0.22em] text-uplands-magenta">Document Intelligence</p>
-            <h2 className="mt-1 font-slab text-2xl text-uplands-charcoal">{document.contractor}</h2>
-            <p className="mt-1 text-sm text-uplands-muted">
-              {document.title}
-              {document.siteName ? ` · ${document.siteName}` : ""}
-              {document.revision ? ` · Rev ${document.revision}` : ""}
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-3">
-            <a href={`/api/admin/rams/${document.id}/pdf?download=1`} className="inline-flex min-h-10 items-center bg-uplands-charcoal px-4 text-sm font-bold uppercase text-white">
-              Download PDF
-            </a>
-            {document.processingStatus !== "PROCESSING" && document.processingStatus !== "READY" && (
-              <button type="button" onClick={runProcessing} disabled={processing} className="inline-flex min-h-10 items-center gap-2 bg-uplands-magenta px-4 text-sm font-bold uppercase text-white disabled:opacity-60">
-                {processing && <Spinner className="h-4 w-4" />}
-                {processing ? "Processing..." : "Process RAMS"}
-              </button>
-            )}
-            <button type="button" disabled className="min-h-10 border border-zinc-300 px-4 text-sm font-bold uppercase text-zinc-400">
-              Run Full AI Review
-            </button>
-            <button type="button" onClick={onClose} className="min-h-10 border border-zinc-300 px-4 text-sm font-bold uppercase text-zinc-700">
-              Close
-            </button>
-          </div>
-        </div>
-      </div>
-
       {error && <p className="border-l-4 border-red-600 bg-white p-4 text-sm font-bold text-red-700 shadow-soft">{error}</p>}
 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(380px,0.85fr)]">
-        <div className="border border-zinc-200 bg-white p-4 shadow-soft">
+        <div className="order-2 border border-zinc-200 bg-white p-4 shadow-soft xl:order-1">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2">
               <button type="button" onClick={() => setPage((value) => Math.max(1, value - 1))} className="border border-zinc-300 px-3 py-2 text-xs font-bold uppercase">
@@ -559,7 +723,19 @@ function PdfWorkspace({
           </div>
         </div>
 
-        <div className="space-y-5">
+        <div className="order-1 space-y-5 xl:order-2">
+          <DocumentInformation
+            document={document}
+            sections={sections}
+            loadingSections={loadingSections}
+            onShowPage={(targetPage) => {
+              setPage(targetPage);
+              setHighlight(null);
+            }}
+          />
+
+          <DocumentIntelligenceSummary document={document} processing={processing} onProcess={runProcessing} onClose={onClose} />
+
           {legacyReview && (
             <section className="border border-zinc-200 bg-white p-5 shadow-soft">
               <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -596,6 +772,37 @@ function PdfWorkspace({
 
           <section className="border border-zinc-200 bg-white p-5 shadow-soft">
             <h2 className="font-slab text-2xl text-uplands-charcoal">Search RAMS</h2>
+            <div className="mt-4 divide-y divide-zinc-200 border border-zinc-200">
+              {faqSearches.map((item) => {
+                const isOpen = openFaqId === item.id;
+                const itemResults = faqResults[item.id] ?? [];
+                return (
+                  <div key={item.id}>
+                    <button
+                      type="button"
+                      onClick={() => toggleFaqSearch(item)}
+                      className="flex w-full items-center justify-between gap-4 px-4 py-3 text-left hover:bg-uplands-paper"
+                      aria-expanded={isOpen}
+                    >
+                      <span className="font-din text-sm uppercase text-uplands-charcoal">{item.label}</span>
+                      <span className="text-lg leading-none text-uplands-magenta">{isOpen ? "-" : "+"}</span>
+                    </button>
+                    {isOpen && (
+                      <div className="border-t border-zinc-100 bg-zinc-50">
+                        {faqLoadingId === item.id ? (
+                          <div className="flex items-center gap-3 p-4 text-sm font-bold text-uplands-muted">
+                            <Spinner className="h-4 w-4" />
+                            <span>Searching...</span>
+                          </div>
+                        ) : (
+                          <SearchResultsList results={itemResults} onShowEvidence={showEvidence} />
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
             <form onSubmit={runSearch} className="mt-4 flex gap-2">
               <input
                 value={query}
@@ -610,17 +817,7 @@ function PdfWorkspace({
               </button>
             </form>
             <div className="mt-4 divide-y divide-zinc-200 border border-zinc-200">
-              {results.map((result) => (
-                <button key={result.chunkId} type="button" onClick={() => showEvidence(result)} className="block w-full p-3 text-left hover:bg-uplands-paper">
-                  <span className="text-xs font-bold uppercase text-uplands-magenta">
-                    Page {result.pageNumber}
-                    {result.sectionTitle ? ` · ${result.sectionTitle}` : ""}
-                  </span>
-                  <span className="mt-1 block text-sm leading-5 text-zinc-800">{result.snippet}</span>
-                  <span className="mt-2 inline-block border border-uplands-magenta px-2 py-1 text-xs font-bold uppercase text-uplands-magenta">Show in RAMS</span>
-                </button>
-              ))}
-              {results.length === 0 && <p className="p-3 text-sm text-uplands-muted">No search results yet.</p>}
+              <SearchResultsList results={results} onShowEvidence={showEvidence} />
             </div>
           </section>
 
@@ -659,19 +856,6 @@ function PdfWorkspace({
             )}
           </section>
 
-          <section className="border border-zinc-200 bg-white p-5 shadow-soft">
-            <h2 className="font-slab text-2xl text-uplands-charcoal">Document Information</h2>
-            <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
-              <dt className="font-bold text-zinc-700">Pages</dt>
-              <dd>{document.pageCount ?? "-"}</dd>
-              <dt className="font-bold text-zinc-700">Sections</dt>
-              <dd>{document.sectionCount}</dd>
-              <dt className="font-bold text-zinc-700">Passages</dt>
-              <dd>{document.chunkCount}</dd>
-              <dt className="font-bold text-zinc-700">File</dt>
-              <dd>{fileSize(document.fileSize)}</dd>
-            </dl>
-          </section>
         </div>
       </div>
       {previewDocument && <PreviewModal document={previewDocument} onClose={() => setPreviewDocument(null)} />}
