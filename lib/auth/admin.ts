@@ -1,4 +1,4 @@
-import { randomBytes } from "node:crypto";
+import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
 import { getDb } from "@/lib/db";
 import { boolEnv, env, isSupabaseConfigured } from "@/lib/env";
@@ -21,6 +21,7 @@ export class UnauthorizedError extends Error {
 const ADMIN_COOKIE = "uplands_admin_session";
 const SESSION_DAYS = 8;
 const PUBLIC_ADMIN: AdminSession = { id: 0, username: "Admin", displayName: "Admin" };
+const SIGNED_COOKIE_PREFIX = "v1";
 
 function authRequired() {
   return boolEnv("ADMIN_AUTH_REQUIRED", process.env.NODE_ENV === "production");
@@ -61,6 +62,60 @@ function rowToSession(row: { id: number; username: string; display_name: string 
   return { id: row.id, username: row.username, displayName: row.display_name || row.username };
 }
 
+function sessionSecret() {
+  return env("ADMIN_SESSION_SECRET");
+}
+
+function base64Url(input: Buffer | string) {
+  return Buffer.from(input).toString("base64url");
+}
+
+function signPayload(payload: string, secret: string) {
+  return createHmac("sha256", secret).update(payload).digest("base64url");
+}
+
+function createSignedSessionCookie(session: AdminSession) {
+  const secret = sessionSecret();
+  if (!secret) return null;
+
+  const payload = base64Url(
+    JSON.stringify({
+      id: session.id,
+      username: session.username,
+      displayName: session.displayName,
+      exp: Math.floor(expiresAt().getTime() / 1000),
+    }),
+  );
+  return `${SIGNED_COOKIE_PREFIX}.${payload}.${signPayload(payload, secret)}`;
+}
+
+function verifySignedSessionCookie(value: string): AdminSession | null {
+  const secret = sessionSecret();
+  if (!secret || !value.startsWith(`${SIGNED_COOKIE_PREFIX}.`)) return null;
+
+  const [, payload, signature] = value.split(".");
+  if (!payload || !signature) return null;
+
+  const expected = signPayload(payload, secret);
+  const actualBytes = Buffer.from(signature);
+  const expectedBytes = Buffer.from(expected);
+  if (actualBytes.length !== expectedBytes.length || !timingSafeEqual(actualBytes, expectedBytes)) return null;
+
+  let parsed: {
+    id?: number | string;
+    username?: string;
+    displayName?: string;
+    exp?: number;
+  };
+  try {
+    parsed = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as typeof parsed;
+  } catch {
+    return null;
+  }
+  if (!parsed.username || !parsed.displayName || !parsed.exp || parsed.exp < Math.floor(Date.now() / 1000)) return null;
+  return { id: parsed.id ?? parsed.username, username: parsed.username, displayName: parsed.displayName };
+}
+
 export async function getCurrentAdmin(): Promise<AdminSession | null> {
   if (!authRequired()) return PUBLIC_ADMIN;
 
@@ -78,6 +133,9 @@ export async function getCurrentAdmin(): Promise<AdminSession | null> {
   const cookieStore = await cookies();
   const token = cookieStore.get(ADMIN_COOKIE)?.value;
   if (!token) return null;
+
+  const signedSession = verifySignedSessionCookie(token);
+  if (signedSession) return signedSession;
 
   const row = getDb()
     .prepare(
@@ -120,13 +178,21 @@ export async function createAdminSession(username: string, password: string): Pr
     throw new UnauthorizedError();
   }
 
+  const session = rowToSession(row);
+  const signedCookie = createSignedSessionCookie(session);
+  if (signedCookie) {
+    const cookieStore = await cookies();
+    cookieStore.set(ADMIN_COOKIE, signedCookie, sessionCookieOptions());
+    return session;
+  }
+
   const token = randomBytes(32).toString("hex");
   const expires = expiresAt();
   getDb().prepare("INSERT INTO sessions (token, admin_id, expires_at) VALUES (?, ?, ?)").run(token, row.id, expires.toISOString());
   const cookieStore = await cookies();
   cookieStore.set(ADMIN_COOKIE, token, sessionCookieOptions());
 
-  return rowToSession(row);
+  return session;
 }
 
 export async function destroyAdminSession() {
