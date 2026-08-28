@@ -1,9 +1,24 @@
 import type { AiProvider, RamsAnswerInput } from "./types.ts";
 import { isSummaryQuestion } from "../rams/copilotRetrieval.ts";
 
-function uniqueSections(input: RamsAnswerInput) {
-  const sections = input.evidence.map((item) => item.sectionTitle).filter(Boolean);
-  return [...new Set(sections)].slice(0, 5);
+const SUMMARY_TOPICS = [
+  { label: "risk assessments", pattern: /\brisk assessment|\brams\b/i },
+  { label: "method statement controls", pattern: /\bmethod statement|\bcontrol measures\b/i },
+  { label: "manual handling", pattern: /\bmanual handling\b/i },
+  { label: "PPE", pattern: /\bppe\b|protective footwear|safety gloves|eye protection|dust masks?/i },
+  { label: "training and competence", pattern: /\btraining\b|\bcompetence\b|\bCSCS\b|\bIPAF\b|\bPASMA\b/i },
+  { label: "dust and respiratory controls", pattern: /\bdust\b|\bFFP3\b|\brespiratory\b/i },
+  { label: "COSHH or hazardous substances", pattern: /\bCOSHH\b|hazardous substances?|safety data sheet|\bSDS\b/i },
+  { label: "emergency arrangements", pattern: /\bemergency\b|first aid|fire evacuation|accident/i },
+  { label: "environmental and waste controls", pattern: /\bwaste\b|environmental|spill/i },
+  { label: "working at height or access equipment", pattern: /\bworking at height\b|\bMEWP\b|scaffold|ladder/i },
+];
+
+function evidenceTopics(input: RamsAnswerInput) {
+  const evidenceText = input.evidence.map((item) => `${item.sectionTitle ?? ""} ${item.text}`).join("\n");
+  return SUMMARY_TOPICS.filter((topic) => topic.pattern.test(evidenceText))
+    .map((topic) => topic.label)
+    .slice(0, 6);
 }
 
 export const disabledAiProvider: AiProvider = {
@@ -16,11 +31,11 @@ export const disabledAiProvider: AiProvider = {
     if (isSummaryQuestion(input.question) && citations.length > 0) {
       const site = input.document.siteName ? ` at ${input.document.siteName}` : "";
       const revision = input.document.revision ? `, revision ${input.document.revision}` : "";
-      const sections = uniqueSections(input);
+      const topics = evidenceTopics(input);
       return {
         answer: [
           `${input.document.contractor} RAMS covers ${input.document.title}${site}${revision}.`,
-          sections.length > 0 ? `The retrieved RAMS evidence is mainly from: ${sections.join(", ")}.` : "Relevant RAMS evidence has been retrieved below.",
+          topics.length > 0 ? `The retrieved RAMS evidence indicates coverage of ${topics.join(", ")}.` : "Relevant RAMS evidence has been retrieved below.",
           "AI is not configured in this environment, so this is a document-intelligence summary with source citations for manual review.",
         ].join(" "),
         citations,

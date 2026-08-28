@@ -87,15 +87,16 @@ test("disabled AI provider returns a useful evidence-led summary fallback", asyn
         pageNumber: 4,
         endPageNumber: 4,
         sectionTitle: "METHOD STATEMENT",
-        snippet: "Flooring installation method statement.",
+        snippet: "Flooring installation method statement with risk assessment controls.",
         score: 1,
-        text: "Flooring installation method statement.",
+        text: "Flooring installation method statement with risk assessment controls, manual handling training and PPE.",
         boxes: [],
       },
     ],
   });
 
   assert.match(answer.answer, /Ampthill Flooring Limited RAMS covers Flooring installation/);
-  assert.match(answer.answer, /METHOD STATEMENT/);
+  assert.match(answer.answer, /risk assessments/);
+  assert.match(answer.answer, /PPE/);
   assert.deepEqual(answer.citations, ["chunk-1"]);
 });
