@@ -38,3 +38,51 @@ test("mobile admin navigation exposes RAMS from the submissions area", async ({ 
   await expect(page.getByRole("heading", { name: "RAMS" }).first()).toBeVisible();
   await expectNoHorizontalOverflow(page);
 });
+
+test("legacy imported RAMS workspace falls back to PDF and shows review answers", async ({ page }) => {
+  await page.route("**/api/admin/rams", async (route) => {
+    if (route.request().method() !== "GET") return route.fallback();
+    return route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        documents: [
+          {
+            id: "legacy-ampthill-test",
+            title: "Flooring installation",
+            siteName: "Newport - 81978",
+            contractor: "Ampthill Flooring Limited",
+            documentReference: "legacy:ampthill-flooring-waitrose-newport",
+            revision: null,
+            revisionDate: null,
+            fileName: "ampthill-flooring-waitrose-newport-rams.pdf",
+            fileSize: 1024,
+            mimeType: "application/pdf",
+            pageCount: 118,
+            processingStatus: "READY",
+            processingError: null,
+            textExtractionStatus: "EXTRACTED",
+            createdAt: "2026-08-28T00:00:00.000Z",
+            sectionCount: 10,
+            chunkCount: 20,
+          },
+        ],
+      }),
+    });
+  });
+  await page.route("**/api/admin/rams/legacy-ampthill-test/page/1", (route) => route.fulfill({ status: 500, contentType: "application/json", body: "{}" }));
+  await page.route("**/api/admin/rams/legacy-ampthill-test/pdf**", (route) =>
+    route.fulfill({ contentType: "application/pdf", body: "%PDF-1.4\n1 0 obj\n<<>>\nendobj\ntrailer\n<<>>\n%%EOF" }),
+  );
+
+  await page.goto("/admin/rams");
+  const uploadedRams = page.locator("section").filter({ has: page.getByRole("heading", { name: "Uploaded RAMS" }) });
+  await expect(uploadedRams.getByRole("button", { name: /Ampthill Flooring Limited/ })).toBeVisible();
+  await uploadedRams.getByRole("button", { name: /Ampthill Flooring Limited/ }).click();
+
+  await expect(page.locator('iframe[title="Ampthill Flooring Limited PDF"]')).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Completed Review Form" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "RAMS REVIEW FORM Front Page" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "RAMS REVIEW FORM Back Page" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Review Answers" })).toBeVisible();
+  await expect(page.getByText("10. Has appropriate PPE been identified?")).toBeVisible();
+});

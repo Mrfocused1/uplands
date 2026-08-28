@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 
 import ramsData from "@/config/ramsReviews.json";
-import { RamsDocumentIntelligence } from "@/components/admin/rams/RamsDocumentIntelligence";
+import { RamsDocumentIntelligence, type LegacyRamsReview } from "@/components/admin/rams/RamsDocumentIntelligence";
 
 type Answer = "Yes" | "No" | "N/A";
 type StatusCode = "A" | "B" | "C";
@@ -183,7 +183,6 @@ function EvidenceAccordion({ items }: { items: EvidenceItem[] }) {
 }
 
 export function RamsReview() {
-  const [showEvidence, setShowEvidence] = useState(false);
   const [activeTab, setActiveTab] = useState<"hazards" | "questions">("questions");
   const [selectedFormId, setSelectedFormId] = useState<string | null>(null);
   const [previewDocument, setPreviewDocument] = useState<RamsDocument | null>(null);
@@ -227,7 +226,7 @@ export function RamsReview() {
         </div>
       </section>
 
-      <RamsDocumentIntelligence onWorkspaceChange={setUploadedWorkspaceActive} />
+      <RamsDocumentIntelligence legacyReviews={forms as LegacyRamsReview[]} onWorkspaceChange={setUploadedWorkspaceActive} />
 
       {!uploadedWorkspaceActive && !selectedForm && (
         <section className="border border-zinc-200 bg-white p-5 shadow-soft">
@@ -286,7 +285,6 @@ export function RamsReview() {
                   type="button"
                   onClick={() => {
                     setSelectedFormId(null);
-                    setShowEvidence(false);
                   }}
                   className="min-h-10 border border-zinc-300 px-4 text-sm font-bold uppercase text-zinc-700 transition hover:border-uplands-magenta hover:text-uplands-magenta"
                 >
@@ -324,7 +322,7 @@ export function RamsReview() {
         </>
       )}
 
-      {!uploadedWorkspaceActive && selectedForm && showEvidence && (
+      {!uploadedWorkspaceActive && selectedForm && (
         <section className="border border-zinc-200 bg-white p-5 shadow-soft">
           <div className="mb-5 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div>

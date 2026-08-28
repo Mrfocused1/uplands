@@ -4,6 +4,30 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Spinner } from "@/components/Spinner";
 
 type ProcessingStatus = "UPLOADED" | "PROCESSING" | "READY" | "FAILED" | "OCR_REQUIRED";
+type Answer = "Yes" | "No" | "N/A";
+type DocumentType = "image" | "pdf" | "file";
+
+export type LegacyRamsReview = {
+  id: string;
+  company: string;
+  title: string;
+  site: string;
+  generalComments: string;
+  sourceRef?: string;
+  downloadHref: string;
+  frontHref?: string;
+  backHref?: string;
+  pressureSystems: Answer;
+  hazardsYes: string[];
+  questions: [string, Answer, string][];
+};
+
+type PreviewDocument = {
+  title: string;
+  description: string;
+  href: string;
+  type: DocumentType;
+};
 
 interface RamsIntelligenceDocument {
   id: string;
@@ -51,6 +75,174 @@ interface CopilotAnswer {
   model: string;
   aiConfigured: boolean;
   citations: SearchResult[];
+}
+
+const hazardLabels = [
+  "Pressure Systems",
+  "Demolition",
+  "Hot Works",
+  "Steel Erection",
+  "Work At Height",
+  "Roof Work / Work Near Fragile Materials",
+  "Temporary Works including Scaffolding",
+  "Breaking Ground / Digging",
+  "Working in Excavations",
+  "Confined Space Work",
+  "Lifting Operations",
+  "Overhead Services",
+  "Electrical Work",
+  "Use of Plant and Equipment",
+  "PAT Testing",
+  "Restricted Access and Egress",
+  "Vehicle / Plant Movements",
+  "Segregation",
+  "Fire / Explosion",
+  "Sharp Objects",
+  "Poor Ground Conditions",
+  "Non English Speaking Operatives",
+  "Flying Particles",
+  "Licensed Asbestos Removal",
+  "Non-Licensed Asbestos Removal",
+  "Dust",
+  "Noise",
+  "Vibration",
+  "Manual Handling",
+  "Epoxy Resins",
+  "Methyl methacrylate (MMA)",
+  "UV (Solar) Radiation",
+  "Leptospirosis",
+  "Psittacosis",
+  "Needle Stick Injury",
+  "Hazardous Substances",
+  "Falls of materials",
+  "Working on / adjacent to water",
+  "Adverse weather",
+  "COVID-19",
+];
+
+const questionText: Record<string, string> = {
+  q1: "1. Are appropriate controls contained in the RAMS?",
+  q2: "2. Do they cover all likely significant hazards?",
+  q2p: "2. Are Uplands Permits to Work required?",
+  q3: "3. Is the area of work and scope clearly defined?",
+  q4: "4. Are supervisory and communication arrangements clearly defined?",
+  q5: "5. Is responsibility for monitoring operations clearly defined?",
+  q6: "6. Are training requirements identified?",
+  q7: "7. Non-English speaking operative arrangements",
+  q8: "8. Impact on contractors, visitors and public areas",
+  q9: "9. Are emergency arrangements adequately addressed?",
+  q10: "10. Has appropriate PPE been identified?",
+  q11: "11. Are environmental aspects adequately addressed?",
+  q12: "12. Does the RAMS need anything else addressed?",
+};
+
+function answerClass(answer: Answer) {
+  if (answer === "Yes") return "bg-emerald-50 text-emerald-700 ring-emerald-200";
+  if (answer === "No") return "bg-zinc-100 text-zinc-700 ring-zinc-200";
+  return "bg-amber-50 text-amber-800 ring-amber-200";
+}
+
+function reviewDocumentsFor(review: LegacyRamsReview): PreviewDocument[] {
+  const documents: PreviewDocument[] = [];
+  if (review.frontHref) {
+    documents.push({
+      title: "RAMS REVIEW FORM Front Page",
+      description: "Method statement / risk assessment details and hazard checklist.",
+      href: review.frontHref,
+      type: "image",
+    });
+  }
+  if (review.backHref) {
+    documents.push({
+      title: "RAMS REVIEW FORM Back Page",
+      description: "RAMS review questions with completed comments.",
+      href: review.backHref,
+      type: "image",
+    });
+  }
+  return documents;
+}
+
+function ReviewEvidence({ review }: { review: LegacyRamsReview }) {
+  const [tab, setTab] = useState<"questions" | "hazards">("questions");
+  const items = useMemo(() => {
+    if (tab === "questions") {
+      return review.questions.map(([id, answer, comment]) => ({
+        id,
+        title: questionText[id] ?? id,
+        answer,
+        comment,
+      }));
+    }
+
+    const yes = new Set(review.hazardsYes);
+    return hazardLabels.map((label) => ({
+      id: label,
+      title: label,
+      answer: label === "Pressure Systems" ? review.pressureSystems : yes.has(label) ? "Yes" : ("No" as Answer),
+      comment: "",
+    }));
+  }, [review, tab]);
+
+  return (
+    <section className="border border-zinc-200 bg-white p-5 shadow-soft">
+      <div className="mb-5 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div>
+          <h2 className="font-slab text-2xl text-uplands-charcoal">Review Answers</h2>
+          <p className="mt-1 text-sm text-uplands-muted">Recorded UHSF16.01 answers for this RAMS review.</p>
+        </div>
+        <div className="flex border border-zinc-300 p-1">
+          <button
+            type="button"
+            onClick={() => setTab("questions")}
+            className={`px-4 py-2 text-sm font-bold uppercase ${tab === "questions" ? "bg-uplands-charcoal text-white" : "text-zinc-700 hover:text-uplands-magenta"}`}
+          >
+            Questions
+          </button>
+          <button
+            type="button"
+            onClick={() => setTab("hazards")}
+            className={`px-4 py-2 text-sm font-bold uppercase ${tab === "hazards" ? "bg-uplands-charcoal text-white" : "text-zinc-700 hover:text-uplands-magenta"}`}
+          >
+            Hazards
+          </button>
+        </div>
+      </div>
+      <div className="divide-y divide-zinc-200 border border-zinc-200 bg-white">
+        {items.map((item) => (
+          <div key={item.id} className="grid gap-3 px-4 py-3 sm:grid-cols-[1fr_auto] sm:items-start">
+            <div>
+              <p className="font-din text-sm text-uplands-charcoal">{item.title}</p>
+              {item.comment && <p className="mt-1 text-sm leading-6 text-zinc-700">{item.comment}</p>}
+            </div>
+            <span className={`w-fit px-2.5 py-1 text-xs font-bold ring-1 ${answerClass(item.answer)}`}>{item.answer}</span>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function PreviewModal({ document, onClose }: { document: PreviewDocument; onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" role="dialog" aria-modal="true" aria-label={document.title} onClick={onClose}>
+      <div className="max-h-[92vh] w-full max-w-5xl overflow-hidden border border-zinc-200 bg-white shadow-soft" onClick={(event) => event.stopPropagation()}>
+        <div className="flex items-center justify-between gap-4 border-b border-zinc-200 px-4 py-3">
+          <h2 className="font-din text-base text-uplands-charcoal sm:text-lg">{document.title}</h2>
+          <button type="button" onClick={onClose} className="min-h-10 border border-zinc-300 px-4 text-sm font-bold uppercase text-zinc-700 transition hover:border-uplands-magenta hover:text-uplands-magenta">
+            Close
+          </button>
+        </div>
+        {document.type === "pdf" ? (
+          <iframe src={document.href} title={document.title} className="h-[calc(92vh-65px)] w-full bg-white" />
+        ) : (
+          <div className="max-h-[calc(92vh-65px)] overflow-auto bg-zinc-100 p-4">
+            <img src={document.href} alt={document.title} className="mx-auto h-auto w-full max-w-4xl border border-zinc-300 bg-white" />
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }
 
 function statusClass(status: ProcessingStatus) {
@@ -177,10 +369,12 @@ function UploadModal({
 
 function PdfWorkspace({
   document,
+  legacyReview,
   onClose,
   onDocumentUpdated,
 }: {
   document: RamsIntelligenceDocument;
+  legacyReview?: LegacyRamsReview | null;
   onClose: () => void;
   onDocumentUpdated: (document: RamsIntelligenceDocument) => void;
 }) {
@@ -195,9 +389,16 @@ function PdfWorkspace({
   const [answer, setAnswer] = useState<CopilotAnswer | null>(null);
   const [error, setError] = useState("");
   const [highlight, setHighlight] = useState<SearchResult | null>(null);
+  const [pageImageFailed, setPageImageFailed] = useState(false);
+  const [previewDocument, setPreviewDocument] = useState<PreviewDocument | null>(null);
 
   const pageCount = document.pageCount ?? 1;
+  const reviewDocuments = useMemo(() => (legacyReview ? reviewDocumentsFor(legacyReview) : []), [legacyReview]);
   const highlightBoxes = useMemo(() => highlight?.boxes.filter((box) => box.page_number === page).slice(0, 10) ?? [], [highlight, page]);
+
+  useEffect(() => {
+    setPageImageFailed(false);
+  }, [document.id, page]);
 
   function showEvidence(result: SearchResult) {
     setHighlight(result);
@@ -323,29 +524,76 @@ function PdfWorkspace({
             </select>
           </div>
           <div className="max-h-[78vh] overflow-auto bg-zinc-100 p-3">
-            <div className="relative mx-auto bg-white shadow-soft" style={{ width: `${zoom}%`, maxWidth: "1200px" }}>
-              <img src={`/api/admin/rams/${document.id}/page/${page}`} alt={`RAMS page ${page}`} className="block h-auto w-full" />
-              {highlightBoxes.map((box, index) => {
-                const pageWidth = box.page_width || 595;
-                const pageHeight = box.page_height || 842;
-                return (
-                  <span
-                    key={`${box.x}-${box.y}-${index}`}
-                    className="pointer-events-none absolute border-2 border-uplands-magenta bg-uplands-magenta/20 shadow-[0_0_0_9999px_rgba(188,0,150,0.03)]"
-                    style={{
-                      left: `${(box.x / pageWidth) * 100}%`,
-                      top: `${(box.y / pageHeight) * 100}%`,
-                      width: `${(box.width / pageWidth) * 100}%`,
-                      height: `${(box.height / pageHeight) * 100}%`,
-                    }}
-                  />
-                );
-              })}
-            </div>
+            {pageImageFailed ? (
+              <iframe
+                src={`/api/admin/rams/${document.id}/pdf#page=${page}`}
+                title={`${document.contractor} PDF`}
+                className="h-[76vh] w-full border border-zinc-300 bg-white"
+              />
+            ) : (
+              <div className="relative mx-auto bg-white shadow-soft" style={{ width: `${zoom}%`, maxWidth: "1200px" }}>
+                <img
+                  src={`/api/admin/rams/${document.id}/page/${page}`}
+                  alt={`RAMS page ${page}`}
+                  className="block h-auto w-full"
+                  onError={() => setPageImageFailed(true)}
+                />
+                {highlightBoxes.map((box, index) => {
+                  const pageWidth = box.page_width || 595;
+                  const pageHeight = box.page_height || 842;
+                  return (
+                    <span
+                      key={`${box.x}-${box.y}-${index}`}
+                      className="pointer-events-none absolute border-2 border-uplands-magenta bg-uplands-magenta/20 shadow-[0_0_0_9999px_rgba(188,0,150,0.03)]"
+                      style={{
+                        left: `${(box.x / pageWidth) * 100}%`,
+                        top: `${(box.y / pageHeight) * 100}%`,
+                        width: `${(box.width / pageWidth) * 100}%`,
+                        height: `${(box.height / pageHeight) * 100}%`,
+                      }}
+                    />
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
 
         <div className="space-y-5">
+          {legacyReview && (
+            <section className="border border-zinc-200 bg-white p-5 shadow-soft">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <h2 className="font-slab text-2xl text-uplands-charcoal">Completed Review Form</h2>
+                  <p className="mt-1 text-sm leading-6 text-uplands-muted">{legacyReview.generalComments}</p>
+                  {legacyReview.sourceRef && <p className="mt-2 text-xs text-uplands-muted">Review reference: {legacyReview.sourceRef}</p>}
+                </div>
+                <a href={legacyReview.downloadHref} download className="inline-flex min-h-10 shrink-0 items-center bg-uplands-magenta px-4 text-sm font-bold uppercase text-white">
+                  Download Review
+                </a>
+              </div>
+              {reviewDocuments.length > 0 && (
+                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                  {reviewDocuments.map((reviewDocument) => (
+                    <article key={reviewDocument.href} className="border border-zinc-200 p-4">
+                      <h3 className="font-din text-base text-uplands-charcoal">{reviewDocument.title}</h3>
+                      <p className="mt-1 text-sm leading-5 text-uplands-muted">{reviewDocument.description}</p>
+                      <button
+                        type="button"
+                        onClick={() => setPreviewDocument(reviewDocument)}
+                        className="mt-3 min-h-10 border border-uplands-magenta px-4 text-sm font-bold uppercase text-uplands-magenta transition hover:bg-uplands-magenta hover:text-white"
+                      >
+                        View
+                      </button>
+                    </article>
+                  ))}
+                </div>
+              )}
+            </section>
+          )}
+
+          {legacyReview && <ReviewEvidence review={legacyReview} />}
+
           <section className="border border-zinc-200 bg-white p-5 shadow-soft">
             <h2 className="font-slab text-2xl text-uplands-charcoal">Search RAMS</h2>
             <form onSubmit={runSearch} className="mt-4 flex gap-2">
@@ -426,11 +674,18 @@ function PdfWorkspace({
           </section>
         </div>
       </div>
+      {previewDocument && <PreviewModal document={previewDocument} onClose={() => setPreviewDocument(null)} />}
     </section>
   );
 }
 
-export function RamsDocumentIntelligence({ onWorkspaceChange }: { onWorkspaceChange?: (active: boolean) => void }) {
+export function RamsDocumentIntelligence({
+  legacyReviews = [],
+  onWorkspaceChange,
+}: {
+  legacyReviews?: LegacyRamsReview[];
+  onWorkspaceChange?: (active: boolean) => void;
+}) {
   const [documents, setDocuments] = useState<RamsIntelligenceDocument[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -456,6 +711,11 @@ export function RamsDocumentIntelligence({ onWorkspaceChange }: { onWorkspaceCha
   }, []);
 
   const selectedDocument = useMemo(() => documents.find((document) => document.id === selectedId) ?? null, [documents, selectedId]);
+  const selectedLegacyReview = useMemo(() => {
+    if (!selectedDocument?.documentReference?.startsWith("legacy:")) return null;
+    const legacyId = selectedDocument.documentReference.slice("legacy:".length);
+    return legacyReviews.find((review) => review.id === legacyId) ?? null;
+  }, [legacyReviews, selectedDocument]);
 
   useEffect(() => {
     onWorkspaceChange?.(Boolean(selectedDocument));
@@ -465,6 +725,7 @@ export function RamsDocumentIntelligence({ onWorkspaceChange }: { onWorkspaceCha
     return (
       <PdfWorkspace
         document={selectedDocument}
+        legacyReview={selectedLegacyReview}
         onClose={() => setSelectedId(null)}
         onDocumentUpdated={(document) => setDocuments((current) => current.map((item) => (item.id === document.id ? document : item)))}
       />
