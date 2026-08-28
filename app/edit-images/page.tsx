@@ -1,3 +1,4 @@
+import { AdminNav } from "@/components/admin/AdminNav";
 import { EditablePdfWorkspace } from "@/components/admin/edit-images/EditablePdfWorkspace";
 
 export const metadata = {
@@ -6,10 +7,11 @@ export const metadata = {
 
 export default function PublicEditImagesPage() {
   return (
-    <main className="min-h-screen bg-uplands-paper px-5 py-8 text-uplands-charcoal sm:px-8">
-      <div className="mx-auto w-full max-w-7xl">
+    <div className="min-h-screen bg-uplands-paper text-uplands-charcoal">
+      <AdminNav adminName="Testing" />
+      <main className="mx-auto w-full max-w-7xl px-5 py-10 sm:px-8">
         <EditablePdfWorkspace />
-      </div>
-    </main>
+      </main>
+    </div>
   );
 }
