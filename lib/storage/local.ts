@@ -38,6 +38,10 @@ export const localStorageProvider: StorageProvider = {
     };
   },
 
+  async deleteObjects({ keys }) {
+    await Promise.all(keys.map(async (key) => fs.rm(pathForKey(key), { force: true })));
+  },
+
   getLocalPath({ key }) {
     return pathForKey(key);
   },

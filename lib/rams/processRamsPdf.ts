@@ -12,7 +12,7 @@ export async function validatePdfBuffer(buffer: Buffer) {
 }
 
 export async function processRamsPdf(input: { documentId: string; filePath: string; pageCount: number }) {
-  updateRamsProcessingStatus(input.documentId, "PROCESSING", { error: null });
+  await updateRamsProcessingStatus(input.documentId, "PROCESSING", { error: null });
 
   try {
     const pages = await extractPdfTextWithBoxes(input.filePath, input.pageCount);
@@ -20,7 +20,7 @@ export async function processRamsPdf(input: { documentId: string; filePath: stri
     const averageCharacters = totalCharacters / Math.max(1, pages.length);
 
     if (averageCharacters < OCR_TEXT_THRESHOLD_PER_PAGE) {
-      updateRamsProcessingStatus(input.documentId, "OCR_REQUIRED", {
+      await updateRamsProcessingStatus(input.documentId, "OCR_REQUIRED", {
         textStatus: "OCR_REQUIRED",
         error: "This RAMS appears to be scanned. OCR processing is required before it can be searched.",
         pageCount: input.pageCount,
@@ -30,7 +30,7 @@ export async function processRamsPdf(input: { documentId: string; filePath: stri
 
     const sections = detectSections(pages);
     const chunks = await chunkRamsPages(pages, sections);
-    replaceRamsProcessedData(input.documentId, {
+    await replaceRamsProcessedData(input.documentId, {
       sections: sections.map((section) => ({
         id: section.id!,
         title: section.title,
@@ -40,7 +40,7 @@ export async function processRamsPdf(input: { documentId: string; filePath: stri
       })),
       chunks,
     });
-    updateRamsProcessingStatus(input.documentId, "READY", {
+    await updateRamsProcessingStatus(input.documentId, "READY", {
       textStatus: "EXTRACTED",
       error: null,
       pageCount: input.pageCount,
@@ -48,7 +48,7 @@ export async function processRamsPdf(input: { documentId: string; filePath: stri
     return { status: "READY" as const, pageCount: input.pageCount, sectionCount: sections.length, chunkCount: chunks.length };
   } catch (error) {
     const message = error instanceof Error ? error.message : "RAMS PDF processing failed.";
-    updateRamsProcessingStatus(input.documentId, "FAILED", { textStatus: "FAILED", error: message, pageCount: input.pageCount });
+    await updateRamsProcessingStatus(input.documentId, "FAILED", { textStatus: "FAILED", error: message, pageCount: input.pageCount });
     throw error;
   }
 }

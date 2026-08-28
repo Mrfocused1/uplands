@@ -1,7 +1,11 @@
 import { randomUUID } from "node:crypto";
 import fs from "node:fs";
+import fsp from "node:fs/promises";
 import path from "node:path";
 import { getDb, UPLOADS_DIR } from "@/lib/db";
+import { env, isSupabaseAdminConfigured } from "@/lib/env";
+import { getSubmissionStorageProvider } from "@/lib/storage";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import type { UHSF1601PrintData } from "@/types/UHSF1601PrintData";
 import type { EvidencePrintTransform, EvidenceType } from "@/types/evidence";
 
@@ -64,10 +68,122 @@ export function transformFromRow(row: EvidenceDocRow): EvidencePrintTransform {
   };
 }
 
-export function persistSubmission(printData: UHSF1601PrintData): { id: string; reference: string } {
+function shouldUseSupabaseSubmissionsDb() {
+  const provider = env("SUBMISSIONS_DATABASE_PROVIDER", env("UPLANDS_DATABASE_PROVIDER", "sqlite"));
+  if (provider === "supabase" && !isSupabaseAdminConfigured()) {
+    throw new Error("SUBMISSIONS_DATABASE_PROVIDER is set to supabase, but Supabase admin environment variables are missing.");
+  }
+  return provider === "supabase";
+}
+
+function assertNoError(error: { message: string } | null, action: string) {
+  if (error) throw new Error(`${action}: ${error.message}`);
+}
+
+function dataUrlToStoredDocument(document: NonNullable<UHSF1601PrintData["uploadedDocuments"]>[number]) {
+  const comma = (document.dataUrl ?? "").indexOf(",");
+  if (comma === -1) return null;
+
+  const mime = mimeFromDataUrl(document.dataUrl ?? "");
+  const ext = EXT_BY_MIME[mime] ?? "bin";
+  return {
+    document,
+    mime,
+    ext,
+    buffer: Buffer.from(document.dataUrl!.slice(comma + 1), "base64"),
+  };
+}
+
+function isSupabaseStorageKey(storagePath: string) {
+  return !path.isAbsolute(storagePath);
+}
+
+export async function loadEvidenceDocument(document: EvidenceDocRow) {
+  if (!document.storage_path) throw new Error("Evidence document has no stored object.");
+
+  if (shouldUseSupabaseSubmissionsDb() || isSupabaseStorageKey(document.storage_path)) {
+    const object = await getSubmissionStorageProvider().getObject({ key: document.storage_path });
+    return {
+      buffer: object.buffer,
+      fileName: document.original_name ?? object.fileName,
+      mimeType: document.mime_type ?? object.mimeType,
+    };
+  }
+
+  return {
+    buffer: await fsp.readFile(document.storage_path),
+    fileName: document.original_name ?? path.basename(document.storage_path),
+    mimeType: document.mime_type ?? "application/octet-stream",
+  };
+}
+
+export async function persistSubmission(printData: UHSF1601PrintData): Promise<{ id: string; reference: string }> {
   const id = randomUUID();
   const reference = `UHSF-${id.slice(0, 8).toUpperCase()}`;
   const now = new Date().toISOString();
+
+  if (shouldUseSupabaseSubmissionsDb()) {
+    const storage = getSubmissionStorageProvider();
+    const evidenceRows: EvidenceDocRow[] = [];
+
+    for (const item of printData.uploadedDocuments ?? []) {
+      const source = dataUrlToStoredDocument(item);
+      if (!source) continue;
+
+      const stored = await storage.putObject({
+        keyPrefix: `submissions/${id}`,
+        fileName: `${source.document.id}.${source.ext}`,
+        mimeType: source.mime,
+        buffer: source.buffer,
+      });
+
+      evidenceRows.push({
+        id: randomUUID(),
+        submission_id: id,
+        document_type: source.document.id,
+        original_name: source.document.label,
+        mime_type: source.mime,
+        storage_path: stored.key,
+        source_width: null,
+        source_height: null,
+        fit_mode: "fit",
+        offset_x: 0,
+        offset_y: 0,
+        scale: 1,
+        rotation: 0,
+        updated_at: now,
+        updated_by: null,
+      });
+    }
+
+    const supabase = createSupabaseAdminClient();
+    assertNoError(
+      (
+        await supabase.from("submissions").insert({
+          id,
+          reference,
+          full_name: printData.fullName ?? null,
+          company_name: printData.companyName ?? null,
+          site_name: printData.siteName ?? null,
+          declaration_date: printData.declarationDate ?? null,
+          print_review_status: "not_reviewed",
+          print_data: JSON.stringify({ ...printData, uploadedDocuments: [] }),
+          pinned: 0,
+          is_sample: 0,
+          created_at: now,
+          updated_at: now,
+        })
+      ).error,
+      "Unable to create submission",
+    );
+
+    if (evidenceRows.length > 0) {
+      assertNoError((await supabase.from("evidence_documents").insert(evidenceRows)).error, "Unable to create evidence documents");
+    }
+
+    return { id, reference };
+  }
+
   const subDir = path.join(UPLOADS_DIR, id);
   fs.mkdirSync(subDir, { recursive: true });
 
@@ -97,15 +213,13 @@ export function persistSubmission(printData: UHSF1601PrintData): { id: string; r
     );
 
     for (const doc of printData.uploadedDocuments ?? []) {
-      const comma = (doc.dataUrl ?? "").indexOf(",");
-      if (comma === -1) continue;
+      const source = dataUrlToStoredDocument(doc);
+      if (!source) continue;
 
-      const mime = mimeFromDataUrl(doc.dataUrl ?? "");
-      const ext = EXT_BY_MIME[mime] ?? "bin";
-      const filePath = path.join(subDir, `${doc.id}.${ext}`);
-      fs.writeFileSync(filePath, Buffer.from(doc.dataUrl!.slice(comma + 1), "base64"));
+      const filePath = path.join(/* turbopackIgnore: true */ subDir, `${doc.id}.${source.ext}`);
+      fs.writeFileSync(filePath, source.buffer);
 
-      insertEvidence.run(randomUUID(), id, doc.id, doc.label, mime, filePath, now);
+      insertEvidence.run(randomUUID(), id, doc.id, doc.label, source.mime, filePath, now);
     }
   });
 
@@ -113,7 +227,34 @@ export function persistSubmission(printData: UHSF1601PrintData): { id: string; r
   return { id, reference };
 }
 
-export function listSubmissions() {
+async function countSupabaseEvidence(submissionId: string) {
+  const supabase = createSupabaseAdminClient();
+  const { count, error } = await supabase
+    .from("evidence_documents")
+    .select("id", { count: "exact", head: true })
+    .eq("submission_id", submissionId)
+    .not("storage_path", "is", null);
+  assertNoError(error, "Unable to count evidence documents");
+  return count ?? 0;
+}
+
+export async function listSubmissions(): Promise<Array<SubmissionRow & { evidence_count: number }>> {
+  if (shouldUseSupabaseSubmissionsDb()) {
+    const supabase = createSupabaseAdminClient();
+    const { data, error } = await supabase
+      .from("submissions")
+      .select("*")
+      .order("pinned", { ascending: false })
+      .order("created_at", { ascending: false });
+    assertNoError(error, "Unable to list submissions");
+    return Promise.all(
+      ((data ?? []) as SubmissionRow[]).map(async (row) => ({
+        ...row,
+        evidence_count: await countSupabaseEvidence(row.id),
+      })),
+    );
+  }
+
   return getDb()
     .prepare(
       `SELECT s.id, s.reference, s.full_name, s.company_name, s.site_name, s.declaration_date,
@@ -125,7 +266,23 @@ export function listSubmissions() {
     .all() as Array<SubmissionRow & { evidence_count: number }>;
 }
 
-export function getSubmission(id: string) {
+export async function getSubmission(id: string): Promise<{ row: SubmissionRow; evidence: EvidenceDocRow[] } | null> {
+  if (shouldUseSupabaseSubmissionsDb()) {
+    const supabase = createSupabaseAdminClient();
+    const { data, error } = await supabase.from("submissions").select("*").eq("id", id).maybeSingle();
+    assertNoError(error, "Unable to get submission");
+    if (!data) return null;
+
+    const { data: evidence, error: evidenceError } = await supabase
+      .from("evidence_documents")
+      .select("*")
+      .eq("submission_id", id)
+      .order("document_type");
+    assertNoError(evidenceError, "Unable to get evidence documents");
+
+    return { row: data as SubmissionRow, evidence: (evidence ?? []) as EvidenceDocRow[] };
+  }
+
   const row = getDb().prepare("SELECT * FROM submissions WHERE id = ?").get(id) as SubmissionRow | undefined;
   if (!row) return null;
 
@@ -136,12 +293,35 @@ export function getSubmission(id: string) {
   return { row, evidence };
 }
 
-export function saveEvidenceTransforms(
+export async function saveEvidenceTransforms(
   submissionId: string,
   transforms: Partial<Record<EvidenceType, EvidencePrintTransform>>,
   updatedBy: string,
 ) {
   const now = new Date().toISOString();
+
+  if (shouldUseSupabaseSubmissionsDb()) {
+    const supabase = createSupabaseAdminClient();
+    for (const [type, transform] of Object.entries(transforms) as Array<[EvidenceType, EvidencePrintTransform]>) {
+      const { error } = await supabase
+        .from("evidence_documents")
+        .update({
+          fit_mode: transform.fitMode,
+          offset_x: transform.offsetX,
+          offset_y: transform.offsetY,
+          scale: transform.scale,
+          rotation: transform.rotation,
+          updated_at: now,
+          updated_by: updatedBy,
+        })
+        .eq("submission_id", submissionId)
+        .eq("document_type", type);
+      assertNoError(error, "Unable to update evidence transform");
+    }
+    assertNoError((await supabase.from("submissions").update({ updated_at: now }).eq("id", submissionId)).error, "Unable to update submission");
+    return;
+  }
+
   const stmt = getDb().prepare(
     `UPDATE evidence_documents
      SET fit_mode = ?, offset_x = ?, offset_y = ?, scale = ?, rotation = ?, updated_at = ?, updated_by = ?
@@ -168,13 +348,30 @@ export function saveEvidenceTransforms(
   run();
 }
 
-export function updateSubmissionFormData(submissionId: string, patch: Partial<UHSF1601PrintData>) {
-  const result = getSubmission(submissionId);
+export async function updateSubmissionFormData(submissionId: string, patch: Partial<UHSF1601PrintData>) {
+  const result = await getSubmission(submissionId);
   if (!result) return false;
 
   const existing = JSON.parse(result.row.print_data) as UHSF1601PrintData;
   const next: UHSF1601PrintData = { ...existing, ...patch };
   const now = new Date().toISOString();
+
+  if (shouldUseSupabaseSubmissionsDb()) {
+    const supabase = createSupabaseAdminClient();
+    const { error } = await supabase
+      .from("submissions")
+      .update({
+        print_data: JSON.stringify(next),
+        full_name: next.fullName ?? null,
+        company_name: next.companyName ?? null,
+        site_name: next.siteName ?? null,
+        declaration_date: next.declarationDate ?? null,
+        updated_at: now,
+      })
+      .eq("id", submissionId);
+    assertNoError(error, "Unable to update submission form data");
+    return true;
+  }
 
   getDb()
     .prepare(
@@ -195,27 +392,52 @@ export function updateSubmissionFormData(submissionId: string, patch: Partial<UH
   return true;
 }
 
-export function setPrintReviewStatus(submissionId: string, status: "not_reviewed" | "ready") {
+export async function setPrintReviewStatus(submissionId: string, status: "not_reviewed" | "ready") {
   const now = new Date().toISOString();
+  if (shouldUseSupabaseSubmissionsDb()) {
+    const supabase = createSupabaseAdminClient();
+    assertNoError(
+      (await supabase.from("submissions").update({ print_review_status: status, updated_at: now }).eq("id", submissionId)).error,
+      "Unable to update print review status",
+    );
+    return;
+  }
+
   getDb()
     .prepare("UPDATE submissions SET print_review_status = ?, updated_at = ? WHERE id = ?")
     .run(status, now, submissionId);
 }
 
-export function setPinned(submissionId: string, pinned: boolean) {
+export async function setPinned(submissionId: string, pinned: boolean) {
   const now = new Date().toISOString();
+  if (shouldUseSupabaseSubmissionsDb()) {
+    const supabase = createSupabaseAdminClient();
+    assertNoError(
+      (await supabase.from("submissions").update({ pinned: pinned ? 1 : 0, updated_at: now }).eq("id", submissionId)).error,
+      "Unable to update pinned status",
+    );
+    return;
+  }
+
   getDb()
     .prepare("UPDATE submissions SET pinned = ?, updated_at = ? WHERE id = ?")
     .run(pinned ? 1 : 0, now, submissionId);
 }
 
-export function deleteSubmission(submissionId: string) {
-  const result = getSubmission(submissionId);
+export async function deleteSubmission(submissionId: string) {
+  const result = await getSubmission(submissionId);
   if (!result) return false;
 
   const paths = result.evidence
     .map((document) => document.storage_path)
     .filter((storagePath): storagePath is string => Boolean(storagePath));
+
+  if (shouldUseSupabaseSubmissionsDb()) {
+    const supabase = createSupabaseAdminClient();
+    assertNoError((await supabase.from("submissions").delete().eq("id", submissionId)).error, "Unable to delete submission");
+    await getSubmissionStorageProvider().deleteObjects?.({ keys: paths.filter(isSupabaseStorageKey) });
+    return true;
+  }
 
   const run = getDb().transaction(() => {
     getDb().prepare("DELETE FROM evidence_documents WHERE submission_id = ?").run(submissionId);

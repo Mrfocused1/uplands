@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { requireAdmin, UnauthorizedError } from "@/lib/auth/admin";
-import { createRamsDocument, getRamsDocument, listRamsDocuments } from "@/lib/db/rams";
-import { processRamsPdf, validatePdfBuffer } from "@/lib/rams/processRamsPdf";
+import { createRamsDocument, getRamsDocument, listRamsDocuments, type RamsDocumentWithCounts } from "@/lib/db/rams";
+import { processStoredRamsDocument } from "@/lib/rams/processStoredRamsDocument";
+import { validatePdfBuffer } from "@/lib/rams/processRamsPdf";
 import { getStorageProvider } from "@/lib/storage";
 
 export const runtime = "nodejs";
@@ -13,7 +14,7 @@ function value(formData: FormData, key: string) {
   return typeof item === "string" ? item.trim() : "";
 }
 
-function serializeDocument(row: ReturnType<typeof listRamsDocuments>[number]) {
+function serializeDocument(row: RamsDocumentWithCounts) {
   return {
     id: row.id,
     title: row.title,
@@ -45,7 +46,8 @@ export async function GET() {
     throw error;
   }
 
-  return NextResponse.json({ documents: listRamsDocuments().map(serializeDocument) });
+  const documents = await listRamsDocuments();
+  return NextResponse.json({ documents: documents.map(serializeDocument) });
 }
 
 export async function POST(request: Request) {
@@ -87,7 +89,7 @@ export async function POST(request: Request) {
     buffer,
   });
 
-  const documentId = createRamsDocument({
+  const documentId = await createRamsDocument({
     title,
     siteName: value(formData, "siteName") || null,
     contractor,
@@ -102,17 +104,17 @@ export async function POST(request: Request) {
     createdBy: admin.displayName,
   });
 
-  const localPath = storage.getLocalPath?.({ key: stored.key });
-  if (!localPath) {
-    return NextResponse.json({ error: "RAMS storage provider cannot be processed locally yet." }, { status: 500 });
+  if (process.env.RAMS_PROCESSING_MODE === "deferred") {
+    const row = await getRamsDocument(documentId);
+    return NextResponse.json({ document: row, processing: { status: "UPLOADED", pageCount, sectionCount: 0, chunkCount: 0 } }, { status: 202 });
   }
 
   try {
-    const processing = await processRamsPdf({ documentId, filePath: localPath, pageCount });
-    const row = getRamsDocument(documentId);
+    const processing = await processStoredRamsDocument(documentId);
+    const row = await getRamsDocument(documentId);
     return NextResponse.json({ document: row, processing }, { status: 201 });
   } catch (error) {
-    const row = getRamsDocument(documentId);
+    const row = await getRamsDocument(documentId);
     return NextResponse.json(
       {
         document: row,

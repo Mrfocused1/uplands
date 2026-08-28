@@ -15,7 +15,7 @@ export function InductionHeader() {
         <div className="text-right">
           <p className="font-din text-xs uppercase tracking-normal text-uplands-magenta">{documentMetadata.code}</p>
           <h1 className="mt-1 font-slab text-lg leading-tight text-uplands-charcoal sm:text-2xl">
-            Site Induction
+            Site Induction{" "}
             <span className="block">Registration Form</span>
           </h1>
         </div>

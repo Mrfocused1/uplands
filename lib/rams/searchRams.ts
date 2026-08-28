@@ -28,6 +28,13 @@ function queryTerms(query: string) {
     .filter((term) => term.length > 2 && !STOP_WORDS.has(term));
 }
 
+function boxesForQuery(boxes: Awaited<ReturnType<typeof getChunkBoxes>>, query: string) {
+  const terms = queryTerms(query);
+  if (terms.length === 0) return boxes.slice(0, 36);
+  const matches = boxes.filter((box) => terms.some((term) => normaliseText(box.text).includes(term)));
+  return (matches.length > 0 ? matches : boxes).slice(0, 36);
+}
+
 function lexicalScore(chunk: RamsChunkRow, query: string) {
   const terms = queryTerms(query);
   if (terms.length === 0) return 0;
@@ -51,7 +58,7 @@ function embeddingFrom(row: RamsChunkRow) {
 }
 
 export async function searchRams(documentId: string, query: string, limit = 8): Promise<RamsSearchResult[]> {
-  const chunks = listRamsChunks(documentId);
+  const chunks = await listRamsChunks(documentId);
   const provider = getEmbeddingProvider();
   const queryEmbedding = provider ? await provider.embedText(query) : null;
 
@@ -69,7 +76,7 @@ export async function searchRams(documentId: string, query: string, limit = 8): 
     .sort((a, b) => b.score - a.score))
     .slice(0, limit);
 
-  const boxes = getChunkBoxes(scored.map((item) => item.chunk.id));
+  const boxes = await getChunkBoxes(scored.map((item) => item.chunk.id));
   const boxesByChunk = new Map<string, typeof boxes>();
   for (const box of boxes) {
     boxesByChunk.set(box.chunk_id, [...(boxesByChunk.get(box.chunk_id) ?? []), box]);
@@ -83,6 +90,6 @@ export async function searchRams(documentId: string, query: string, limit = 8): 
     snippet: snippetFor(chunk.text, query),
     score: Number(score.toFixed(4)),
     text: chunk.text,
-    boxes: boxesByChunk.get(chunk.id) ?? [],
+    boxes: boxesForQuery(boxesByChunk.get(chunk.id) ?? [], query),
   }));
 }

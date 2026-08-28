@@ -22,7 +22,7 @@ export async function GET() {
     throw error;
   }
 
-  const rows = listSubmissions();
+  const rows = await listSubmissions();
   const submissions = rows.map((row) => ({
     id: row.id,
     reference: row.reference,

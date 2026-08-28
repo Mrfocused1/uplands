@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
-import fs from "node:fs/promises";
 import { requireAdmin, UnauthorizedError } from "@/lib/auth/admin";
-import { getSubmission } from "@/lib/db/submissions";
+import { getSubmission, loadEvidenceDocument } from "@/lib/db/submissions";
 
 export const runtime = "nodejs";
 
@@ -14,19 +13,19 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   }
 
   const { id, type } = await context.params;
-  const result = getSubmission(id);
+  const result = await getSubmission(id);
   if (!result) return NextResponse.json({ error: "Submission not found." }, { status: 404 });
 
   const document = result.evidence.find((doc) => doc.document_type === type && doc.storage_path);
   if (!document?.storage_path) return NextResponse.json({ error: "No original uploaded." }, { status: 404 });
 
-  const buffer = await fs.readFile(document.storage_path);
-  const filename = document.original_name ?? type;
+  const original = await loadEvidenceDocument(document);
+  const filename = original.fileName ?? type;
 
-  return new NextResponse(buffer, {
+  return new NextResponse(new Uint8Array(original.buffer), {
     status: 200,
     headers: {
-      "Content-Type": document.mime_type ?? "application/octet-stream",
+      "Content-Type": original.mimeType,
       "Content-Disposition": `inline; filename="${filename}"`,
       "Cache-Control": "no-store",
     },

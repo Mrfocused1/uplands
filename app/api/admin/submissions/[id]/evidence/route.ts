@@ -15,7 +15,7 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
   }
 
   const { id } = await context.params;
-  if (!getSubmission(id)) return NextResponse.json({ error: "Submission not found." }, { status: 404 });
+  if (!(await getSubmission(id))) return NextResponse.json({ error: "Submission not found." }, { status: 404 });
 
   const body = await request.json().catch(() => null);
   const transforms = body?.transforms as Partial<Record<EvidenceType, EvidencePrintTransform>> | undefined;
@@ -36,6 +36,6 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
     };
   }
 
-  saveEvidenceTransforms(id, sanitized, admin.username);
+  await saveEvidenceTransforms(id, sanitized, admin.username);
   return NextResponse.json({ ok: true });
 }

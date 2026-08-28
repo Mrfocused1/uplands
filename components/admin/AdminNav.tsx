@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { projectConfig } from "@/config/projectConfig";
 
-export function AdminNav() {
+export function AdminNav({ adminName }: { adminName?: string }) {
   const pathname = usePathname();
 
   const linkClass = (href: string) =>
@@ -48,7 +48,15 @@ export function AdminNav() {
           <div className="text-right">
             <p className="font-din text-xs uppercase tracking-normal text-uplands-magenta">UHSF16.01</p>
             <h1 className="mt-1 hidden font-slab text-lg leading-tight text-uplands-charcoal sm:block sm:text-2xl">Admin Records</h1>
+            {adminName && <p className="hidden text-xs font-bold uppercase text-zinc-500 sm:block">{adminName}</p>}
           </div>
+          {adminName && (
+            <form action="/api/admin/logout" method="post" className="hidden md:block">
+              <button type="submit" className="border border-zinc-300 px-3 py-2 text-xs font-bold uppercase text-zinc-700 hover:border-uplands-magenta hover:text-uplands-magenta">
+                Sign Out
+              </button>
+            </form>
+          )}
           <details className="group relative md:hidden">
             <summary
               className="flex h-11 w-11 cursor-pointer list-none flex-col items-center justify-center gap-1.5 border border-zinc-200 bg-white shadow-sm marker:hidden"
@@ -71,6 +79,13 @@ export function AdminNav() {
               <Link className={`${linkClass("/admin/rams")} block py-3`} href="/admin/rams">
                 RAMS
               </Link>
+              {adminName && (
+                <form action="/api/admin/logout" method="post">
+                  <button type="submit" className="block w-full py-3 text-left hover:text-uplands-magenta">
+                    Sign Out
+                  </button>
+                </form>
+              )}
             </nav>
           </details>
         </div>

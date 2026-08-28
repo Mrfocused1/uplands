@@ -14,7 +14,7 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
   }
 
   const { id } = await context.params;
-  const document = getRamsDocument(id);
+  const document = await getRamsDocument(id);
   if (!document) return NextResponse.json({ error: "RAMS document not found." }, { status: 404 });
 
   const object = await getStorageProvider().getObject({ key: document.storage_key });

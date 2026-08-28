@@ -9,6 +9,9 @@
 /tmp/
 /output/
 /site/
+/test-results/
+/playwright-report/
+/lhci-reports/
 
 # misc
 .DS_Store
@@ -30,3 +33,4 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 .vercel
+/supabase/.temp/

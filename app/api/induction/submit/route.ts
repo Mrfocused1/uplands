@@ -11,6 +11,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "A completed induction is required to submit." }, { status: 400 });
   }
 
-  const { id, reference } = persistSubmission(data);
+  const { id, reference } = await persistSubmission(data);
   return NextResponse.json({ id, reference }, { status: 201 });
 }

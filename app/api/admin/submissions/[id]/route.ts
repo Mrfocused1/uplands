@@ -45,7 +45,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   }
 
   const { id } = await context.params;
-  const result = getSubmission(id);
+  const result = await getSubmission(id);
   if (!result) return NextResponse.json({ error: "Submission not found." }, { status: 404 });
 
   const { row, evidence } = result;
@@ -104,13 +104,13 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     return NextResponse.json({ error: "Invalid pinned value." }, { status: 400 });
   }
 
-  if (status !== undefined) setPrintReviewStatus(id, status);
-  if (pinned !== undefined) setPinned(id, pinned);
+  if (status !== undefined) await setPrintReviewStatus(id, status);
+  if (pinned !== undefined) await setPinned(id, pinned);
 
   if (printData !== undefined) {
     const patch = sanitizePrintData(printData);
     if (patch === null) return NextResponse.json({ error: "Invalid form data." }, { status: 400 });
-    const updated = updateSubmissionFormData(id, patch);
+    const updated = await updateSubmissionFormData(id, patch);
     if (!updated) return NextResponse.json({ error: "Submission not found." }, { status: 404 });
   }
 
@@ -126,7 +126,7 @@ export async function DELETE(_request: Request, context: { params: Promise<{ id:
   }
 
   const { id } = await context.params;
-  const deleted = deleteSubmission(id);
+  const deleted = await deleteSubmission(id);
   if (!deleted) return NextResponse.json({ error: "Submission not found." }, { status: 404 });
 
   return NextResponse.json({ ok: true });

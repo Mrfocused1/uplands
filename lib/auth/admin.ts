@@ -1,5 +1,12 @@
+import { randomBytes } from "node:crypto";
+import { cookies } from "next/headers";
+import { getDb } from "@/lib/db";
+import { boolEnv, env, isSupabaseConfigured } from "@/lib/env";
+import { verifyPassword } from "@/lib/auth/password";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
+
 export interface AdminSession {
-  id: number;
+  id: number | string;
   username: string;
   displayName: string;
 }
@@ -11,16 +18,126 @@ export class UnauthorizedError extends Error {
   }
 }
 
-/**
- * The admin area is intentionally open (no login). These helpers remain so the
- * existing route guards and layout stay intact as no-ops.
- */
+const ADMIN_COOKIE = "uplands_admin_session";
+const SESSION_DAYS = 8;
 const PUBLIC_ADMIN: AdminSession = { id: 0, username: "Admin", displayName: "Admin" };
 
+function authRequired() {
+  return boolEnv("ADMIN_AUTH_REQUIRED", process.env.NODE_ENV === "production");
+}
+
+function shouldUseSupabaseAuth() {
+  return env("ADMIN_AUTH_PROVIDER", "local") === "supabase" && isSupabaseConfigured();
+}
+
+function allowedAdminEmails() {
+  return env("SUPABASE_ADMIN_EMAILS")
+    .split(",")
+    .map((item) => item.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+function emailIsAllowed(email: string | undefined | null) {
+  const allowed = allowedAdminEmails();
+  if (allowed.length === 0) return false;
+  return Boolean(email && allowed.includes(email.toLowerCase()));
+}
+
+function expiresAt() {
+  return new Date(Date.now() + SESSION_DAYS * 24 * 60 * 60 * 1000);
+}
+
+function sessionCookieOptions() {
+  return {
+    httpOnly: true,
+    sameSite: "lax" as const,
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+    expires: expiresAt(),
+  };
+}
+
+function rowToSession(row: { id: number; username: string; display_name: string | null }): AdminSession {
+  return { id: row.id, username: row.username, displayName: row.display_name || row.username };
+}
+
 export async function getCurrentAdmin(): Promise<AdminSession | null> {
-  return PUBLIC_ADMIN;
+  if (!authRequired()) return PUBLIC_ADMIN;
+
+  if (shouldUseSupabaseAuth()) {
+    const supabase = await createSupabaseServerClient();
+    const { data, error } = await supabase.auth.getUser();
+    if (error || !data.user || !emailIsAllowed(data.user.email)) return null;
+    return {
+      id: data.user.id,
+      username: data.user.email || "supabase-admin",
+      displayName: data.user.user_metadata?.full_name || data.user.email || "Admin",
+    };
+  }
+
+  const cookieStore = await cookies();
+  const token = cookieStore.get(ADMIN_COOKIE)?.value;
+  if (!token) return null;
+
+  const row = getDb()
+    .prepare(
+      `SELECT admins.id, admins.username, admins.display_name
+       FROM sessions
+       JOIN admins ON admins.id = sessions.admin_id
+       WHERE sessions.token = ? AND sessions.expires_at > ?`,
+    )
+    .get(token, new Date().toISOString()) as { id: number; username: string; display_name: string | null } | undefined;
+
+  return row ? rowToSession(row) : null;
 }
 
 export async function requireAdmin(): Promise<AdminSession> {
-  return PUBLIC_ADMIN;
+  const admin = await getCurrentAdmin();
+  if (!admin) throw new UnauthorizedError();
+  return admin;
+}
+
+export async function createAdminSession(username: string, password: string): Promise<AdminSession> {
+  if (shouldUseSupabaseAuth()) {
+    const supabase = await createSupabaseServerClient();
+    const { data, error } = await supabase.auth.signInWithPassword({ email: username, password });
+    if (error || !data.user || !emailIsAllowed(data.user.email)) {
+      await supabase.auth.signOut();
+      throw new UnauthorizedError();
+    }
+    return {
+      id: data.user.id,
+      username: data.user.email || username,
+      displayName: data.user.user_metadata?.full_name || data.user.email || username,
+    };
+  }
+
+  const row = getDb()
+    .prepare("SELECT id, username, password_hash, display_name FROM admins WHERE username = ?")
+    .get(username) as { id: number; username: string; password_hash: string; display_name: string | null } | undefined;
+
+  if (!row || !verifyPassword(password, row.password_hash)) {
+    throw new UnauthorizedError();
+  }
+
+  const token = randomBytes(32).toString("hex");
+  const expires = expiresAt();
+  getDb().prepare("INSERT INTO sessions (token, admin_id, expires_at) VALUES (?, ?, ?)").run(token, row.id, expires.toISOString());
+  const cookieStore = await cookies();
+  cookieStore.set(ADMIN_COOKIE, token, sessionCookieOptions());
+
+  return rowToSession(row);
+}
+
+export async function destroyAdminSession() {
+  if (shouldUseSupabaseAuth()) {
+    const supabase = await createSupabaseServerClient();
+    await supabase.auth.signOut();
+    return;
+  }
+
+  const cookieStore = await cookies();
+  const token = cookieStore.get(ADMIN_COOKIE)?.value;
+  if (token) getDb().prepare("DELETE FROM sessions WHERE token = ?").run(token);
+  cookieStore.set(ADMIN_COOKIE, "", { path: "/", expires: new Date(0) });
 }

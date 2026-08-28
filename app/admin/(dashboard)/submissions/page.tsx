@@ -11,8 +11,8 @@ function searchTextFrom(printData: string) {
     .join(" ");
 }
 
-export default function SubmissionsPage() {
-  const rows = listSubmissions();
+export default async function SubmissionsPage() {
+  const rows = await listSubmissions();
 
   const submissions = rows.map((row) => ({
     id: row.id,

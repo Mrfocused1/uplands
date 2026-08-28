@@ -16,7 +16,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   }
 
   const { id } = await context.params;
-  const document = getRamsDocument(id);
+  const document = await getRamsDocument(id);
   if (!document) return NextResponse.json({ error: "RAMS document not found." }, { status: 404 });
 
   const body = (await request.json().catch(() => null)) as { question?: string; reviewQuestionKey?: string; reviewAnswer?: string; reviewComment?: string } | null;
@@ -49,10 +49,10 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   const allowed = new Set(evidence.map((item) => item.chunkId));
   const citations = answer.citations.filter((citation) => allowed.has(citation));
   const citedEvidence = evidence.filter((item) => citations.includes(item.chunkId));
-  const threadId = createRamsChatThread(id, question.slice(0, 80), String(admin.id));
-  addRamsChatMessage({ threadId, role: "user", message: question });
-  const messageId = addRamsChatMessage({ threadId, role: "assistant", message: answer.answer, model: answer.model });
-  addRamsChatCitations(messageId, citations);
+  const threadId = await createRamsChatThread(id, question.slice(0, 80), String(admin.id));
+  await addRamsChatMessage({ threadId, role: "user", message: question });
+  const messageId = await addRamsChatMessage({ threadId, role: "assistant", message: answer.answer, model: answer.model });
+  await addRamsChatCitations(messageId, citations);
 
   return NextResponse.json({
     answer: answer.answer,

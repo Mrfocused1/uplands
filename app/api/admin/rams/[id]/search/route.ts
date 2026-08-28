@@ -14,7 +14,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   }
 
   const { id } = await context.params;
-  const document = getRamsDocument(id);
+  const document = await getRamsDocument(id);
   if (!document) return NextResponse.json({ error: "RAMS document not found." }, { status: 404 });
 
   const body = (await request.json().catch(() => null)) as { query?: string; limit?: number } | null;

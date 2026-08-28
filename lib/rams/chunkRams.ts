@@ -4,7 +4,7 @@ import { normaliseText, tokenCount } from "@/lib/rams/text";
 import type { DetectedSection, ExtractedPage, RamsChunkInput } from "@/lib/rams/types";
 
 const TARGET_TOKENS = 700;
-const MAX_BOXES_PER_CHUNK = 36;
+const MAX_BOXES_PER_CHUNK = 300;
 
 function sectionForPage(sections: DetectedSection[], pageNumber: number) {
   return sections.find((section) => pageNumber >= section.startPage && pageNumber <= section.endPage) ?? sections[0] ?? null;

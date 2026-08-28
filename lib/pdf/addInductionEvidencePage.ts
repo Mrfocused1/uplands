@@ -37,6 +37,10 @@ async function resolveSource(document: UploadedDocument): Promise<ResolvedSource
     return { buffer: Buffer.from(document.dataUrl.slice(comma + 1), "base64"), mime };
   }
 
+  if (document.sourceBuffer) {
+    return { buffer: document.sourceBuffer, mime: document.mimeType ?? "" };
+  }
+
   if (document.storagePath) {
     const buffer = await fs.readFile(document.storagePath);
     return { buffer, mime: document.mimeType ?? "" };

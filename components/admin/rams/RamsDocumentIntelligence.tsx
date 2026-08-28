@@ -178,9 +178,11 @@ function UploadModal({
 function PdfWorkspace({
   document,
   onClose,
+  onDocumentUpdated,
 }: {
   document: RamsIntelligenceDocument;
   onClose: () => void;
+  onDocumentUpdated: (document: RamsIntelligenceDocument) => void;
 }) {
   const [page, setPage] = useState(1);
   const [zoom, setZoom] = useState(100);
@@ -189,6 +191,7 @@ function PdfWorkspace({
   const [results, setResults] = useState<SearchResult[]>([]);
   const [question, setQuestion] = useState("");
   const [asking, setAsking] = useState(false);
+  const [processing, setProcessing] = useState(false);
   const [answer, setAnswer] = useState<CopilotAnswer | null>(null);
   const [error, setError] = useState("");
   const [highlight, setHighlight] = useState<SearchResult | null>(null);
@@ -245,6 +248,24 @@ function PdfWorkspace({
     }
   }
 
+  async function runProcessing() {
+    setProcessing(true);
+    setError("");
+    try {
+      const response = await fetch(`/api/admin/rams/${document.id}/process`, { method: "POST" });
+      const data = await response.json();
+      if (!response.ok && response.status !== 202) throw new Error(data.error || "Processing failed.");
+      const refreshed = await fetch("/api/admin/rams").then((item) => item.json());
+      const updated = refreshed.documents?.find((item: RamsIntelligenceDocument) => item.id === document.id) as RamsIntelligenceDocument | undefined;
+      if (updated) onDocumentUpdated(updated);
+      if (data.error) setError(data.error);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Processing failed.");
+    } finally {
+      setProcessing(false);
+    }
+  }
+
   return (
     <section className="space-y-5">
       <div className="border border-zinc-200 bg-white p-5 shadow-soft">
@@ -262,6 +283,12 @@ function PdfWorkspace({
             <a href={`/api/admin/rams/${document.id}/pdf?download=1`} className="inline-flex min-h-10 items-center bg-uplands-charcoal px-4 text-sm font-bold uppercase text-white">
               Download PDF
             </a>
+            {document.processingStatus !== "PROCESSING" && document.processingStatus !== "READY" && (
+              <button type="button" onClick={runProcessing} disabled={processing} className="inline-flex min-h-10 items-center gap-2 bg-uplands-magenta px-4 text-sm font-bold uppercase text-white disabled:opacity-60">
+                {processing && <Spinner className="h-4 w-4" />}
+                {processing ? "Processing..." : "Process RAMS"}
+              </button>
+            )}
             <button type="button" disabled className="min-h-10 border border-zinc-300 px-4 text-sm font-bold uppercase text-zinc-400">
               Run Full AI Review
             </button>
@@ -435,7 +462,13 @@ export function RamsDocumentIntelligence({ onWorkspaceChange }: { onWorkspaceCha
   }, [onWorkspaceChange, selectedDocument]);
 
   if (selectedDocument) {
-    return <PdfWorkspace document={selectedDocument} onClose={() => setSelectedId(null)} />;
+    return (
+      <PdfWorkspace
+        document={selectedDocument}
+        onClose={() => setSelectedId(null)}
+        onDocumentUpdated={(document) => setDocuments((current) => current.map((item) => (item.id === document.id ? document : item)))}
+      />
+    );
   }
 
   return (

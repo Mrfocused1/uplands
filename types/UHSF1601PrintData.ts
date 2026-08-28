@@ -9,6 +9,8 @@ export interface UploadedDocument {
   dataUrl?: string;
   /** Admin path: filesystem path to the stored original. */
   storagePath?: string;
+  /** Admin path: already-loaded original bytes from object storage. */
+  sourceBuffer?: Buffer;
   mimeType?: string;
   transform?: EvidencePrintTransform;
 }

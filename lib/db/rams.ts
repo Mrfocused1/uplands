@@ -1,5 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { getDb } from "@/lib/db";
+import { env, isSupabaseAdminConfigured } from "@/lib/env";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import type {
   RamsChunkBoxRow,
   RamsChunkInput,
@@ -26,9 +28,67 @@ export interface CreateRamsDocumentInput {
   createdBy?: string | null;
 }
 
-export function createRamsDocument(input: CreateRamsDocumentInput) {
+export type RamsDocumentWithCounts = RamsDocumentRow & { section_count: number; chunk_count: number };
+
+function shouldUseSupabaseRamsDb() {
+  const provider = env("RAMS_DATABASE_PROVIDER", "sqlite");
+  if (provider === "supabase" && !isSupabaseAdminConfigured()) {
+    throw new Error("RAMS_DATABASE_PROVIDER is set to supabase, but Supabase admin environment variables are missing.");
+  }
+  return provider === "supabase";
+}
+
+function jsonEmbedding(value: unknown) {
+  if (!value) return null;
+  if (typeof value === "string") return value;
+  return JSON.stringify(value);
+}
+
+function assertNoError(error: { message: string } | null, action: string) {
+  if (error) throw new Error(`${action}: ${error.message}`);
+}
+
+function chunkArray<T>(items: T[], size: number) {
+  const chunks: T[][] = [];
+  for (let index = 0; index < items.length; index += size) chunks.push(items.slice(index, index + size));
+  return chunks;
+}
+
+async function countSupabaseRows(table: string, documentId: string) {
+  const supabase = createSupabaseAdminClient();
+  const { count, error } = await supabase.from(table).select("id", { count: "exact", head: true }).eq("rams_document_id", documentId);
+  assertNoError(error, `Unable to count ${table}`);
+  return count ?? 0;
+}
+
+export async function createRamsDocument(input: CreateRamsDocumentInput) {
   const id = randomUUID();
   const now = new Date().toISOString();
+
+  if (shouldUseSupabaseRamsDb()) {
+    const supabase = createSupabaseAdminClient();
+    const { error } = await supabase.from("rams_documents").insert({
+      id,
+      title: input.title,
+      site_name: input.siteName ?? null,
+      contractor: input.contractor,
+      document_reference: input.documentReference ?? null,
+      revision: input.revision ?? null,
+      revision_date: input.revisionDate ?? null,
+      file_name: input.fileName,
+      storage_key: input.storageKey,
+      file_size: input.fileSize,
+      mime_type: input.mimeType,
+      page_count: input.pageCount ?? null,
+      processing_status: "UPLOADED",
+      text_extraction_status: "PENDING",
+      created_by: input.createdBy ?? null,
+      created_at: now,
+      updated_at: now,
+    });
+    assertNoError(error, "Unable to create RAMS document");
+    return id;
+  }
 
   getDb()
     .prepare(
@@ -58,7 +118,20 @@ export function createRamsDocument(input: CreateRamsDocumentInput) {
   return id;
 }
 
-export function listRamsDocuments() {
+export async function listRamsDocuments(): Promise<RamsDocumentWithCounts[]> {
+  if (shouldUseSupabaseRamsDb()) {
+    const supabase = createSupabaseAdminClient();
+    const { data, error } = await supabase.from("rams_documents").select("*").order("created_at", { ascending: false });
+    assertNoError(error, "Unable to list RAMS documents");
+    return Promise.all(
+      ((data ?? []) as RamsDocumentRow[]).map(async (row) => ({
+        ...row,
+        section_count: await countSupabaseRows("rams_sections", row.id),
+        chunk_count: await countSupabaseRows("rams_chunks", row.id),
+      })),
+    );
+  }
+
   return getDb()
     .prepare(
       `SELECT d.*,
@@ -67,18 +140,40 @@ export function listRamsDocuments() {
        FROM rams_documents d
        ORDER BY d.created_at DESC`,
     )
-    .all() as Array<RamsDocumentRow & { section_count: number; chunk_count: number }>;
+    .all() as RamsDocumentWithCounts[];
 }
 
-export function getRamsDocument(id: string) {
+export async function getRamsDocument(id: string): Promise<RamsDocumentRow | undefined> {
+  if (shouldUseSupabaseRamsDb()) {
+    const supabase = createSupabaseAdminClient();
+    const { data, error } = await supabase.from("rams_documents").select("*").eq("id", id).maybeSingle();
+    assertNoError(error, "Unable to get RAMS document");
+    return (data as RamsDocumentRow | null) ?? undefined;
+  }
+
   return getDb().prepare("SELECT * FROM rams_documents WHERE id = ?").get(id) as RamsDocumentRow | undefined;
 }
 
-export function updateRamsProcessingStatus(
+export async function updateRamsProcessingStatus(
   id: string,
   status: RamsProcessingStatus,
   options: { error?: string | null; textStatus?: RamsTextExtractionStatus; pageCount?: number | null } = {},
 ) {
+  const update = {
+    processing_status: status,
+    processing_error: options.error ?? null,
+    updated_at: new Date().toISOString(),
+    ...(options.textStatus ? { text_extraction_status: options.textStatus } : {}),
+    ...(options.pageCount == null ? {} : { page_count: options.pageCount }),
+  };
+
+  if (shouldUseSupabaseRamsDb()) {
+    const supabase = createSupabaseAdminClient();
+    const { error } = await supabase.from("rams_documents").update(update).eq("id", id);
+    assertNoError(error, "Unable to update RAMS processing status");
+    return;
+  }
+
   getDb()
     .prepare(
       `UPDATE rams_documents
@@ -89,14 +184,80 @@ export function updateRamsProcessingStatus(
            updated_at = ?
        WHERE id = ?`,
     )
-    .run(status, options.error ?? null, options.textStatus ?? null, options.pageCount ?? null, new Date().toISOString(), id);
+    .run(status, options.error ?? null, options.textStatus ?? null, options.pageCount ?? null, update.updated_at, id);
 }
 
-export function replaceRamsProcessedData(
+export async function replaceRamsProcessedData(
   documentId: string,
   input: { sections: Array<Omit<RamsSectionRow, "created_at" | "rams_document_id">>; chunks: RamsChunkInput[] },
 ) {
   const now = new Date().toISOString();
+
+  if (shouldUseSupabaseRamsDb()) {
+    const supabase = createSupabaseAdminClient();
+    assertNoError((await supabase.from("rams_review_evidence").delete().eq("rams_document_id", documentId)).error, "Unable to delete RAMS review evidence");
+    assertNoError((await supabase.from("rams_chunks").delete().eq("rams_document_id", documentId)).error, "Unable to delete RAMS chunks");
+    assertNoError((await supabase.from("rams_sections").delete().eq("rams_document_id", documentId)).error, "Unable to delete RAMS sections");
+
+    if (input.sections.length > 0) {
+      const { error } = await supabase.from("rams_sections").insert(
+        input.sections.map((section) => ({
+          id: section.id,
+          rams_document_id: documentId,
+          title: section.title,
+          start_page: section.start_page,
+          end_page: section.end_page,
+          sort_order: section.sort_order,
+          created_at: now,
+        })),
+      );
+      assertNoError(error, "Unable to insert RAMS sections");
+    }
+
+    const boxRows: Array<RamsChunkBoxRow> = [];
+    for (const chunkBatch of chunkArray(input.chunks, 250)) {
+      const chunkRows = chunkBatch.map((chunk) => {
+        const chunkId = chunk.id ?? randomUUID();
+        for (const box of chunk.boxes) {
+          boxRows.push({
+            id: randomUUID(),
+            chunk_id: chunkId,
+            page_number: box.pageNumber,
+            text: box.text,
+            x: box.x,
+            y: box.y,
+            width: box.width,
+            height: box.height,
+            page_width: box.pageWidth,
+            page_height: box.pageHeight,
+            sort_order: box.sortOrder,
+          });
+        }
+        return {
+          id: chunkId,
+          rams_document_id: documentId,
+          section_id: chunk.sectionId ?? null,
+          page_number: chunk.pageNumber,
+          end_page_number: chunk.endPageNumber,
+          chunk_index: chunk.chunkIndex,
+          text: chunk.text,
+          normalised_text: chunk.normalisedText,
+          embedding: chunk.embedding ?? null,
+          token_count: chunk.tokenCount,
+          created_at: now,
+        };
+      });
+      const { error } = await supabase.from("rams_chunks").insert(chunkRows);
+      assertNoError(error, "Unable to insert RAMS chunks");
+    }
+
+    for (const boxBatch of chunkArray(boxRows, 750)) {
+      const { error } = await supabase.from("rams_chunk_boxes").insert(boxBatch);
+      assertNoError(error, "Unable to insert RAMS chunk boxes");
+    }
+    return;
+  }
+
   const insertSection = getDb().prepare(
     `INSERT INTO rams_sections (id, rams_document_id, title, start_page, end_page, sort_order, created_at)
      VALUES (?, ?, ?, ?, ?, ?, ?)`,
@@ -137,19 +298,7 @@ export function replaceRamsProcessedData(
         now,
       );
       for (const box of chunk.boxes) {
-        insertBox.run(
-          randomUUID(),
-          chunkId,
-          box.pageNumber,
-          box.text,
-          box.x,
-          box.y,
-          box.width,
-          box.height,
-          box.pageWidth,
-          box.pageHeight,
-          box.sortOrder,
-        );
+        insertBox.run(randomUUID(), chunkId, box.pageNumber, box.text, box.x, box.y, box.width, box.height, box.pageWidth, box.pageHeight, box.sortOrder);
       }
     }
   });
@@ -157,13 +306,32 @@ export function replaceRamsProcessedData(
   run();
 }
 
-export function listRamsSections(documentId: string) {
-  return getDb()
-    .prepare("SELECT * FROM rams_sections WHERE rams_document_id = ? ORDER BY sort_order")
-    .all(documentId) as RamsSectionRow[];
+export async function listRamsSections(documentId: string): Promise<RamsSectionRow[]> {
+  if (shouldUseSupabaseRamsDb()) {
+    const supabase = createSupabaseAdminClient();
+    const { data, error } = await supabase.from("rams_sections").select("*").eq("rams_document_id", documentId).order("sort_order");
+    assertNoError(error, "Unable to list RAMS sections");
+    return (data ?? []) as RamsSectionRow[];
+  }
+
+  return getDb().prepare("SELECT * FROM rams_sections WHERE rams_document_id = ? ORDER BY sort_order").all(documentId) as RamsSectionRow[];
 }
 
-export function listRamsChunks(documentId: string) {
+export async function listRamsChunks(documentId: string): Promise<RamsChunkRow[]> {
+  if (shouldUseSupabaseRamsDb()) {
+    const supabase = createSupabaseAdminClient();
+    const { data, error } = await supabase.from("rams_chunks").select("*").eq("rams_document_id", documentId).order("chunk_index");
+    assertNoError(error, "Unable to list RAMS chunks");
+    const chunks = (data ?? []) as Array<RamsChunkRow & { embedding: unknown }>;
+    const sections = await listRamsSections(documentId);
+    const titleById = new Map(sections.map((section) => [section.id, section.title]));
+    return chunks.map((chunk) => ({
+      ...chunk,
+      embedding: jsonEmbedding(chunk.embedding),
+      section_title: chunk.section_id ? titleById.get(chunk.section_id) ?? null : null,
+    }));
+  }
+
   return getDb()
     .prepare(
       `SELECT c.*, s.title AS section_title
@@ -175,17 +343,37 @@ export function listRamsChunks(documentId: string) {
     .all(documentId) as RamsChunkRow[];
 }
 
-export function getChunkBoxes(chunkIds: string[]) {
-  if (chunkIds.length === 0) return [] as RamsChunkBoxRow[];
+export async function getChunkBoxes(chunkIds: string[]): Promise<RamsChunkBoxRow[]> {
+  if (chunkIds.length === 0) return [];
+
+  if (shouldUseSupabaseRamsDb()) {
+    const supabase = createSupabaseAdminClient();
+    const rows: RamsChunkBoxRow[] = [];
+    for (const ids of chunkArray(chunkIds, 100)) {
+      const { data, error } = await supabase.from("rams_chunk_boxes").select("*").in("chunk_id", ids).order("sort_order");
+      assertNoError(error, "Unable to get RAMS chunk boxes");
+      rows.push(...((data ?? []) as RamsChunkBoxRow[]));
+    }
+    return rows.sort((left, right) => left.chunk_id.localeCompare(right.chunk_id) || left.sort_order - right.sort_order);
+  }
+
   const placeholders = chunkIds.map(() => "?").join(",");
-  return getDb()
-    .prepare(`SELECT * FROM rams_chunk_boxes WHERE chunk_id IN (${placeholders}) ORDER BY chunk_id, sort_order`)
-    .all(...chunkIds) as RamsChunkBoxRow[];
+  return getDb().prepare(`SELECT * FROM rams_chunk_boxes WHERE chunk_id IN (${placeholders}) ORDER BY chunk_id, sort_order`).all(...chunkIds) as RamsChunkBoxRow[];
 }
 
-export function createRamsChatThread(documentId: string, title: string, adminId?: string | null) {
+export async function createRamsChatThread(documentId: string, title: string, adminId?: string | null) {
   const id = randomUUID();
   const now = new Date().toISOString();
+
+  if (shouldUseSupabaseRamsDb()) {
+    const supabase = createSupabaseAdminClient();
+    const { error } = await supabase
+      .from("rams_chat_threads")
+      .insert({ id, rams_document_id: documentId, admin_id: adminId ?? null, title, created_at: now, updated_at: now });
+    assertNoError(error, "Unable to create RAMS chat thread");
+    return id;
+  }
+
   getDb()
     .prepare(
       `INSERT INTO rams_chat_threads (id, rams_document_id, admin_id, title, created_at, updated_at)
@@ -195,15 +383,41 @@ export function createRamsChatThread(documentId: string, title: string, adminId?
   return id;
 }
 
-export function addRamsChatMessage(input: { threadId: string; role: "user" | "assistant"; message: string; model?: string | null }) {
+export async function addRamsChatMessage(input: { threadId: string; role: "user" | "assistant"; message: string; model?: string | null }) {
   const id = randomUUID();
+
+  if (shouldUseSupabaseRamsDb()) {
+    const supabase = createSupabaseAdminClient();
+    const { error } = await supabase
+      .from("rams_chat_messages")
+      .insert({ id, thread_id: input.threadId, role: input.role, message: input.message, model: input.model ?? null });
+    assertNoError(error, "Unable to add RAMS chat message");
+    return id;
+  }
+
   getDb()
     .prepare("INSERT INTO rams_chat_messages (id, thread_id, role, message, model) VALUES (?, ?, ?, ?, ?)")
     .run(id, input.threadId, input.role, input.message, input.model ?? null);
   return id;
 }
 
-export function addRamsChatCitations(messageId: string, chunkIds: string[]) {
+export async function addRamsChatCitations(messageId: string, chunkIds: string[]) {
+  if (chunkIds.length === 0) return;
+
+  if (shouldUseSupabaseRamsDb()) {
+    const supabase = createSupabaseAdminClient();
+    const { error } = await supabase.from("rams_chat_citations").insert(
+      chunkIds.map((chunkId, index) => ({
+        id: randomUUID(),
+        message_id: messageId,
+        chunk_id: chunkId,
+        citation_order: index + 1,
+      })),
+    );
+    assertNoError(error, "Unable to add RAMS chat citations");
+    return;
+  }
+
   const stmt = getDb().prepare("INSERT INTO rams_chat_citations (id, message_id, chunk_id, citation_order) VALUES (?, ?, ?, ?)");
   const run = getDb().transaction(() => {
     chunkIds.forEach((chunkId, index) => stmt.run(randomUUID(), messageId, chunkId, index + 1));
@@ -211,7 +425,7 @@ export function addRamsChatCitations(messageId: string, chunkIds: string[]) {
   run();
 }
 
-export function upsertRamsReviewEvidence(input: {
+export async function upsertRamsReviewEvidence(input: {
   documentId: string;
   reviewQuestionKey: string;
   answer: string;
@@ -222,6 +436,28 @@ export function upsertRamsReviewEvidence(input: {
 }) {
   const id = randomUUID();
   const now = new Date().toISOString();
+  const row = {
+    id,
+    rams_document_id: input.documentId,
+    review_question_key: input.reviewQuestionKey,
+    answer: input.answer,
+    comment: input.comment ?? null,
+    chunk_id: input.chunkId ?? null,
+    confidence: input.confidence ?? null,
+    decision_origin: input.decisionOrigin,
+    created_at: now,
+    updated_at: now,
+  };
+
+  if (shouldUseSupabaseRamsDb()) {
+    const supabase = createSupabaseAdminClient();
+    const { error } = await supabase.from("rams_review_evidence").upsert(row, {
+      onConflict: "rams_document_id,review_question_key,chunk_id",
+    });
+    assertNoError(error, "Unable to upsert RAMS review evidence");
+    return;
+  }
+
   getDb()
     .prepare(
       `INSERT INTO rams_review_evidence
@@ -235,15 +471,15 @@ export function upsertRamsReviewEvidence(input: {
                      updated_at = excluded.updated_at`,
     )
     .run(
-      id,
-      input.documentId,
-      input.reviewQuestionKey,
-      input.answer,
-      input.comment ?? null,
-      input.chunkId ?? null,
-      input.confidence ?? null,
-      input.decisionOrigin,
-      now,
-      now,
+      row.id,
+      row.rams_document_id,
+      row.review_question_key,
+      row.answer,
+      row.comment,
+      row.chunk_id,
+      row.confidence,
+      row.decision_origin,
+      row.created_at,
+      row.updated_at,
     );
 }
