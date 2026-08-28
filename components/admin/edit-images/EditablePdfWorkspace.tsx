@@ -1,12 +1,14 @@
 /* eslint-disable @next/next/no-img-element */
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
+import { Spinner } from "@/components/Spinner";
 import { editableImageDocuments, type EditableImageDocument, type EditablePdfField } from "@/config/editImages";
 
 type FieldValues = Record<string, string>;
 type ViewMode = "preview" | "edit";
+type PdfLoadState = "idle" | "loading" | "loaded" | "error";
 
 function initialValuesFor(document: EditableImageDocument): FieldValues {
   return Object.fromEntries(document.fields.map((field) => [field.id, field.initialValue]));
@@ -39,12 +41,18 @@ export function EditablePdfWorkspace() {
     Object.fromEntries(editableImageDocuments.map((document) => [document.slug, initialValuesFor(document)])),
   );
   const [downloadState, setDownloadState] = useState<"idle" | "busy" | "error">("idle");
+  const [pdfLoadState, setPdfLoadState] = useState<PdfLoadState>("idle");
 
   const values = selectedDocument ? valuesByDocument[selectedDocument.slug] ?? initialValuesFor(selectedDocument) : {};
+
+  useEffect(() => {
+    if (selectedDocument && viewMode === "preview") setPdfLoadState("loading");
+  }, [selectedDocument, viewMode]);
 
   function selectDocument(document: EditableImageDocument) {
     setSelectedSlug(document.slug);
     setViewMode("preview");
+    setPdfLoadState("loading");
   }
 
   function updateField(document: EditableImageDocument, fieldId: string, value: string) {
@@ -197,8 +205,33 @@ export function EditablePdfWorkspace() {
           </section>
 
           {viewMode === "preview" && (
-            <section className="edit-image-preview no-print overflow-hidden border border-zinc-200 bg-white shadow-soft">
-              <iframe src={selectedDocument.sourceHref} title={selectedDocument.title} className="h-[78vh] w-full bg-white" />
+            <section className="edit-image-preview no-print relative min-h-[70vh] overflow-hidden border border-zinc-200 bg-white shadow-soft">
+              {pdfLoadState !== "loaded" && (
+                <div className="absolute inset-0 z-10 flex items-center justify-center bg-white">
+                  <div className="mx-auto max-w-sm px-6 text-center">
+                    {pdfLoadState === "error" ? (
+                      <>
+                        <p className="font-din text-lg text-red-700">Unable to load PDF</p>
+                        <p className="mt-2 text-sm leading-6 text-uplands-muted">Close this document and try opening it again.</p>
+                      </>
+                    ) : (
+                      <>
+                        <Spinner className="mx-auto h-8 w-8 text-uplands-magenta" />
+                        <p className="mt-4 font-din text-lg text-uplands-charcoal">Loading PDF</p>
+                        <p className="mt-2 text-sm leading-6 text-uplands-muted">Preparing the editable document preview.</p>
+                      </>
+                    )}
+                  </div>
+                </div>
+              )}
+              <iframe
+                key={selectedDocument.sourceHref}
+                src={selectedDocument.sourceHref}
+                title={selectedDocument.title}
+                onLoad={() => setPdfLoadState("loaded")}
+                onError={() => setPdfLoadState("error")}
+                className={`h-[78vh] w-full bg-white transition-opacity duration-200 ${pdfLoadState === "loaded" ? "opacity-100" : "opacity-0"}`}
+              />
             </section>
           )}
 
