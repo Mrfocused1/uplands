@@ -43,7 +43,7 @@ test("mobile admin navigation exposes RAMS from the submissions area", async ({ 
   await expectNoHorizontalOverflow(page);
 });
 
-test("legacy imported RAMS workspace falls back to PDF and shows review answers", async ({ page }) => {
+test("legacy imported RAMS workspace renders PDF pages and highlights evidence", async ({ page }) => {
   await page.route("**/api/admin/rams", async (route) => {
     if (route.request().method() !== "GET") return route.fallback();
     return route.fulfill({
@@ -73,9 +73,8 @@ test("legacy imported RAMS workspace falls back to PDF and shows review answers"
       }),
     });
   });
-  await page.route("**/api/admin/rams/legacy-ampthill-test/page/1", (route) => route.fulfill({ status: 500, contentType: "application/json", body: "{}" }));
   await page.route("**/api/admin/rams/legacy-ampthill-test/pdf**", (route) =>
-    route.fulfill({ contentType: "application/pdf", body: "%PDF-1.4\n1 0 obj\n<<>>\nendobj\ntrailer\n<<>>\n%%EOF" }),
+    route.fulfill({ contentType: "application/pdf", path: "public/rams/sources/ampthill-flooring-waitrose-newport-rams.pdf" }),
   );
   await page.route("**/api/admin/rams/legacy-ampthill-test/sections", (route) =>
     route.fulfill({
@@ -101,7 +100,7 @@ test("legacy imported RAMS workspace falls back to PDF and shows review answers"
             snippet: "Suitable PPE is required for flooring preparation and installation.",
             score: 0.9,
             text: "Suitable PPE is required for flooring preparation and installation.",
-            boxes: [],
+            boxes: [{ page_number: 10, x: 70, y: 110, width: 180, height: 20, page_width: 595, page_height: 842 }],
           },
         ],
       }),
@@ -113,7 +112,7 @@ test("legacy imported RAMS workspace falls back to PDF and shows review answers"
   await expect(uploadedRams.getByRole("button", { name: /Ampthill Flooring Limited/ })).toBeVisible();
   await uploadedRams.getByRole("button", { name: /Ampthill Flooring Limited/ }).click();
 
-  await expect(page.locator('iframe[title="Ampthill Flooring Limited PDF"]')).toBeVisible();
+  await expect(page.locator('canvas[aria-label="Ampthill Flooring Limited RAMS page 1"]')).toBeVisible();
   await expect(page.getByRole("heading", { name: "Document Information" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Read Summary" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Completed Review Form" })).toBeVisible();
@@ -128,4 +127,7 @@ test("legacy imported RAMS workspace falls back to PDF and shows review answers"
 
   await page.getByRole("button", { name: /PPE Requirements/ }).first().click();
   await expect(page.getByText("Suitable PPE is required")).toBeVisible();
+  await page.getByText("Show in RAMS").first().click();
+  await expect(page.locator('canvas[aria-label="Ampthill Flooring Limited RAMS page 10"]')).toBeVisible();
+  await expect(page.getByTestId("rams-highlight")).toBeVisible();
 });

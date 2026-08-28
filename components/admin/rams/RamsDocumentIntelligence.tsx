@@ -1,6 +1,7 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import type { PDFDocumentProxy, RenderTask } from "pdfjs-dist";
 import { Spinner } from "@/components/Spinner";
 
 type ProcessingStatus = "UPLOADED" | "PROCESSING" | "READY" | "FAILED" | "OCR_REQUIRED";
@@ -390,6 +391,157 @@ function SearchResultsList({ results, onShowEvidence }: { results: SearchResult[
   );
 }
 
+function RamsPdfPageViewer({
+  documentId,
+  contractor,
+  page,
+  zoom,
+  highlightBoxes,
+  highlightPulse,
+}: {
+  documentId: string;
+  contractor: string;
+  page: number;
+  zoom: number;
+  highlightBoxes: EvidenceBox[];
+  highlightPulse: number;
+}) {
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const renderTaskRef = useRef<RenderTask | null>(null);
+  const [pdf, setPdf] = useState<PDFDocumentProxy | null>(null);
+  const [pageSize, setPageSize] = useState<{ width: number; height: number } | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [rendering, setRendering] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    let loadingTask: { promise: Promise<PDFDocumentProxy>; destroy: () => Promise<void> } | null = null;
+    setLoading(true);
+    setError("");
+    setPdf(null);
+    setPageSize(null);
+
+    import("pdfjs-dist")
+      .then(({ getDocument, GlobalWorkerOptions }) => {
+        GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/build/pdf.worker.mjs", import.meta.url).toString();
+        loadingTask = getDocument({ url: `/api/admin/rams/${documentId}/pdf`, withCredentials: true });
+        return loadingTask.promise;
+      })
+      .then((loadedPdf) => {
+        if (!cancelled) setPdf(loadedPdf);
+      })
+      .catch(() => {
+        if (!cancelled) setError("Unable to load this RAMS PDF.");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+      renderTaskRef.current?.cancel();
+      void loadingTask?.destroy();
+    };
+  }, [documentId]);
+
+  useEffect(() => {
+    if (!pdf || !canvasRef.current) return;
+
+    let cancelled = false;
+    const canvas = canvasRef.current;
+    const context = canvas.getContext("2d");
+    if (!context) {
+      setError("Unable to prepare the PDF canvas.");
+      return;
+    }
+
+    renderTaskRef.current?.cancel();
+    setRendering(true);
+    setError("");
+
+    pdf
+      .getPage(page)
+      .then((pdfPage) => {
+        if (cancelled) return null;
+        const viewport = pdfPage.getViewport({ scale: zoom / 100 });
+        const outputScale = window.devicePixelRatio || 1;
+        canvas.width = Math.floor(viewport.width * outputScale);
+        canvas.height = Math.floor(viewport.height * outputScale);
+        canvas.style.width = `${viewport.width}px`;
+        canvas.style.height = `${viewport.height}px`;
+        context.setTransform(outputScale, 0, 0, outputScale, 0, 0);
+        context.clearRect(0, 0, viewport.width, viewport.height);
+        setPageSize({ width: viewport.width, height: viewport.height });
+        const renderTask = pdfPage.render({ canvas, canvasContext: context, viewport });
+        renderTaskRef.current = renderTask;
+        return renderTask.promise;
+      })
+      .catch((caught) => {
+        if (!cancelled && !(caught instanceof Error && caught.name === "RenderingCancelledException")) setError("Unable to render this PDF page.");
+      })
+      .finally(() => {
+        if (!cancelled) setRendering(false);
+      });
+
+    return () => {
+      cancelled = true;
+      renderTaskRef.current?.cancel();
+    };
+  }, [page, pdf, zoom]);
+
+  if (loading) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center gap-3 border border-zinc-200 bg-white text-sm font-bold text-uplands-muted">
+        <Spinner className="h-4 w-4" />
+        <span>Loading RAMS PDF...</span>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-[60vh] border border-zinc-200 bg-white p-5">
+        <p className="text-sm font-bold text-red-700">{error}</p>
+        <a href={`/api/admin/rams/${documentId}/pdf#page=${page}`} className="mt-4 inline-flex min-h-10 items-center border border-uplands-magenta px-4 text-sm font-bold uppercase text-uplands-magenta">
+          Open PDF
+        </a>
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative mx-auto w-fit bg-white shadow-soft">
+      {rendering && (
+        <div className="absolute left-3 top-3 z-10 flex items-center gap-2 border border-zinc-200 bg-white/95 px-3 py-2 text-xs font-bold uppercase text-uplands-muted">
+          <Spinner className="h-3.5 w-3.5" />
+          Rendering
+        </div>
+      )}
+      <canvas ref={canvasRef} aria-label={`${contractor} RAMS page ${page}`} className="block max-w-none bg-white" />
+      {pageSize &&
+        highlightBoxes.map((box, index) => {
+          const pageWidth = box.page_width || pageSize.width;
+          const pageHeight = box.page_height || pageSize.height;
+          const pulse = highlightPulse ? "animate-pulse" : "";
+          return (
+            <span
+              key={`${highlightPulse}-${box.x}-${box.y}-${index}`}
+              data-testid="rams-highlight"
+              className={`pointer-events-none absolute border-2 border-uplands-magenta bg-uplands-magenta/25 shadow-[0_0_0_9999px_rgba(188,0,150,0.025)] ${pulse}`}
+              style={{
+                left: `${(box.x / pageWidth) * 100}%`,
+                top: `${(box.y / pageHeight) * 100}%`,
+                width: `${(box.width / pageWidth) * 100}%`,
+                height: `${(box.height / pageHeight) * 100}%`,
+              }}
+            />
+          );
+        })}
+    </div>
+  );
+}
+
 function statusClass(status: ProcessingStatus) {
   if (status === "READY") return "bg-emerald-50 text-emerald-700 ring-emerald-200";
   if (status === "OCR_REQUIRED") return "bg-amber-50 text-amber-800 ring-amber-200";
@@ -537,18 +689,15 @@ function PdfWorkspace({
   const [answer, setAnswer] = useState<CopilotAnswer | null>(null);
   const [error, setError] = useState("");
   const [highlight, setHighlight] = useState<SearchResult | null>(null);
-  const [pageImageFailed, setPageImageFailed] = useState(false);
+  const [highlightPulse, setHighlightPulse] = useState(0);
   const [previewDocument, setPreviewDocument] = useState<PreviewDocument | null>(null);
   const [sections, setSections] = useState<RamsSection[]>([]);
   const [loadingSections, setLoadingSections] = useState(false);
+  const pdfPanelRef = useRef<HTMLDivElement | null>(null);
 
   const pageCount = document.pageCount ?? 1;
   const reviewDocuments = useMemo(() => (legacyReview ? reviewDocumentsFor(legacyReview) : []), [legacyReview]);
   const highlightBoxes = useMemo(() => highlight?.boxes.filter((box) => box.page_number === page).slice(0, 10) ?? [], [highlight, page]);
-
-  useEffect(() => {
-    setPageImageFailed(false);
-  }, [document.id, page]);
 
   useEffect(() => {
     let cancelled = false;
@@ -573,6 +722,10 @@ function PdfWorkspace({
   function showEvidence(result: SearchResult) {
     setHighlight(result);
     setPage(result.pageNumber);
+    setHighlightPulse((value) => value + 1);
+    window.setTimeout(() => {
+      pdfPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 0);
   }
 
   async function searchDocument(searchQuery: string) {
@@ -667,7 +820,7 @@ function PdfWorkspace({
       {error && <p className="border-l-4 border-red-600 bg-white p-4 text-sm font-bold text-red-700 shadow-soft">{error}</p>}
 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(380px,0.85fr)]">
-        <div className="order-2 border border-zinc-200 bg-white p-4 shadow-soft xl:order-1">
+        <div ref={pdfPanelRef} className="order-2 border border-zinc-200 bg-white p-4 shadow-soft xl:order-1">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2">
               <button type="button" onClick={() => setPage((value) => Math.max(1, value - 1))} className="border border-zinc-300 px-3 py-2 text-xs font-bold uppercase">
@@ -688,38 +841,14 @@ function PdfWorkspace({
             </select>
           </div>
           <div className="max-h-[78vh] overflow-auto bg-zinc-100 p-3">
-            {pageImageFailed ? (
-              <iframe
-                src={`/api/admin/rams/${document.id}/pdf#page=${page}`}
-                title={`${document.contractor} PDF`}
-                className="h-[76vh] w-full border border-zinc-300 bg-white"
-              />
-            ) : (
-              <div className="relative mx-auto bg-white shadow-soft" style={{ width: `${zoom}%`, maxWidth: "1200px" }}>
-                <img
-                  src={`/api/admin/rams/${document.id}/page/${page}`}
-                  alt={`RAMS page ${page}`}
-                  className="block h-auto w-full"
-                  onError={() => setPageImageFailed(true)}
-                />
-                {highlightBoxes.map((box, index) => {
-                  const pageWidth = box.page_width || 595;
-                  const pageHeight = box.page_height || 842;
-                  return (
-                    <span
-                      key={`${box.x}-${box.y}-${index}`}
-                      className="pointer-events-none absolute border-2 border-uplands-magenta bg-uplands-magenta/20 shadow-[0_0_0_9999px_rgba(188,0,150,0.03)]"
-                      style={{
-                        left: `${(box.x / pageWidth) * 100}%`,
-                        top: `${(box.y / pageHeight) * 100}%`,
-                        width: `${(box.width / pageWidth) * 100}%`,
-                        height: `${(box.height / pageHeight) * 100}%`,
-                      }}
-                    />
-                  );
-                })}
-              </div>
-            )}
+            <RamsPdfPageViewer
+              documentId={document.id}
+              contractor={document.contractor}
+              page={page}
+              zoom={zoom}
+              highlightBoxes={highlightBoxes}
+              highlightPulse={highlightPulse}
+            />
           </div>
         </div>
 
