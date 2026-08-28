@@ -25,7 +25,7 @@ const PUBLIC_ADMIN: AdminSession = { id: 0, username: "Admin", displayName: "Adm
 const SIGNED_COOKIE_PREFIX = "v1";
 
 function authRequired() {
-  return adminAuthRequiredForEnvironment(process.env.NODE_ENV, boolEnv("ADMIN_AUTH_REQUIRED", false));
+  return adminAuthRequiredForEnvironment(process.env.NODE_ENV, boolEnv("ADMIN_AUTH_REQUIRED", false), boolEnv("PUBLIC_TESTING_MODE", false));
 }
 
 function shouldUseSupabaseAuth() {

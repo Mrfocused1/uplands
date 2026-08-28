@@ -64,8 +64,12 @@ test("legacy RAMS files are not served from public static URLs", async ({ reques
   expect(response.status()).toBe(404);
 });
 
-test("edit images shows a loading state while the PDF preview loads", async ({ page }) => {
+test("edit images shows loading states while the PDF preview and edit pages load", async ({ page }) => {
   await page.route("**/api/admin/edit-images/*/source", async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    await route.continue();
+  });
+  await page.route("**/edit-images/waitrose-balham/*.png", async (route) => {
     await new Promise((resolve) => setTimeout(resolve, 600));
     await route.continue();
   });
@@ -75,6 +79,10 @@ test("edit images shows a loading state while the PDF preview loads", async ({ p
 
   await expect(page.getByText("Loading PDF")).toBeVisible();
   await expect(page.getByTitle(/Waitrose Balham/i)).toBeVisible();
+
+  await page.getByRole("button", { name: "Edit Pages 3-5" }).click();
+  await expect(page.getByText("Loading editable pages")).toBeVisible();
+  await expect(page.getByLabel("Page 3 area 1")).toBeVisible();
 });
 
 test("induction flow can submit a minimal completed induction", async ({ page }) => {

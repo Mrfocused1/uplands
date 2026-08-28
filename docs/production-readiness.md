@@ -7,6 +7,7 @@ Set these values in production:
 ```env
 ADMIN_AUTH_REQUIRED=true
 ADMIN_AUTH_PROVIDER=supabase
+PUBLIC_TESTING_MODE=false
 SUPABASE_ADMIN_EMAILS=<comma separated admin emails>
 
 NEXT_PUBLIC_SUPABASE_URL=<project url>
@@ -19,6 +20,8 @@ RAMS_PROCESSING_MODE=manual
 ```
 
 Keep `SUPABASE_SERVICE_ROLE_KEY` server-side only. Do not expose it through browser code or public environment variables. Create the admin users in Supabase Auth, then include their email addresses in `SUPABASE_ADMIN_EMAILS`.
+
+`PUBLIC_TESTING_MODE=true` temporarily bypasses admin authentication across admin pages and admin APIs. Use it only while testing and switch it back to `false` before handling real submissions or confidential RAMS documents.
 
 ## Supabase Setup
 

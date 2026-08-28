@@ -9,6 +9,7 @@ import { editableImageDocuments, type EditableImageDocument, type EditablePdfFie
 type FieldValues = Record<string, string>;
 type ViewMode = "preview" | "edit";
 type PdfLoadState = "idle" | "loading" | "loaded" | "error";
+type EditPagesLoadState = "idle" | "loading" | "loaded" | "error";
 
 function initialValuesFor(document: EditableImageDocument): FieldValues {
   return Object.fromEntries(document.fields.map((field) => [field.id, field.initialValue]));
@@ -42,6 +43,8 @@ export function EditablePdfWorkspace() {
   );
   const [downloadState, setDownloadState] = useState<"idle" | "busy" | "error">("idle");
   const [pdfLoadState, setPdfLoadState] = useState<PdfLoadState>("idle");
+  const [editPagesLoadState, setEditPagesLoadState] = useState<EditPagesLoadState>("idle");
+  const [loadedEditPageSrcs, setLoadedEditPageSrcs] = useState<string[]>([]);
 
   const values = selectedDocument ? valuesByDocument[selectedDocument.slug] ?? initialValuesFor(selectedDocument) : {};
 
@@ -49,10 +52,18 @@ export function EditablePdfWorkspace() {
     if (selectedDocument && viewMode === "preview") setPdfLoadState("loading");
   }, [selectedDocument, viewMode]);
 
+  useEffect(() => {
+    if (selectedDocument && viewMode === "edit") {
+      setLoadedEditPageSrcs([]);
+      setEditPagesLoadState("loading");
+    }
+  }, [selectedDocument, viewMode]);
+
   function selectDocument(document: EditableImageDocument) {
     setSelectedSlug(document.slug);
     setViewMode("preview");
     setPdfLoadState("loading");
+    setEditPagesLoadState("idle");
   }
 
   function updateField(document: EditableImageDocument, fieldId: string, value: string) {
@@ -73,6 +84,14 @@ export function EditablePdfWorkspace() {
 
     setViewMode("edit");
     window.setTimeout(() => window.print(), 80);
+  }
+
+  function markEditPageLoaded(src: string, document: EditableImageDocument) {
+    setLoadedEditPageSrcs((current) => {
+      const next = current.includes(src) ? current : [...current, src];
+      if (next.length >= document.pages.length) setEditPagesLoadState("loaded");
+      return next;
+    });
   }
 
   async function downloadEditedPdf(document: EditableImageDocument) {
@@ -236,7 +255,27 @@ export function EditablePdfWorkspace() {
           )}
 
           {viewMode === "edit" && (
-            <section className="edit-image-editor space-y-6">
+            <section className="edit-image-editor relative min-h-[70vh] space-y-6">
+              {editPagesLoadState !== "loaded" && (
+                <div className="no-print absolute inset-0 z-20 flex items-center justify-center border border-zinc-200 bg-white shadow-soft">
+                  <div className="mx-auto max-w-sm px-6 text-center">
+                    {editPagesLoadState === "error" ? (
+                      <>
+                        <p className="font-din text-lg text-red-700">Unable to load editable pages</p>
+                        <p className="mt-2 text-sm leading-6 text-uplands-muted">Close this document and try opening it again.</p>
+                      </>
+                    ) : (
+                      <>
+                        <Spinner className="mx-auto h-8 w-8 text-uplands-magenta" />
+                        <p className="mt-4 font-din text-lg text-uplands-charcoal">Loading editable pages</p>
+                        <p className="mt-2 text-sm leading-6 text-uplands-muted">
+                          Preparing pages 3-5 for editing. {Math.min(loadedEditPageSrcs.length, selectedDocument.pages.length)} of {selectedDocument.pages.length} pages ready.
+                        </p>
+                      </>
+                    )}
+                  </div>
+                </div>
+              )}
               {selectedDocument.pages.map((page) => (
                 <article key={page.pageNumber} className="print-page">
                   <div className="no-print mb-2 flex items-center justify-between gap-4">
@@ -244,7 +283,13 @@ export function EditablePdfWorkspace() {
                     <span className="text-xs font-bold uppercase text-uplands-muted">Editable text boxes</span>
                   </div>
                   <div className="relative mx-auto aspect-[4/3] w-full max-w-[1080px] overflow-hidden border border-zinc-300 bg-white shadow-soft print:border-0 print:shadow-none">
-                    <img src={page.imageSrc} alt={page.title} className="absolute inset-0 h-full w-full object-contain" />
+                    <img
+                      src={page.imageSrc}
+                      alt={page.title}
+                      onLoad={() => markEditPageLoaded(page.imageSrc, selectedDocument)}
+                      onError={() => setEditPagesLoadState("error")}
+                      className="absolute inset-0 h-full w-full object-contain"
+                    />
                     {fieldsForPage(selectedDocument, page.pageNumber).map((field) => (
                       <textarea
                         key={field.id}

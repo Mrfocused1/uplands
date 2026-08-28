@@ -7,6 +7,11 @@ test("admin auth is always required in production", () => {
   assert.equal(adminAuthRequiredForEnvironment("production", true), true);
 });
 
+test("public testing mode can temporarily bypass admin auth", () => {
+  assert.equal(adminAuthRequiredForEnvironment("production", true, true), false);
+  assert.equal(adminAuthRequiredForEnvironment("development", true, true), false);
+});
+
 test("admin auth can remain optional in local development tests", () => {
   assert.equal(adminAuthRequiredForEnvironment("development", false), false);
   assert.equal(adminAuthRequiredForEnvironment("test", false), false);
