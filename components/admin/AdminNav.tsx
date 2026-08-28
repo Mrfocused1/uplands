@@ -10,7 +10,7 @@ export function AdminNav({ adminName }: { adminName?: string }) {
   const isSiteSelector = pathname === "/admin";
 
   const linkClass = (href: string) =>
-    `px-1 py-2 text-sm font-bold uppercase tracking-wide transition ${
+    `whitespace-nowrap px-1 py-2 text-sm font-bold uppercase tracking-wide transition ${
       pathname === href || (href !== "/admin" && href !== "/admin/submissions" && pathname.startsWith(href))
         ? "text-uplands-magenta"
         : "text-zinc-700 hover:text-uplands-magenta"
@@ -19,7 +19,7 @@ export function AdminNav({ adminName }: { adminName?: string }) {
   return (
     <header className="no-print sticky top-0 z-40 border-b border-zinc-200 bg-white">
       <div className="mx-auto flex min-h-20 w-full max-w-7xl items-center justify-between gap-3 px-4 py-4 sm:min-h-24 sm:px-8 sm:py-5">
-        <div className="flex items-center gap-7">
+        <div className="flex min-w-0 items-center gap-5 xl:gap-7">
           <Link href="/" aria-label="Uplands home">
             <Image
               src={projectConfig.logoPath}
@@ -27,14 +27,14 @@ export function AdminNav({ adminName }: { adminName?: string }) {
               width={235}
               height={44}
               priority
-              className="h-auto w-36 sm:w-56"
+              className="h-auto w-36 sm:w-48 xl:w-56"
             />
           </Link>
-          <nav className="hidden items-center gap-7 md:flex">
-            <Link href="/" className="px-1 py-2 text-sm font-bold uppercase tracking-wide text-zinc-700 hover:text-uplands-magenta">
+          <nav className="hidden items-center gap-4 md:flex xl:gap-7">
+            <Link href="/" className="whitespace-nowrap px-1 py-2 text-sm font-bold uppercase tracking-wide text-zinc-700 hover:text-uplands-magenta">
               Home
             </Link>
-            <Link href="/#support" className="px-1 py-2 text-sm font-bold uppercase tracking-wide text-zinc-700 hover:text-uplands-magenta">
+            <Link href="/#support" className="whitespace-nowrap px-1 py-2 text-sm font-bold uppercase tracking-wide text-zinc-700 hover:text-uplands-magenta">
               Contact
             </Link>
             {!isSiteSelector && (
@@ -43,9 +43,6 @@ export function AdminNav({ adminName }: { adminName?: string }) {
                   Change Site
                 </Link>
                 <Link href="/admin/forms" className={linkClass("/admin/forms")}>
-                  Forms
-                </Link>
-                <Link href="/admin/submissions" className={linkClass("/admin/submissions")}>
                   Inductions
                 </Link>
                 <Link href="/admin/rams" className={linkClass("/admin/rams")}>
@@ -58,15 +55,15 @@ export function AdminNav({ adminName }: { adminName?: string }) {
             )}
           </nav>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex shrink-0 items-center gap-3 xl:gap-4">
           <div className="text-right">
             <p className="font-din text-xs uppercase tracking-normal text-uplands-magenta">UHSF16.01</p>
-            <h1 className="mt-1 hidden font-slab text-lg leading-tight text-uplands-charcoal sm:block sm:text-2xl">Admin Records</h1>
+            <h1 className="mt-1 hidden whitespace-nowrap font-slab text-lg leading-tight text-uplands-charcoal sm:block xl:text-2xl">Admin Records</h1>
             {adminName && <p className="hidden text-xs font-bold uppercase text-zinc-500 sm:block">{adminName}</p>}
           </div>
           {adminName && (
             <form action="/api/admin/logout" method="post" className="hidden md:block">
-              <button type="submit" className="border border-zinc-300 px-3 py-2 text-xs font-bold uppercase text-zinc-700 hover:border-uplands-magenta hover:text-uplands-magenta">
+              <button type="submit" className="whitespace-nowrap border border-zinc-300 px-3 py-2 text-xs font-bold uppercase text-zinc-700 hover:border-uplands-magenta hover:text-uplands-magenta">
                 Sign Out
               </button>
             </form>
@@ -93,9 +90,6 @@ export function AdminNav({ adminName }: { adminName?: string }) {
                     Change Site
                   </Link>
                   <Link className={`${linkClass("/admin/forms")} block py-3`} href="/admin/forms">
-                    Forms
-                  </Link>
-                  <Link className={`${linkClass("/admin/submissions")} block py-3`} href="/admin/submissions">
                     Inductions
                   </Link>
                   <Link className={`${linkClass("/admin/rams")} block py-3`} href="/admin/rams">

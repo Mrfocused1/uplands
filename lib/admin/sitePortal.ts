@@ -54,8 +54,8 @@ export const portalSites: PortalSite[] = [
 export const portalActions: PortalAction[] = [
   {
     title: "Inductions",
-    summary: "Review submitted UHSF16.01 inductions, evidence uploads, signatures, generated PDFs and admin record details.",
-    href: "/admin/submissions",
+    summary: "Choose the inductee or inductor workflow, start new records, review submitted inductions and download completed PDFs.",
+    href: "/admin/forms",
     label: "Open inductions",
   },
   {
@@ -66,9 +66,9 @@ export const portalActions: PortalAction[] = [
   },
   {
     title: "Forms",
-    summary: "Start new inductions, open filled records, edit form details and download completed PDFs.",
-    href: "/admin/forms",
-    label: "Open forms",
+    summary: "Start or test the public site induction form flow as an operative would complete it on site.",
+    href: "/form?returnTo=/admin/forms",
+    label: "Start form",
   },
   {
     title: "Edit Images",

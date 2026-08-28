@@ -60,17 +60,24 @@ test("admin opens the site manager portal before workflow areas", async ({ page 
     await page.getByLabel("Open admin navigation menu").click();
   }
 
-  await expect(page.getByRole("link", { name: /Open inductions/i })).toHaveAttribute("href", "/admin/submissions");
+  await expect(page.getByRole("link", { name: /Open inductions/i })).toHaveAttribute("href", "/admin/forms");
   await expect(page.getByRole("link", { name: /Open RAMS/i })).toHaveAttribute("href", "/admin/rams");
-  await expect(page.getByRole("link", { name: /Open forms/i })).toHaveAttribute("href", "/admin/forms");
+  await expect(page.getByRole("link", { name: /Start form/i })).toHaveAttribute("href", "/form?returnTo=/admin/forms");
   await expectNoHorizontalOverflow(page);
   await expectNoCriticalA11yViolations(page);
 });
 
-test("admin forms workspace offers inductee and inductor workflows", async ({ page }) => {
+test("admin forms workspace offers inductee and inductor workflows", async ({ page }, testInfo) => {
   await page.goto("/admin/forms");
 
   await expect(page.getByRole("heading", { name: "Forms Workspace" })).toBeVisible();
+  if (testInfo.project.name === "Desktop Chrome") {
+    await expect(page.getByRole("navigation").first().getByRole("link", { name: "Inductions" })).toHaveAttribute("href", "/admin/forms");
+  } else {
+    await page.getByLabel("Open admin navigation menu").click();
+    await expect(page.locator("details nav").getByRole("link", { name: "Inductions" })).toHaveAttribute("href", "/admin/forms");
+    await page.getByLabel("Open admin navigation menu").click();
+  }
   await expect(page.getByRole("heading", { name: "Inductee Form" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Inductor Form" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Start New Induction" })).toHaveAttribute("href", "/form?returnTo=/admin/forms");
