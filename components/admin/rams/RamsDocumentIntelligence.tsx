@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
-import type { PDFDocumentProxy, RenderTask } from "pdfjs-dist";
+import type { PDFDocumentLoadingTask, PDFDocumentProxy, RenderTask } from "pdfjs-dist";
 import { Spinner } from "@/components/Spinner";
 
 type ProcessingStatus = "UPLOADED" | "PROCESSING" | "READY" | "FAILED" | "OCR_REQUIRED";
@@ -429,7 +429,8 @@ function RamsPdfPageViewer({
     const loadSequence = loadSequenceRef.current + 1;
     loadSequenceRef.current = loadSequence;
     let cancelled = false;
-    let loadingTask: { promise: Promise<PDFDocumentProxy>; destroy: () => Promise<void> } | null = null;
+    const abortController = new AbortController();
+    let loadingTask: PDFDocumentLoadingTask | null = null;
     setLoading(true);
     setError("");
     setPdf(null);
@@ -438,10 +439,16 @@ function RamsPdfPageViewer({
     import("pdfjs-dist")
       .then(({ getDocument, GlobalWorkerOptions }) => {
         GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/build/pdf.worker.mjs", import.meta.url).toString();
-        loadingTask = getDocument({ url: `/api/admin/rams/${documentId}/pdf`, withCredentials: true });
-        return loadingTask.promise;
+        return fetch(`/api/admin/rams/${documentId}/pdf`, { credentials: "same-origin", signal: abortController.signal }).then(async (response) => {
+          if (!response.ok) throw new Error("PDF request failed.");
+          const pdfBytes = await response.arrayBuffer();
+          if (cancelled || loadSequenceRef.current !== loadSequence) return null;
+          loadingTask = getDocument({ data: new Uint8Array(pdfBytes) });
+          return loadingTask.promise;
+        });
       })
       .then((loadedPdf) => {
+        if (!loadedPdf) return;
         if (!cancelled && loadSequenceRef.current === loadSequence) setPdf(loadedPdf);
       })
       .catch((caught) => {
@@ -453,6 +460,7 @@ function RamsPdfPageViewer({
 
     return () => {
       cancelled = true;
+      abortController.abort();
       renderTaskRef.current?.cancel();
       void loadingTask?.destroy();
     };
