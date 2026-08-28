@@ -25,17 +25,11 @@ export default function Home() {
           </Link>
 
           <nav className="hidden items-center gap-8 text-sm font-medium uppercase tracking-wide text-zinc-700 md:flex">
-            <Link className="hover:text-uplands-magenta" href="#process">
-              Process
-            </Link>
-            <Link className="hover:text-uplands-magenta" href="#forms">
-              Forms
-            </Link>
-            <Link className="hover:text-uplands-magenta" href="#support">
-              Support
-            </Link>
             <Link className="hover:text-uplands-magenta" href="/admin">
               Admin
+            </Link>
+            <Link className="hover:text-uplands-magenta" href="#support">
+              Contact
             </Link>
             <Link className="hover:text-uplands-magenta" href="/form">
               Get Started
@@ -52,17 +46,11 @@ export default function Home() {
               <span className="h-0.5 w-7 bg-zinc-800" />
             </summary>
             <div className="absolute right-0 top-14 z-30 w-64 bg-white p-5 text-base font-bold uppercase tracking-wide text-zinc-700 shadow-soft">
-              <Link className="block py-3 hover:text-uplands-magenta" href="#process">
-                Process
-              </Link>
-              <Link className="block py-3 hover:text-uplands-magenta" href="#forms">
-                Forms
-              </Link>
-              <Link className="block py-3 hover:text-uplands-magenta" href="#support">
-                Support
-              </Link>
               <Link className="block py-3 hover:text-uplands-magenta" href="/admin">
                 Admin
+              </Link>
+              <Link className="block py-3 hover:text-uplands-magenta" href="#support">
+                Contact
               </Link>
               <Link className="mt-3 block bg-uplands-magenta px-4 py-3 text-center text-white" href="/form">
                 Get Started
@@ -92,24 +80,22 @@ export default function Home() {
           <div className="relative mx-auto flex min-h-[560px] w-full max-w-7xl items-center px-5 py-16 sm:min-h-[620px] sm:px-8">
             <div className="max-w-3xl text-white">
               <p className="mb-5 text-sm font-bold uppercase tracking-[0.35em] text-white/80">Uplands</p>
-              <h1 className="font-din text-5xl leading-[0.95] sm:text-6xl lg:text-7xl">
-                Uplands Form Filling Process
-              </h1>
+              <h1 className="font-din text-5xl leading-[0.95] sm:text-6xl lg:text-7xl">Site Manager Efficiency Hub</h1>
               <p className="mt-7 max-w-2xl text-xl leading-8 text-white/90 sm:text-2xl">
-                Helping you get work done faster with a simple digital site-induction workflow.
+                One place for site teams to manage inductions, RAMS reviews, searchable documents and daily site records without losing time to admin.
               </p>
               <div className="mt-9 flex flex-col gap-4 sm:flex-row">
                 <Link
-                  href="/form"
+                  href="/admin"
                   className="inline-flex min-h-14 items-center justify-center bg-uplands-magenta px-8 py-4 text-base font-bold uppercase tracking-wide text-white transition hover:bg-[#8e0075]"
                 >
-                  Get Started
+                  Open Admin Hub
                 </Link>
                 <a
                   href="#process"
                   className="inline-flex min-h-14 items-center justify-center border border-white/70 px-8 py-4 text-base font-bold uppercase tracking-wide text-white transition hover:bg-white hover:text-uplands-charcoal"
                 >
-                  See Process
+                  View Tools
                 </a>
               </div>
             </div>
@@ -128,19 +114,19 @@ export default function Home() {
         <section id="process" className="bg-white px-5 py-20 sm:px-8">
           <div className="mx-auto grid max-w-6xl gap-10 lg:grid-cols-[0.95fr_1.05fr] lg:items-center">
             <div>
-              <p className="text-sm font-bold uppercase tracking-[0.3em] text-uplands-magenta">Digital induction</p>
+              <p className="text-sm font-bold uppercase tracking-[0.3em] text-uplands-magenta">Site control</p>
               <h2 className="mt-4 font-slab text-4xl leading-tight sm:text-5xl">
-                A cleaner way to complete UHSF16.01 on site.
+                Faster decisions, cleaner records and less chasing paperwork.
               </h2>
             </div>
             <div className="space-y-5 text-lg leading-8 text-uplands-muted">
               <p>
-                The flow guides the inductee through personal details, competence and training, declarations, document
-                uploads and signature capture.
+                The admin hub gives site managers a site-first workspace for the records they need every day: live
+                inductions, completed forms, contractor RAMS, review evidence and editable document outputs.
               </p>
               <p>
-                It is built for phones first, with large controls, clear progress, signature capture and a review stage
-                before the final record is saved.
+                It keeps key workflows accessible from desktop and mobile, so teams can find the right site, open the
+                right tool and move from review to action without digging through folders or email chains.
               </p>
             </div>
           </div>
@@ -149,14 +135,14 @@ export default function Home() {
         <section id="forms" className="bg-uplands-paper px-5 py-20 sm:px-8">
           <div className="mx-auto max-w-6xl">
             <div className="mb-10 max-w-3xl">
-              <p className="text-sm font-bold uppercase tracking-[0.3em] text-uplands-magenta">Forms</p>
-              <h2 className="mt-4 font-slab text-4xl leading-tight sm:text-5xl">Start the site induction form.</h2>
+              <p className="text-sm font-bold uppercase tracking-[0.3em] text-uplands-magenta">Management tools</p>
+              <h2 className="mt-4 font-slab text-4xl leading-tight sm:text-5xl">Built around the way site managers work.</h2>
             </div>
             <div className="grid gap-6 md:grid-cols-3">
               {[
-                ["Inductee details", "Personal details, competence and training, declarations and signature."],
-                ["Document uploads", "Photograph your CSCS card, Asbestos Awareness and Manual Handling Awareness certificates."],
-                ["Digital record", "Review answers, submit the induction and produce a printable record with your documents appended."],
+                ["Site selection", "Start from the correct project and open the relevant Uplands workflows for that site."],
+                ["RAMS intelligence", "Review contractor RAMS, search evidence, open source PDFs and check completed review forms."],
+                ["Induction records", "Capture UHSF16.01 details, evidence, declarations and signatures with admin-ready outputs."],
               ].map(([title, copy]) => (
                 <article key={title} className="bg-white p-7 shadow-soft">
                   <h3 className="text-xl font-bold">{title}</h3>
@@ -165,10 +151,10 @@ export default function Home() {
               ))}
             </div>
             <Link
-              href="/form"
+              href="/admin"
               className="mt-10 inline-flex min-h-14 items-center justify-center bg-uplands-magenta px-8 py-4 text-base font-bold uppercase tracking-wide text-white transition hover:bg-[#8e0075]"
             >
-              Get Started
+              Open Admin Hub
             </Link>
           </div>
         </section>
@@ -177,7 +163,7 @@ export default function Home() {
       <footer id="support" className="bg-white px-5 py-10 text-sm text-uplands-muted sm:px-8">
         <div className="mx-auto flex max-w-7xl flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <p>Uplands · Constructing Change</p>
-          <p>UHSF16.01 digital site induction workflow</p>
+          <p>Site-manager hub for inductions, RAMS and document records</p>
         </div>
       </footer>
     </div>

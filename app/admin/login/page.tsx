@@ -10,7 +10,7 @@ export const metadata = {
 export default async function AdminLoginPage({ searchParams }: { searchParams: Promise<{ error?: string; next?: string }> }) {
   const admin = await getCurrentAdmin();
   const params = await searchParams;
-  if (admin) redirect(params.next || "/admin/submissions");
+  if (admin) redirect(params.next || "/admin");
 
   return (
     <main className="min-h-screen bg-uplands-paper px-5 py-10 text-uplands-charcoal">
@@ -19,7 +19,7 @@ export default async function AdminLoginPage({ searchParams }: { searchParams: P
         <p className="text-xs font-bold uppercase tracking-[0.28em] text-uplands-magenta">Admin</p>
         <h1 className="mt-2 font-slab text-3xl leading-tight">Sign In</h1>
         <form action="/api/admin/login" method="post" className="mt-6 space-y-4">
-          <input type="hidden" name="next" value={params.next || "/admin/submissions"} />
+          <input type="hidden" name="next" value={params.next || "/admin"} />
           <label className="block">
             <span className="text-xs font-bold uppercase text-zinc-700">Username</span>
             <input

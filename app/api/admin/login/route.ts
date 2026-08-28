@@ -4,8 +4,8 @@ import { createAdminSession, UnauthorizedError } from "@/lib/auth/admin";
 export const runtime = "nodejs";
 
 function safeNext(value: FormDataEntryValue | null) {
-  const next = typeof value === "string" && value.startsWith("/admin") ? value : "/admin/submissions";
-  return next === "/admin/login" ? "/admin/submissions" : next;
+  const next = typeof value === "string" && value.startsWith("/admin") ? value : "/admin";
+  return next === "/admin/login" ? "/admin" : next;
 }
 
 export async function POST(request: Request) {

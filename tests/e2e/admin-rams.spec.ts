@@ -35,7 +35,20 @@ test("admin opens the site manager portal before workflow areas", async ({ page 
   await expect(page.getByRole("heading", { name: "Choose A Workflow" })).toBeVisible();
   await expect(page.getByRole("link", { name: /Open inductions/i })).toHaveAttribute("href", "/admin/submissions");
   await expect(page.getByRole("link", { name: /Open RAMS/i })).toHaveAttribute("href", "/admin/rams");
-  await expect(page.getByRole("link", { name: /Open form/i })).toHaveAttribute("href", "/form");
+  await expect(page.getByRole("link", { name: /Open forms/i })).toHaveAttribute("href", "/admin/forms");
+  await expectNoHorizontalOverflow(page);
+  await expectNoCriticalA11yViolations(page);
+});
+
+test("admin forms workspace offers inductee and inductor workflows", async ({ page }) => {
+  await page.goto("/admin/forms");
+
+  await expect(page.getByRole("heading", { name: "Forms Workspace" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Inductee Form" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Inductor Form" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Start New Induction" })).toHaveAttribute("href", "/form");
+  await expect(page.getByRole("link", { name: "View Filled Inductions" })).toHaveAttribute("href", "/admin/submissions");
+  await expect(page.getByRole("link", { name: "Open Induction Records" })).toHaveAttribute("href", "/admin/submissions");
   await expectNoHorizontalOverflow(page);
   await expectNoCriticalA11yViolations(page);
 });

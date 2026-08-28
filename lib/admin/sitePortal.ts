@@ -66,9 +66,9 @@ export const portalActions: PortalAction[] = [
   },
   {
     title: "Forms",
-    summary: "Start or test the public site induction form flow as an operative would complete it on site.",
-    href: "/form",
-    label: "Open form",
+    summary: "Start new inductions, open filled records, edit form details and download completed PDFs.",
+    href: "/admin/forms",
+    label: "Open forms",
   },
   {
     title: "Edit Images",
