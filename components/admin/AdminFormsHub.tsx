@@ -6,7 +6,7 @@ const formWorkflows = [
     summary:
       "Start, view, download, edit and fill the UHSF16.01 induction record from the inductee side. Use this when an operative needs to complete or test the site induction flow.",
     actions: [
-      { label: "Start New Induction", href: "/form", primary: true },
+      { label: "Start New Induction", href: "/form?returnTo=/admin/forms", primary: true },
       { label: "View Filled Inductions", href: "/admin/submissions", primary: false },
     ],
     details: ["Capture personal details, competency answers, document evidence and signature.", "Download completed induction PDFs from the admin records area."],
@@ -17,7 +17,7 @@ const formWorkflows = [
       "Open submitted inductions for inductor review, sign-off, editing, PDF download and document adjustment before the record is filed.",
     actions: [
       { label: "Open Induction Records", href: "/admin/submissions", primary: true },
-      { label: "Start New Record", href: "/form", primary: false },
+      { label: "Start New Record", href: "/form?returnTo=/admin/forms", primary: false },
     ],
     details: ["Edit inductor name, date, job title and signature on saved records.", "Review evidence uploads, adjust print crops and download the final admin-ready PDF."],
   },

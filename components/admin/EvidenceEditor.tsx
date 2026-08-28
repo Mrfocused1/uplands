@@ -297,9 +297,14 @@ export function EvidenceEditor({ id }: { id: string }) {
 
   return (
     <div>
-      <Link href={`/admin/submissions/${id}`} className="text-sm font-bold uppercase tracking-wide text-zinc-600 hover:text-uplands-magenta">
-        Back to submission
-      </Link>
+      <div className="flex flex-wrap gap-4">
+        <Link href="/admin/forms" className="text-sm font-bold uppercase tracking-wide text-zinc-600 hover:text-uplands-magenta">
+          Back to Forms Workspace
+        </Link>
+        <Link href={`/admin/submissions/${id}`} className="text-sm font-bold uppercase tracking-wide text-zinc-600 hover:text-uplands-magenta">
+          Back to submission
+        </Link>
+      </div>
 
       <div className="mt-4 flex flex-wrap items-center justify-between gap-5 border-b border-zinc-200 bg-white px-6 py-6 shadow-soft">
         <div>

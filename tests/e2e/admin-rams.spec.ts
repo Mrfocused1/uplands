@@ -18,12 +18,29 @@ async function expectNoHorizontalOverflow(page: Page) {
   expect(hasOverflow).toBe(false);
 }
 
-test("admin opens the site manager portal before workflow areas", async ({ page }) => {
+test("admin opens the site manager portal before workflow areas", async ({ page }, testInfo) => {
   await page.goto("/admin");
 
   await expect(page.getByRole("heading", { name: "Select Your Site" })).toBeVisible();
   await expect(page.getByLabel("Search Sites")).toBeVisible();
   await expect(page.getByRole("link", { name: /Newport/i })).toBeVisible();
+
+  if (testInfo.project.name === "Desktop Chrome") {
+    const desktopNav = page.getByRole("navigation").first();
+    await expect(desktopNav.getByRole("link", { name: "Home" })).toBeVisible();
+    await expect(desktopNav.getByRole("link", { name: "Contact" })).toBeVisible();
+    await expect(desktopNav.getByRole("link", { name: "RAMS" })).toHaveCount(0);
+    await expect(desktopNav.getByRole("link", { name: "Inductions" })).toHaveCount(0);
+  } else {
+    await page.getByLabel("Open admin navigation menu").click();
+    const mobileNav = page.locator("details nav");
+    await expect(mobileNav.getByRole("link", { name: "Home" })).toBeVisible();
+    await expect(mobileNav.getByRole("link", { name: "Contact" })).toBeVisible();
+    await expect(mobileNav.getByRole("link", { name: "RAMS" })).toHaveCount(0);
+    await expect(mobileNav.getByRole("link", { name: "Inductions" })).toHaveCount(0);
+    await page.getByLabel("Open admin navigation menu").click();
+  }
+
   await expect(page.getByRole("heading", { name: "Choose A Workflow" })).toHaveCount(0);
 
   await page.getByLabel("Search Sites").fill("newport");
@@ -33,6 +50,16 @@ test("admin opens the site manager portal before workflow areas", async ({ page 
   await expect(page).toHaveURL(/\/admin\/sites\/newport$/);
   await expect(page.getByRole("heading", { name: "Waitrose Newport" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Choose A Workflow" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Change Site" }).first()).toHaveAttribute("href", "/admin");
+
+  if (testInfo.project.name === "Desktop Chrome") {
+    await expect(page.getByRole("navigation").first().getByRole("link", { name: "RAMS" })).toBeVisible();
+  } else {
+    await page.getByLabel("Open admin navigation menu").click();
+    await expect(page.locator("details nav").getByRole("link", { name: "RAMS" })).toBeVisible();
+    await page.getByLabel("Open admin navigation menu").click();
+  }
+
   await expect(page.getByRole("link", { name: /Open inductions/i })).toHaveAttribute("href", "/admin/submissions");
   await expect(page.getByRole("link", { name: /Open RAMS/i })).toHaveAttribute("href", "/admin/rams");
   await expect(page.getByRole("link", { name: /Open forms/i })).toHaveAttribute("href", "/admin/forms");
@@ -46,9 +73,18 @@ test("admin forms workspace offers inductee and inductor workflows", async ({ pa
   await expect(page.getByRole("heading", { name: "Forms Workspace" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Inductee Form" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Inductor Form" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Start New Induction" })).toHaveAttribute("href", "/form");
+  await expect(page.getByRole("link", { name: "Start New Induction" })).toHaveAttribute("href", "/form?returnTo=/admin/forms");
   await expect(page.getByRole("link", { name: "View Filled Inductions" })).toHaveAttribute("href", "/admin/submissions");
   await expect(page.getByRole("link", { name: "Open Induction Records" })).toHaveAttribute("href", "/admin/submissions");
+  await expectNoHorizontalOverflow(page);
+  await expectNoCriticalA11yViolations(page);
+});
+
+test("admin-started induction can return to forms workspace from the wizard", async ({ page }) => {
+  await page.goto("/form?returnTo=/admin/forms");
+
+  await expect(page.getByRole("link", { name: "Back to Forms Workspace" })).toHaveAttribute("href", "/admin/forms");
+  await expect(page.getByRole("heading", { name: /Site Induction/i })).toBeVisible();
   await expectNoHorizontalOverflow(page);
   await expectNoCriticalA11yViolations(page);
 });

@@ -7,6 +7,7 @@ import { projectConfig } from "@/config/projectConfig";
 
 export function AdminNav({ adminName }: { adminName?: string }) {
   const pathname = usePathname();
+  const isSiteSelector = pathname === "/admin";
 
   const linkClass = (href: string) =>
     `px-1 py-2 text-sm font-bold uppercase tracking-wide transition ${
@@ -33,21 +34,28 @@ export function AdminNav({ adminName }: { adminName?: string }) {
             <Link href="/" className="px-1 py-2 text-sm font-bold uppercase tracking-wide text-zinc-700 hover:text-uplands-magenta">
               Home
             </Link>
-            <Link href="/admin/forms" className={linkClass("/admin/forms")}>
-              Forms
+            <Link href="/#support" className="px-1 py-2 text-sm font-bold uppercase tracking-wide text-zinc-700 hover:text-uplands-magenta">
+              Contact
             </Link>
-            <Link href="/admin" className={linkClass("/admin")}>
-              Sites
-            </Link>
-            <Link href="/admin/submissions" className={linkClass("/admin/submissions")}>
-              Inductions
-            </Link>
-            <Link href="/admin/rams" className={linkClass("/admin/rams")}>
-              RAMS
-            </Link>
-            <Link href="/edit-images" className={linkClass("/edit-images")}>
-              Edit Images
-            </Link>
+            {!isSiteSelector && (
+              <>
+                <Link href="/admin" className={linkClass("/admin")}>
+                  Change Site
+                </Link>
+                <Link href="/admin/forms" className={linkClass("/admin/forms")}>
+                  Forms
+                </Link>
+                <Link href="/admin/submissions" className={linkClass("/admin/submissions")}>
+                  Inductions
+                </Link>
+                <Link href="/admin/rams" className={linkClass("/admin/rams")}>
+                  RAMS
+                </Link>
+                <Link href="/edit-images" className={linkClass("/edit-images")}>
+                  Edit Images
+                </Link>
+              </>
+            )}
           </nav>
         </div>
         <div className="flex items-center gap-4">
@@ -76,21 +84,28 @@ export function AdminNav({ adminName }: { adminName?: string }) {
               <Link className="block py-3 hover:text-uplands-magenta" href="/">
                 Home
               </Link>
-              <Link className={`${linkClass("/admin/forms")} block py-3`} href="/admin/forms">
-                Forms
+              <Link className="block py-3 hover:text-uplands-magenta" href="/#support">
+                Contact
               </Link>
-              <Link className={`${linkClass("/admin")} block py-3`} href="/admin">
-                Sites
-              </Link>
-              <Link className={`${linkClass("/admin/submissions")} block py-3`} href="/admin/submissions">
-                Inductions
-              </Link>
-              <Link className={`${linkClass("/admin/rams")} block py-3`} href="/admin/rams">
-                RAMS
-              </Link>
-              <Link className={`${linkClass("/edit-images")} block py-3`} href="/edit-images">
-                Edit Images
-              </Link>
+              {!isSiteSelector && (
+                <>
+                  <Link className={`${linkClass("/admin")} block py-3`} href="/admin">
+                    Change Site
+                  </Link>
+                  <Link className={`${linkClass("/admin/forms")} block py-3`} href="/admin/forms">
+                    Forms
+                  </Link>
+                  <Link className={`${linkClass("/admin/submissions")} block py-3`} href="/admin/submissions">
+                    Inductions
+                  </Link>
+                  <Link className={`${linkClass("/admin/rams")} block py-3`} href="/admin/rams">
+                    RAMS
+                  </Link>
+                  <Link className={`${linkClass("/edit-images")} block py-3`} href="/edit-images">
+                    Edit Images
+                  </Link>
+                </>
+              )}
               {adminName && (
                 <form action="/api/admin/logout" method="post">
                   <button type="submit" className="block w-full py-3 text-left hover:text-uplands-magenta">

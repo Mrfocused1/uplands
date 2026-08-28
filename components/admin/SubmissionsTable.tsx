@@ -129,6 +129,9 @@ export function SubmissionsTable({ submissions }: { submissions: SubmissionListI
   if (items.length === 0) {
     return (
       <div className="border border-zinc-200 bg-white p-12 text-center shadow-soft">
+        <Link href="/admin/forms" className="mb-5 inline-flex text-sm font-bold uppercase tracking-wide text-zinc-600 hover:text-uplands-magenta">
+          Back to Forms Workspace
+        </Link>
         <p className="font-din text-base uppercase text-zinc-800">No inductions yet</p>
         <p className="mt-1 text-sm text-zinc-500">Completed inductions will appear here for review.</p>
       </div>
@@ -137,6 +140,10 @@ export function SubmissionsTable({ submissions }: { submissions: SubmissionListI
 
   return (
     <div>
+      <Link href="/admin/forms" className="mb-4 inline-flex text-sm font-bold uppercase tracking-wide text-zinc-600 hover:text-uplands-magenta">
+        Back to Forms Workspace
+      </Link>
+
       <div className="mb-7 flex flex-col gap-5 border-b border-zinc-200 bg-white px-6 py-6 shadow-soft sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-xs font-bold uppercase tracking-[0.28em] text-uplands-magenta">Admin</p>

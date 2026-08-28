@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { InductionHeader } from "./InductionHeader";
 import { QuestionScreen } from "./QuestionScreen";
 import { PersonalDetailsScreen } from "./PersonalDetailsScreen";
@@ -50,7 +51,20 @@ function openPdfUrl(blob: Blob) {
   window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }
 
-export function ProgressiveInduction() {
+function AdminReturnLink({ href }: { href?: string }) {
+  if (!href) return null;
+  return (
+    <div className="no-print border-b border-zinc-200 bg-white">
+      <div className="mx-auto flex w-full max-w-6xl px-5 py-3 sm:px-8">
+        <Link href={href} className="text-sm font-bold uppercase tracking-wide text-zinc-700 hover:text-uplands-magenta">
+          Back to Forms Workspace
+        </Link>
+      </div>
+    </div>
+  );
+}
+
+export function ProgressiveInduction({ returnHref }: { returnHref?: string }) {
   const induction = useInduction();
   const [pdfBusy, setPdfBusy] = useState(false);
   const [pdfError, setPdfError] = useState("");
@@ -136,6 +150,7 @@ export function ProgressiveInduction() {
     return (
       <div className="min-h-screen bg-uplands-paper">
         <InductionHeader />
+        <AdminReturnLink href={returnHref} />
         <main className="px-5 py-16 text-center font-bold text-zinc-600">Loading saved induction...</main>
       </div>
     );
@@ -147,6 +162,7 @@ export function ProgressiveInduction() {
   return (
     <div className="min-h-screen bg-uplands-paper">
       <InductionHeader />
+      <AdminReturnLink href={returnHref} />
 
       <main>
         {induction.screen === "wizard" && currentStep.kind === "group" && currentStep.groupId === "personal-details" && (
