@@ -42,6 +42,14 @@ export function createSupabaseStorageProvider(bucket: () => string): StorageProv
       };
     },
 
+    async getSignedUrl({ key, expiresInSeconds = 300, downloadFileName = false }) {
+      const supabase = createSupabaseAdminClient();
+      const options = downloadFileName ? { download: downloadFileName } : undefined;
+      const { data, error } = await supabase.storage.from(bucket()).createSignedUrl(key, expiresInSeconds, options);
+      if (error || !data?.signedUrl) throw new Error(`Supabase signed URL failed: ${error?.message ?? "No signed URL returned"}`);
+      return data.signedUrl;
+    },
+
     async deleteObjects({ keys }) {
       if (keys.length === 0) return;
       const supabase = createSupabaseAdminClient();

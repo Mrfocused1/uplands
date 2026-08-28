@@ -1,4 +1,5 @@
 import type { RamsSearchResult } from "@/lib/rams/types";
+import type { RamsReviewAnswer } from "@/lib/rams/reviewQuestions";
 
 export type AiConfidence = "low" | "medium" | "high";
 
@@ -27,8 +28,34 @@ export interface RamsStructuredAnswer {
   model: string;
 }
 
+export interface RamsFullReviewQuestionInput {
+  key: string;
+  question: string;
+  evidence: RamsSearchResult[];
+}
+
+export interface RamsReviewRecommendation {
+  questionKey: string;
+  recommendation: RamsReviewAnswer;
+  comment: string;
+  citations: string[];
+  confidence: AiConfidence;
+  status: "needs_human_confirmation";
+}
+
+export interface RamsFullReviewInput {
+  document: RamsAnswerInput["document"];
+  questions: RamsFullReviewQuestionInput[];
+}
+
+export interface RamsFullReviewOutput {
+  recommendations: RamsReviewRecommendation[];
+  model: string;
+}
+
 export interface AiProvider {
   name: string;
   isConfigured(): boolean;
   answerRamsQuestion(input: RamsAnswerInput): Promise<RamsStructuredAnswer>;
+  reviewRamsQuestions?(input: RamsFullReviewInput): Promise<RamsFullReviewOutput>;
 }

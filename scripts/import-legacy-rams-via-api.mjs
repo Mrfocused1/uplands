@@ -5,7 +5,7 @@ import path from "node:path";
 
 const root = process.cwd();
 const configPath = path.join(root, "config", "ramsReviews.json");
-const publicDir = path.join(root, "public");
+const privateRamsDir = path.join(root, "private", "rams");
 const baseUrl = process.argv.find((arg) => arg.startsWith("--base-url="))?.slice("--base-url=".length) || "http://127.0.0.1:8747";
 
 function readLegacyForms() {
@@ -17,9 +17,9 @@ function sourcePdfFor(form) {
   return (form.documents ?? []).find((document) => document.type === "pdf" && /source rams/i.test(document.title ?? ""));
 }
 
-function publicPathFromHref(href) {
-  const cleanHref = decodeURIComponent(String(href ?? "").replace(/^\/+/, ""));
-  return path.join(publicDir, cleanHref);
+function privatePathFromHref(href) {
+  const cleanHref = decodeURIComponent(String(href ?? "").replace(/^\/api\/admin\/legacy-rams\/?/, ""));
+  return path.join(privateRamsDir, cleanHref);
 }
 
 async function existingDocumentReferences() {
@@ -33,7 +33,7 @@ async function importForm(form) {
   const source = sourcePdfFor(form);
   if (!source) return { status: "skipped", reason: "No source PDF", form };
 
-  const filePath = publicPathFromHref(source.href);
+  const filePath = privatePathFromHref(source.href);
   if (!fs.existsSync(filePath)) return { status: "skipped", reason: `Missing file ${source.href}`, form };
 
   const buffer = fs.readFileSync(filePath);

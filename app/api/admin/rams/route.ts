@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireAdmin, UnauthorizedError } from "@/lib/auth/admin";
 import { createRamsDocument, getRamsDocument, listRamsDocuments, type RamsDocumentWithCounts } from "@/lib/db/rams";
+import { dispatchRamsProcessing, getRamsProcessingMode } from "@/lib/rams/dispatchRamsProcessing";
 import { processStoredRamsDocument } from "@/lib/rams/processStoredRamsDocument";
 import { validatePdfBuffer } from "@/lib/rams/processRamsPdf";
 import { getStorageProvider } from "@/lib/storage";
@@ -14,7 +15,8 @@ function value(formData: FormData, key: string) {
   return typeof item === "string" ? item.trim() : "";
 }
 
-function serializeDocument(row: RamsDocumentWithCounts) {
+function serializeDocument(row: RamsDocumentWithCounts | Awaited<ReturnType<typeof getRamsDocument>>) {
+  if (!row) return null;
   return {
     id: row.id,
     title: row.title,
@@ -33,8 +35,8 @@ function serializeDocument(row: RamsDocumentWithCounts) {
     createdBy: row.created_by,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
-    sectionCount: row.section_count,
-    chunkCount: row.chunk_count,
+    sectionCount: "section_count" in row ? row.section_count : 0,
+    chunkCount: "chunk_count" in row ? row.chunk_count : 0,
   };
 }
 
@@ -47,7 +49,7 @@ export async function GET() {
   }
 
   const documents = await listRamsDocuments();
-  return NextResponse.json({ documents: documents.map(serializeDocument) });
+  return NextResponse.json({ documents: documents.map(serializeDocument).filter(Boolean) });
 }
 
 export async function POST(request: Request) {
@@ -57,6 +59,11 @@ export async function POST(request: Request) {
   } catch (error) {
     if (error instanceof UnauthorizedError) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     throw error;
+  }
+
+  const contentLength = Number(request.headers.get("content-length") ?? 0);
+  if (contentLength > MAX_PDF_SIZE + 1024 * 1024) {
+    return NextResponse.json({ error: "Upload request is too large. Maximum PDF size is 80MB." }, { status: 413 });
   }
 
   const formData = await request.formData();
@@ -104,20 +111,35 @@ export async function POST(request: Request) {
     createdBy: admin.displayName,
   });
 
-  if (process.env.RAMS_PROCESSING_MODE === "deferred") {
+  if (getRamsProcessingMode() !== "inline") {
+    const dispatch = await dispatchRamsProcessing(documentId);
     const row = await getRamsDocument(documentId);
-    return NextResponse.json({ document: row, processing: { status: "UPLOADED", pageCount, sectionCount: 0, chunkCount: 0 } }, { status: 202 });
+    return NextResponse.json(
+      {
+        document: serializeDocument(row),
+        processing: {
+          status: row?.processing_status ?? "UPLOADED",
+          pageCount,
+          sectionCount: 0,
+          chunkCount: 0,
+          mode: dispatch.mode,
+          dispatched: dispatch.dispatched,
+          message: dispatch.message,
+        },
+      },
+      { status: 202 },
+    );
   }
 
   try {
     const processing = await processStoredRamsDocument(documentId);
     const row = await getRamsDocument(documentId);
-    return NextResponse.json({ document: row, processing }, { status: 201 });
+    return NextResponse.json({ document: serializeDocument(row), processing }, { status: 201 });
   } catch (error) {
     const row = await getRamsDocument(documentId);
     return NextResponse.json(
       {
-        document: row,
+        document: serializeDocument(row),
         error: error instanceof Error ? error.message : "RAMS processing failed.",
       },
       { status: 202 },

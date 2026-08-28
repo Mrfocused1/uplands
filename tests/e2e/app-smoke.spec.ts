@@ -37,3 +37,77 @@ test("admin submissions list renders from the configured runtime store", async (
   await expectNoHorizontalOverflow(page);
   await expectNoCriticalA11yViolations(page);
 });
+
+test("admin submissions list API does not expose flattened print data", async ({ request }) => {
+  const response = await request.get("/api/admin/submissions");
+  expect(response.ok()).toBe(true);
+  const payload = await response.json();
+  const first = payload.submissions?.[0] ?? {};
+
+  expect(first).not.toHaveProperty("searchText");
+  expect(first).not.toHaveProperty("printData");
+  expect(JSON.stringify(first)).not.toContain("data:image/png;base64");
+});
+
+test("public induction APIs reject malformed input with validation errors", async ({ request }) => {
+  const submit = await request.post("/api/induction/submit", { data: null });
+  expect(submit.status()).toBe(400);
+  await expect(submit.json()).resolves.toHaveProperty("error");
+
+  const pdf = await request.post("/api/induction/pdf", { data: null });
+  expect(pdf.status()).toBe(400);
+  await expect(pdf.json()).resolves.toHaveProperty("error");
+});
+
+test("legacy RAMS files are not served from public static URLs", async ({ request }) => {
+  const response = await request.get("/rams/sources/ampthill-flooring-waitrose-newport-rams.pdf");
+  expect(response.status()).toBe(404);
+});
+
+test("induction flow can submit a minimal completed induction", async ({ page }) => {
+  await page.route("**/api/induction/submit", (route) =>
+    route.fulfill({
+      status: 201,
+      contentType: "application/json",
+      body: JSON.stringify({ id: "test-submission", reference: "UHSF-TEST" }),
+    }),
+  );
+
+  await page.goto("/form");
+  await page.evaluate(() => localStorage.clear());
+  await page.reload();
+
+  await page.getByLabel("Full name").fill("Alex Smith");
+  await page.getByLabel("Contact number").fill("07700 900000");
+  await page.getByLabel("Company name").fill("Example Ltd");
+  await page.getByRole("button", { name: /Continue/i }).click();
+
+  for (let index = 0; index < 12; index += 1) {
+    const body = await page.locator("body").innerText();
+    if (body.includes("Confirm, sign and date")) break;
+    const skip = page.getByRole("button", { name: /Skip/i }).last();
+    const cont = page.getByRole("button", { name: /Continue/i }).last();
+    if (await skip.isVisible().catch(() => false)) await skip.click();
+    else if (await cont.isVisible().catch(() => false)) await cont.click();
+    await page.waitForTimeout(100);
+  }
+
+  await expect(page.getByRole("heading", { name: "Confirm, sign and date" })).toBeVisible();
+  const declarations = page.locator("button").filter({ hasText: /I confirm|I agree/i });
+  for (let index = 0; index < 3; index += 1) await declarations.nth(index).click();
+
+  const canvas = page.locator("canvas").first();
+  await canvas.scrollIntoViewIfNeeded();
+  const box = await canvas.boundingBox();
+  expect(box).not.toBeNull();
+  await page.mouse.move(box!.x + 40, box!.y + 40);
+  await page.mouse.down();
+  await page.mouse.move(box!.x + 220, box!.y + 90, { steps: 8 });
+  await page.mouse.up();
+  await expect(page.getByText("Signature confirmed")).toBeVisible();
+
+  await page.getByRole("button", { name: /Continue/i }).last().click();
+  await expect(page.getByRole("heading", { name: "Review Site Induction" })).toBeVisible();
+  await page.getByRole("button", { name: /Submit induction/i }).click();
+  await expect(page.getByText("UHSF-TEST")).toBeVisible();
+});

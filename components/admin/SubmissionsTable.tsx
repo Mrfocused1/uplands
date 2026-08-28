@@ -15,7 +15,6 @@ export interface SubmissionListItem {
   printReviewStatus: string;
   pinned: boolean;
   isSample: boolean;
-  searchText: string;
   createdAt: string;
   updatedAt: string;
   evidenceCount: number;
@@ -58,7 +57,6 @@ export function SubmissionsTable({ submissions }: { submissions: SubmissionListI
         submission.siteName,
         submission.declarationDate,
         submission.printReviewStatus,
-        submission.searchText,
         submission.isSample ? "sample" : "live",
         submission.pinned ? "pinned" : "",
       ]

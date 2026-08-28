@@ -20,23 +20,23 @@
         {
           "title": "Source RAMS PDF",
           "description": "Original CA Drillers RAMS for Waitrose Newport core holes.",
-          "href": "/rams/RAMS.pdf",
+          "href": "/api/admin/legacy-rams/RAMS.pdf",
           "type": "pdf"
         },
         {
           "title": "RAMS REVIEW FORM Front Page",
           "description": "Method statement / risk assessment details and hazard checklist.",
-          "href": "/rams/rams-review-sheet-1.png",
+          "href": "/api/admin/legacy-rams/rams-review-sheet-1.png",
           "type": "image"
         },
         {
           "title": "RAMS REVIEW FORM Back Page",
           "description": "RAMS review questions with completed comments.",
-          "href": "/rams/rams-review-sheet-2.png",
+          "href": "/api/admin/legacy-rams/rams-review-sheet-2.png",
           "type": "image"
         }
       ],
-      "downloadHref": "/rams/rams-review-form.pdf",
+      "downloadHref": "/api/admin/legacy-rams/rams-review-form.pdf",
       "hazardsYes": [
         "Work At Height",
         "Confined Space Work",
@@ -77,13 +77,13 @@
         {
           "title": "Source RAMS PDF",
           "description": "Original ICH project RAMS for Waitrose Newport.",
-          "href": "/rams/sources/ich-waitrose-newport-rams.pdf",
+          "href": "/api/admin/legacy-rams/sources/ich-waitrose-newport-rams.pdf",
           "type": "pdf"
         }
       ],
-      "downloadHref": "/rams/reviews/ich-projects-waitrose-newport.pdf",
-      "frontHref": "/rams/reviews/ich-projects-waitrose-newport-front.png",
-      "backHref": "/rams/reviews/ich-projects-waitrose-newport-back.png",
+      "downloadHref": "/api/admin/legacy-rams/reviews/ich-projects-waitrose-newport.pdf",
+      "frontHref": "/api/admin/legacy-rams/reviews/ich-projects-waitrose-newport-front.png",
+      "backHref": "/api/admin/legacy-rams/reviews/ich-projects-waitrose-newport-back.png",
       "pressureSystems": "Yes",
       "hazardsYes": [
         "Work At Height",
@@ -142,13 +142,13 @@
         {
           "title": "Source RAMS PDF",
           "description": "Original AWG RAMS for ICH Waitrose Newport AC installation.",
-          "href": "/rams/sources/awg-waitrose-newport-rams.pdf",
+          "href": "/api/admin/legacy-rams/sources/awg-waitrose-newport-rams.pdf",
           "type": "pdf"
         }
       ],
-      "downloadHref": "/rams/reviews/awg-air-conditioning-waitrose-newport.pdf",
-      "frontHref": "/rams/reviews/awg-air-conditioning-waitrose-newport-front.png",
-      "backHref": "/rams/reviews/awg-air-conditioning-waitrose-newport-back.png",
+      "downloadHref": "/api/admin/legacy-rams/reviews/awg-air-conditioning-waitrose-newport.pdf",
+      "frontHref": "/api/admin/legacy-rams/reviews/awg-air-conditioning-waitrose-newport-front.png",
+      "backHref": "/api/admin/legacy-rams/reviews/awg-air-conditioning-waitrose-newport-back.png",
       "pressureSystems": "Yes",
       "hazardsYes": [
         "Hot Works",
@@ -211,13 +211,13 @@
         {
           "title": "Source RAMS DOCX",
           "description": "Original Crabtree method statement/risk assessment document.",
-          "href": "/rams/sources/crabtree-waitrose-newport-rams.docx",
+          "href": "/api/admin/legacy-rams/sources/crabtree-waitrose-newport-rams.docx",
           "type": "file"
         }
       ],
-      "downloadHref": "/rams/reviews/crabtree-insulation-waitrose-newport.pdf",
-      "frontHref": "/rams/reviews/crabtree-insulation-waitrose-newport-front.png",
-      "backHref": "/rams/reviews/crabtree-insulation-waitrose-newport-back.png",
+      "downloadHref": "/api/admin/legacy-rams/reviews/crabtree-insulation-waitrose-newport.pdf",
+      "frontHref": "/api/admin/legacy-rams/reviews/crabtree-insulation-waitrose-newport-front.png",
+      "backHref": "/api/admin/legacy-rams/reviews/crabtree-insulation-waitrose-newport-back.png",
       "pressureSystems": "No",
       "hazardsYes": [
         "Work At Height",
@@ -266,13 +266,13 @@
         {
           "title": "Source RAMS DOC",
           "description": "Original Dy-rect Services method statement.",
-          "href": "/rams/sources/dyrect-services-waitrose-newport-method.doc",
+          "href": "/api/admin/legacy-rams/sources/dyrect-services-waitrose-newport-method.doc",
           "type": "file"
         }
       ],
-      "downloadHref": "/rams/reviews/dyrect-services-waitrose-newport.pdf",
-      "frontHref": "/rams/reviews/dyrect-services-waitrose-newport-front.png",
-      "backHref": "/rams/reviews/dyrect-services-waitrose-newport-back.png",
+      "downloadHref": "/api/admin/legacy-rams/reviews/dyrect-services-waitrose-newport.pdf",
+      "frontHref": "/api/admin/legacy-rams/reviews/dyrect-services-waitrose-newport-front.png",
+      "backHref": "/api/admin/legacy-rams/reviews/dyrect-services-waitrose-newport-back.png",
       "pressureSystems": "Yes",
       "hazardsYes": [
         "Hot Works",
@@ -330,13 +330,13 @@
         {
           "title": "Source RAMS PDF",
           "description": "Original Freeflow26 method statement and site safety plan.",
-          "href": "/rams/sources/freeflow26-waitrose-newport-method.pdf",
+          "href": "/api/admin/legacy-rams/sources/freeflow26-waitrose-newport-method.pdf",
           "type": "pdf"
         }
       ],
-      "downloadHref": "/rams/reviews/freeflow26-waitrose-newport.pdf",
-      "frontHref": "/rams/reviews/freeflow26-waitrose-newport-front.png",
-      "backHref": "/rams/reviews/freeflow26-waitrose-newport-back.png",
+      "downloadHref": "/api/admin/legacy-rams/reviews/freeflow26-waitrose-newport.pdf",
+      "frontHref": "/api/admin/legacy-rams/reviews/freeflow26-waitrose-newport-front.png",
+      "backHref": "/api/admin/legacy-rams/reviews/freeflow26-waitrose-newport-back.png",
       "pressureSystems": "Yes",
       "hazardsYes": [
         "Work At Height",
@@ -390,13 +390,13 @@
         {
           "title": "Source RAMS PPTX",
           "description": "Original Rapid Chiller Hire PowerPoint RAMS.",
-          "href": "/rams/sources/rapid-chiller-temporary-boiler-rams.pptx",
+          "href": "/api/admin/legacy-rams/sources/rapid-chiller-temporary-boiler-rams.pptx",
           "type": "file"
         }
       ],
-      "downloadHref": "/rams/reviews/rapid-chiller-hire-temporary-boiler.pdf",
-      "frontHref": "/rams/reviews/rapid-chiller-hire-temporary-boiler-front.png",
-      "backHref": "/rams/reviews/rapid-chiller-hire-temporary-boiler-back.png",
+      "downloadHref": "/api/admin/legacy-rams/reviews/rapid-chiller-hire-temporary-boiler.pdf",
+      "frontHref": "/api/admin/legacy-rams/reviews/rapid-chiller-hire-temporary-boiler-front.png",
+      "backHref": "/api/admin/legacy-rams/reviews/rapid-chiller-hire-temporary-boiler-back.png",
       "pressureSystems": "Yes",
       "hazardsYes": [
         "Lifting Operations",
@@ -442,13 +442,13 @@
         {
           "title": "Source RAMS PDF",
           "description": "Original Ampthill Flooring RAMS for Waitrose Newport flooring installation.",
-          "href": "/rams/sources/ampthill-flooring-waitrose-newport-rams.pdf",
+          "href": "/api/admin/legacy-rams/sources/ampthill-flooring-waitrose-newport-rams.pdf",
           "type": "pdf"
         }
       ],
-      "downloadHref": "/rams/reviews/ampthill-flooring-waitrose-newport.pdf",
-      "frontHref": "/rams/reviews/ampthill-flooring-waitrose-newport-front.png",
-      "backHref": "/rams/reviews/ampthill-flooring-waitrose-newport-back.png",
+      "downloadHref": "/api/admin/legacy-rams/reviews/ampthill-flooring-waitrose-newport.pdf",
+      "frontHref": "/api/admin/legacy-rams/reviews/ampthill-flooring-waitrose-newport-front.png",
+      "backHref": "/api/admin/legacy-rams/reviews/ampthill-flooring-waitrose-newport-back.png",
       "pressureSystems": "No",
       "hazardsYes": [
         "Hot Works",

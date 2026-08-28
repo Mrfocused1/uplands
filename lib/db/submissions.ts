@@ -56,6 +56,8 @@ export interface EvidenceDocRow {
   updated_by: string | null;
 }
 
+export type SubmissionListRow = Omit<SubmissionRow, "print_data"> & { evidence_count: number };
+
 export function transformFromRow(row: EvidenceDocRow): EvidencePrintTransform {
   return {
     fitMode: (row.fit_mode as EvidencePrintTransform["fitMode"]) || "fit",
@@ -78,6 +80,17 @@ function shouldUseSupabaseSubmissionsDb() {
 
 function assertNoError(error: { message: string } | null, action: string) {
   if (error) throw new Error(`${action}: ${error.message}`);
+}
+
+function isMissingRelationError(error: { message: string } | null) {
+  if (!error) return false;
+  return /schema cache|does not exist|could not find the table/i.test(error.message);
+}
+
+function chunkArray<T>(items: T[], size: number) {
+  const chunks: T[][] = [];
+  for (let index = 0; index < items.length; index += size) chunks.push(items.slice(index, index + size));
+  return chunks;
 }
 
 function dataUrlToStoredDocument(document: NonNullable<UHSF1601PrintData["uploadedDocuments"]>[number]) {
@@ -227,43 +240,57 @@ export async function persistSubmission(printData: UHSF1601PrintData): Promise<{
   return { id, reference };
 }
 
-async function countSupabaseEvidence(submissionId: string) {
-  const supabase = createSupabaseAdminClient();
-  const { count, error } = await supabase
-    .from("evidence_documents")
-    .select("id", { count: "exact", head: true })
-    .eq("submission_id", submissionId)
-    .not("storage_path", "is", null);
-  assertNoError(error, "Unable to count evidence documents");
-  return count ?? 0;
-}
-
-export async function listSubmissions(): Promise<Array<SubmissionRow & { evidence_count: number }>> {
+export async function listSubmissions(): Promise<SubmissionListRow[]> {
   if (shouldUseSupabaseSubmissionsDb()) {
     const supabase = createSupabaseAdminClient();
     const { data, error } = await supabase
-      .from("submissions")
-      .select("*")
+      .from("submissions_with_counts")
+      .select("id, reference, full_name, company_name, site_name, declaration_date, print_review_status, pinned, is_sample, created_at, updated_at, evidence_count")
       .order("pinned", { ascending: false })
       .order("created_at", { ascending: false });
-    assertNoError(error, "Unable to list submissions");
-    return Promise.all(
-      ((data ?? []) as SubmissionRow[]).map(async (row) => ({
-        ...row,
-        evidence_count: await countSupabaseEvidence(row.id),
-      })),
-    );
+    if (!isMissingRelationError(error)) {
+      assertNoError(error, "Unable to list submissions");
+      return (data ?? []) as SubmissionListRow[];
+    }
+
+    const { data: submissions, error: submissionsError } = await supabase
+      .from("submissions")
+      .select("id, reference, full_name, company_name, site_name, declaration_date, print_review_status, pinned, is_sample, created_at, updated_at")
+      .order("pinned", { ascending: false })
+      .order("created_at", { ascending: false });
+    assertNoError(submissionsError, "Unable to list submissions");
+    const rows = (submissions ?? []) as Array<Omit<SubmissionRow, "print_data">>;
+    if (rows.length === 0) return [];
+
+    const ids = rows.map((row) => row.id);
+    const evidenceCounts = new Map<string, number>();
+    for (const idBatch of chunkArray(ids, 100)) {
+      const { data: evidence, error: evidenceError } = await supabase
+        .from("evidence_documents")
+        .select("submission_id")
+        .in("submission_id", idBatch)
+        .not("storage_path", "is", null);
+      assertNoError(evidenceError, "Unable to count evidence documents");
+      for (const item of (evidence ?? []) as Array<{ submission_id: string }>) {
+        evidenceCounts.set(item.submission_id, (evidenceCounts.get(item.submission_id) ?? 0) + 1);
+      }
+    }
+
+    return rows.map((row) => ({
+      ...row,
+      evidence_count: evidenceCounts.get(row.id) ?? 0,
+    })) as SubmissionListRow[];
   }
 
   return getDb()
     .prepare(
       `SELECT s.id, s.reference, s.full_name, s.company_name, s.site_name, s.declaration_date,
-              s.print_review_status, s.print_data, s.pinned, s.is_sample, s.created_at, s.updated_at,
+              s.print_review_status, s.pinned, s.is_sample, s.created_at, s.updated_at,
               (SELECT COUNT(*) FROM evidence_documents e WHERE e.submission_id = s.id AND e.storage_path IS NOT NULL) AS evidence_count
        FROM submissions s
        ORDER BY s.pinned DESC, s.created_at DESC`,
     )
-    .all() as Array<SubmissionRow & { evidence_count: number }>;
+    .all() as SubmissionListRow[];
 }
 
 export async function getSubmission(id: string): Promise<{ row: SubmissionRow; evidence: EvidenceDocRow[] } | null> {

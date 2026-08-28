@@ -4,6 +4,22 @@ import { normaliseText, snippetFor } from "@/lib/rams/text";
 import type { RamsChunkRow, RamsSearchResult } from "@/lib/rams/types";
 
 const STOP_WORDS = new Set([
+  "all",
+  "and",
+  "are",
+  "been",
+  "can",
+  "for",
+  "has",
+  "have",
+  "its",
+  "only",
+  "our",
+  "the",
+  "their",
+  "they",
+  "through",
+  "to",
   "what",
   "where",
   "when",
@@ -28,6 +44,12 @@ function queryTerms(query: string) {
     .filter((term) => term.length > 2 && !STOP_WORDS.has(term));
 }
 
+function queryPhrases(query: string) {
+  const normalised = normaliseText(query);
+  const phrases = normalised.match(/\b[a-z0-9][a-z0-9-]*(?:\s+[a-z0-9][a-z0-9-]*){1,4}\b/g) ?? [];
+  return phrases.filter((phrase) => phrase.split(/\s+/).some((term) => !STOP_WORDS.has(term)));
+}
+
 function boxesForQuery(boxes: Awaited<ReturnType<typeof getChunkBoxes>>, query: string) {
   const terms = queryTerms(query);
   if (terms.length === 0) return boxes.slice(0, 36);
@@ -38,12 +60,23 @@ function boxesForQuery(boxes: Awaited<ReturnType<typeof getChunkBoxes>>, query: 
 function lexicalScore(chunk: RamsChunkRow, query: string) {
   const terms = queryTerms(query);
   if (terms.length === 0) return 0;
+  const section = normaliseText(chunk.section_title ?? "");
+  const text = chunk.normalised_text;
+  const phrases = queryPhrases(query);
   let score = 0;
+  let matchedTerms = 0;
   for (const term of terms) {
-    const matches = chunk.normalised_text.match(new RegExp(`\\b${term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`, "g"))?.length ?? 0;
-    score += matches * 3;
-    if (chunk.section_title?.toLowerCase().includes(term)) score += 2;
+    const matches = text.match(new RegExp(`\\b${term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`, "g"))?.length ?? 0;
+    if (matches > 0) matchedTerms += 1;
+    score += Math.min(matches, 8) * (term.length <= 4 ? 4 : 3);
+    if (section.includes(term)) score += 6;
   }
+  for (const phrase of phrases) {
+    if (text.includes(phrase)) score += 10 + phrase.split(/\s+/).length * 2;
+    if (section.includes(phrase)) score += 12;
+  }
+  if (matchedTerms > 1) score *= 1 + Math.min(0.8, matchedTerms / Math.max(4, terms.length));
+  if (matchedTerms === 1 && terms.length >= 5) score *= 0.35;
   return score / Math.max(1, Math.sqrt(chunk.token_count ?? 1));
 }
 
@@ -67,13 +100,24 @@ export async function searchRams(documentId: string, query: string, limit = 8): 
     .filter((item) => item.score > 0)
     .sort((a, b) => b.score - a.score);
 
-  const scored = (lexicalScored.length > 0 ? lexicalScored : chunks
+  const rawScored = lexicalScored.length > 0 ? lexicalScored : chunks
     .map((chunk) => {
       const semantic = cosineSimilarity(queryEmbedding, embeddingFrom(chunk));
       return { chunk, score: semantic };
     })
     .filter((item) => item.score > 0)
-    .sort((a, b) => b.score - a.score))
+    .sort((a, b) => b.score - a.score);
+
+  const bestScore = rawScored[0]?.score ?? 0;
+  const seenSnippets = new Set<string>();
+  const scored = rawScored
+    .filter((item) => item.score >= bestScore * 0.18)
+    .filter((item) => {
+      const signature = normaliseText(item.chunk.text).slice(0, 160);
+      if (seenSnippets.has(signature)) return false;
+      seenSnippets.add(signature);
+      return true;
+    })
     .slice(0, limit);
 
   const boxes = await getChunkBoxes(scored.map((item) => item.chunk.id));

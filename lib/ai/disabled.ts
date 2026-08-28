@@ -34,9 +34,9 @@ export const disabledAiProvider: AiProvider = {
       const topics = evidenceTopics(input);
       return {
         answer: [
-          `${input.document.contractor} RAMS covers ${input.document.title}${site}${revision}.`,
-          topics.length > 0 ? `The retrieved RAMS evidence indicates coverage of ${topics.join(", ")}.` : "Relevant RAMS evidence has been retrieved below.",
-          "AI is not configured in this environment, so this is a document-intelligence summary with source citations for manual review.",
+          `AI is not configured in this environment, so I have not generated a narrative RAMS answer.`,
+          `Retrieved evidence is shown below for ${input.document.contractor} - ${input.document.title}${site}${revision}.`,
+          topics.length > 0 ? `Matched evidence topics include ${topics.join(", ")}.` : "Review the cited passages manually before relying on this result.",
         ].join(" "),
         citations,
         confidence: "medium",
@@ -47,11 +47,14 @@ export const disabledAiProvider: AiProvider = {
     return {
       answer:
         citations.length > 0
-          ? "AI is not configured in this environment. Relevant RAMS evidence has been retrieved below for manual review."
+          ? "AI is not configured in this environment. Relevant RAMS evidence has been retrieved below for manual review; no AI conclusion has been generated."
           : "AI is not configured in this environment, and no matching RAMS evidence was found for this question.",
       citations,
       confidence: citations.length > 0 ? "medium" : "low",
       model: "disabled",
     };
+  },
+  async reviewRamsQuestions() {
+    throw new Error("AI full RAMS review requires an AI provider.");
   },
 };

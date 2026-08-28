@@ -45,6 +45,9 @@ export async function extractPdfTextWithBoxes(filePath: string, expectedPageCoun
     });
     stdout = result.stdout;
   } catch (error) {
+    if (error && typeof error === "object" && "code" in error && error.code === "ENOENT") {
+      throw new Error("PDF text extraction requires Poppler pdftotext, which is not installed in this runtime.");
+    }
     const message = error instanceof Error ? error.message : "Unable to extract PDF text.";
     throw new Error(`PDF text extraction failed. Ensure Poppler is installed. ${message}`);
   }

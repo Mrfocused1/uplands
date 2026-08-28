@@ -2,6 +2,7 @@ import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
 import { getDb } from "@/lib/db";
 import { boolEnv, env, isSupabaseConfigured } from "@/lib/env";
+import { adminAuthRequiredForEnvironment } from "@/lib/auth/adminMode";
 import { verifyPassword } from "@/lib/auth/password";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -24,7 +25,7 @@ const PUBLIC_ADMIN: AdminSession = { id: 0, username: "Admin", displayName: "Adm
 const SIGNED_COOKIE_PREFIX = "v1";
 
 function authRequired() {
-  return boolEnv("ADMIN_AUTH_REQUIRED", false);
+  return adminAuthRequiredForEnvironment(process.env.NODE_ENV, boolEnv("ADMIN_AUTH_REQUIRED", false));
 }
 
 function shouldUseSupabaseAuth() {

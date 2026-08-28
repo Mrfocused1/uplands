@@ -1,3 +1,4 @@
+/* eslint-disable @next/next/no-img-element */
 "use client";
 
 import { sectionLabels } from "@/config/uhsf1601Schema";

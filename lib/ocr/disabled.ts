@@ -1,4 +1,4 @@
-import type { OcrProvider } from "@/lib/ocr/types";
+import type { OcrProvider } from "./types.ts";
 
 export const disabledOcrProvider: OcrProvider = {
   name: "disabled",

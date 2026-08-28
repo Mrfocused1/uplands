@@ -44,6 +44,9 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
       headers: { "Content-Type": "image/png", "Cache-Control": "private, no-store" },
     });
   } catch (error) {
+    if (error && typeof error === "object" && "code" in error && error.code === "ENOENT") {
+      return NextResponse.json({ error: "PDF page rendering requires Poppler pdftoppm, which is not installed in this runtime." }, { status: 501 });
+    }
     const message = error instanceof Error ? error.message : "Unable to render this PDF page.";
     return NextResponse.json({ error: message }, { status: 500 });
   } finally {

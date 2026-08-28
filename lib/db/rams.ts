@@ -48,17 +48,15 @@ function assertNoError(error: { message: string } | null, action: string) {
   if (error) throw new Error(`${action}: ${error.message}`);
 }
 
+function isMissingRelationError(error: { message: string } | null) {
+  if (!error) return false;
+  return /schema cache|does not exist|could not find the table/i.test(error.message);
+}
+
 function chunkArray<T>(items: T[], size: number) {
   const chunks: T[][] = [];
   for (let index = 0; index < items.length; index += size) chunks.push(items.slice(index, index + size));
   return chunks;
-}
-
-async function countSupabaseRows(table: string, documentId: string) {
-  const supabase = createSupabaseAdminClient();
-  const { count, error } = await supabase.from(table).select("id", { count: "exact", head: true }).eq("rams_document_id", documentId);
-  assertNoError(error, `Unable to count ${table}`);
-  return count ?? 0;
 }
 
 export async function createRamsDocument(input: CreateRamsDocumentInput) {
@@ -121,15 +119,40 @@ export async function createRamsDocument(input: CreateRamsDocumentInput) {
 export async function listRamsDocuments(): Promise<RamsDocumentWithCounts[]> {
   if (shouldUseSupabaseRamsDb()) {
     const supabase = createSupabaseAdminClient();
-    const { data, error } = await supabase.from("rams_documents").select("*").order("created_at", { ascending: false });
-    assertNoError(error, "Unable to list RAMS documents");
-    return Promise.all(
-      ((data ?? []) as RamsDocumentRow[]).map(async (row) => ({
-        ...row,
-        section_count: await countSupabaseRows("rams_sections", row.id),
-        chunk_count: await countSupabaseRows("rams_chunks", row.id),
-      })),
-    );
+    const { data, error } = await supabase.from("rams_documents_with_counts").select("*").order("created_at", { ascending: false });
+    if (!isMissingRelationError(error)) {
+      assertNoError(error, "Unable to list RAMS documents");
+      return (data ?? []) as RamsDocumentWithCounts[];
+    }
+
+    const { data: documents, error: documentsError } = await supabase.from("rams_documents").select("*").order("created_at", { ascending: false });
+    assertNoError(documentsError, "Unable to list RAMS documents");
+    const rows = (documents ?? []) as RamsDocumentRow[];
+    if (rows.length === 0) return [];
+
+    const ids = rows.map((row) => row.id);
+    const sectionCounts = new Map<string, number>();
+    const chunkCounts = new Map<string, number>();
+
+    for (const idBatch of chunkArray(ids, 100)) {
+      const { data: sections, error: sectionsError } = await supabase.from("rams_sections").select("rams_document_id").in("rams_document_id", idBatch);
+      assertNoError(sectionsError, "Unable to count RAMS sections");
+      for (const section of (sections ?? []) as Array<{ rams_document_id: string }>) {
+        sectionCounts.set(section.rams_document_id, (sectionCounts.get(section.rams_document_id) ?? 0) + 1);
+      }
+
+      const { data: chunks, error: chunksError } = await supabase.from("rams_chunks").select("rams_document_id").in("rams_document_id", idBatch);
+      assertNoError(chunksError, "Unable to count RAMS chunks");
+      for (const chunk of (chunks ?? []) as Array<{ rams_document_id: string }>) {
+        chunkCounts.set(chunk.rams_document_id, (chunkCounts.get(chunk.rams_document_id) ?? 0) + 1);
+      }
+    }
+
+    return rows.map((row) => ({
+      ...row,
+      section_count: sectionCounts.get(row.id) ?? 0,
+      chunk_count: chunkCounts.get(row.id) ?? 0,
+    }));
   }
 
   return getDb()
@@ -195,7 +218,6 @@ export async function replaceRamsProcessedData(
 
   if (shouldUseSupabaseRamsDb()) {
     const supabase = createSupabaseAdminClient();
-    assertNoError((await supabase.from("rams_review_evidence").delete().eq("rams_document_id", documentId)).error, "Unable to delete RAMS review evidence");
     assertNoError((await supabase.from("rams_chunks").delete().eq("rams_document_id", documentId)).error, "Unable to delete RAMS chunks");
     assertNoError((await supabase.from("rams_sections").delete().eq("rams_document_id", documentId)).error, "Unable to delete RAMS sections");
 
@@ -274,7 +296,6 @@ export async function replaceRamsProcessedData(
   );
 
   const run = getDb().transaction(() => {
-    getDb().prepare("DELETE FROM rams_review_evidence WHERE rams_document_id = ?").run(documentId);
     getDb().prepare("DELETE FROM rams_sections WHERE rams_document_id = ?").run(documentId);
     getDb().prepare("DELETE FROM rams_chunks WHERE rams_document_id = ?").run(documentId);
 

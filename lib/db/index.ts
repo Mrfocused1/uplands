@@ -188,6 +188,12 @@ function migrate(db: Db) {
 }
 
 function seedAdmin(db: Db) {
+  const production = process.env.NODE_ENV === "production";
+  const localAdminAuth = (process.env.ADMIN_AUTH_PROVIDER ?? "local") === "local";
+  if (production && localAdminAuth && (!process.env.ADMIN_USERNAME || !process.env.ADMIN_PASSWORD || !process.env.ADMIN_SESSION_SECRET)) {
+    throw new Error("Production local admin auth requires ADMIN_USERNAME, ADMIN_PASSWORD and ADMIN_SESSION_SECRET.");
+  }
+
   const username = process.env.ADMIN_USERNAME || "Matty";
   const password = process.env.ADMIN_PASSWORD || "1234";
 

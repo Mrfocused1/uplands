@@ -1,6 +1,7 @@
+/* eslint-disable @next/next/no-img-element */
 "use client";
 
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, MouseEvent, PointerEvent, useEffect, useMemo, useRef, useState } from "react";
 import type { PDFDocumentLoadingTask, PDFDocumentProxy, RenderTask } from "pdfjs-dist";
 import { Spinner } from "@/components/Spinner";
 
@@ -84,6 +85,15 @@ interface CopilotAnswer {
   model: string;
   aiConfigured: boolean;
   citations: SearchResult[];
+}
+
+interface FullReviewRecommendation {
+  questionKey: string;
+  recommendation: Answer;
+  comment: string;
+  citations: SearchResult[];
+  confidence: "low" | "medium" | "high";
+  status: "needs_human_confirmation";
 }
 
 const faqSearches = [
@@ -196,10 +206,18 @@ function ReviewEvidence({
   review,
   onResolveEvidence,
   onShowEvidence,
+  onRunFullReview,
+  fullReviewing,
+  fullReview,
+  fullReviewError,
 }: {
   review: LegacyRamsReview;
   onResolveEvidence: (query: string) => Promise<SearchResult[]>;
   onShowEvidence: (result: SearchResult) => void;
+  onRunFullReview: () => void;
+  fullReviewing: boolean;
+  fullReview: { model: string; recommendations: FullReviewRecommendation[] } | null;
+  fullReviewError: string;
 }) {
   const [tab, setTab] = useState<"questions" | "hazards">("questions");
   const [openEvidenceId, setOpenEvidenceId] = useState<string | null>(null);
@@ -257,23 +275,61 @@ function ReviewEvidence({
           <h2 className="font-slab text-2xl text-uplands-charcoal">Review Answers</h2>
           <p className="mt-1 text-sm text-uplands-muted">Recorded UHSF16.01 answers for this RAMS review.</p>
         </div>
-        <div className="flex border border-zinc-300 p-1">
-          <button
-            type="button"
-            onClick={() => setTab("questions")}
-            className={`px-4 py-2 text-sm font-bold uppercase ${tab === "questions" ? "bg-uplands-charcoal text-white" : "text-zinc-700 hover:text-uplands-magenta"}`}
-          >
-            Questions
+        <div className="flex flex-wrap gap-3">
+          <button type="button" onClick={onRunFullReview} disabled={fullReviewing} className="inline-flex min-h-10 items-center gap-2 bg-uplands-magenta px-4 text-sm font-bold uppercase text-white disabled:opacity-60">
+            {fullReviewing && <Spinner className="h-4 w-4" />}
+            {fullReviewing ? "Reviewing..." : "Run AI Review"}
           </button>
-          <button
-            type="button"
-            onClick={() => setTab("hazards")}
-            className={`px-4 py-2 text-sm font-bold uppercase ${tab === "hazards" ? "bg-uplands-charcoal text-white" : "text-zinc-700 hover:text-uplands-magenta"}`}
-          >
-            Hazards
-          </button>
+          <div className="flex border border-zinc-300 p-1">
+            <button
+              type="button"
+              onClick={() => setTab("questions")}
+              className={`px-4 py-2 text-sm font-bold uppercase ${tab === "questions" ? "bg-uplands-charcoal text-white" : "text-zinc-700 hover:text-uplands-magenta"}`}
+            >
+              Questions
+            </button>
+            <button
+              type="button"
+              onClick={() => setTab("hazards")}
+              className={`px-4 py-2 text-sm font-bold uppercase ${tab === "hazards" ? "bg-uplands-charcoal text-white" : "text-zinc-700 hover:text-uplands-magenta"}`}
+            >
+              Hazards
+            </button>
+          </div>
         </div>
       </div>
+      {fullReviewError && <p className="mb-4 border-l-4 border-red-600 bg-red-50 p-3 text-sm font-bold text-red-700">{fullReviewError}</p>}
+      {fullReview && (
+        <div className="mb-5 border border-zinc-200 bg-uplands-paper p-4">
+          <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <h3 className="font-din text-base text-uplands-charcoal">AI Review Recommendations</h3>
+              <p className="text-xs font-bold uppercase text-uplands-muted">Model: {fullReview.model} · Human confirmation required</p>
+            </div>
+          </div>
+          <div className="mt-3 divide-y divide-zinc-200 border border-zinc-200 bg-white">
+            {fullReview.recommendations.map((recommendation) => (
+              <details key={recommendation.questionKey}>
+                <summary className="cursor-pointer px-4 py-3">
+                  <span className="font-din text-sm text-uplands-charcoal">{questionText[recommendation.questionKey] ?? recommendation.questionKey}</span>
+                  <span className={`ml-3 inline-block px-2.5 py-1 text-xs font-bold ring-1 ${answerClass(recommendation.recommendation)}`}>
+                    {recommendation.recommendation}
+                  </span>
+                </summary>
+                <div className="space-y-3 border-t border-zinc-100 bg-zinc-50 p-4">
+                  <p className="text-sm leading-6 text-zinc-800">{recommendation.comment}</p>
+                  <p className="text-xs font-bold uppercase text-uplands-muted">Confidence: {recommendation.confidence}</p>
+                  {recommendation.citations.length > 0 ? (
+                    <SearchResultsList results={recommendation.citations} onShowEvidence={onShowEvidence} />
+                  ) : (
+                    <p className="text-sm text-uplands-muted">No validated citation was returned for this recommendation.</p>
+                  )}
+                </div>
+              </details>
+            ))}
+          </div>
+        </div>
+      )}
       <div className="divide-y divide-zinc-200 border border-zinc-200 bg-white">
         {items.map((item) => {
           const evidenceId = `${tab}:${item.id}`;
@@ -315,6 +371,55 @@ function ReviewEvidence({
           );
         })}
       </div>
+    </section>
+  );
+}
+
+function FullReviewPanel({
+  onRunFullReview,
+  fullReviewing,
+  fullReview,
+  fullReviewError,
+  onShowEvidence,
+}: {
+  onRunFullReview: () => void;
+  fullReviewing: boolean;
+  fullReview: { model: string; recommendations: FullReviewRecommendation[] } | null;
+  fullReviewError: string;
+  onShowEvidence: (result: SearchResult) => void;
+}) {
+  return (
+    <section className="border border-zinc-200 bg-white p-5 shadow-soft">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h2 className="font-slab text-2xl text-uplands-charcoal">Full AI Review</h2>
+          <p className="mt-1 text-sm text-uplands-muted">Generate UHSF16.01 recommendations from retrieved RAMS evidence. Human confirmation is required.</p>
+        </div>
+        <button type="button" onClick={onRunFullReview} disabled={fullReviewing} className="inline-flex min-h-10 items-center gap-2 bg-uplands-magenta px-4 text-sm font-bold uppercase text-white disabled:opacity-60">
+          {fullReviewing && <Spinner className="h-4 w-4" />}
+          {fullReviewing ? "Reviewing..." : "Run AI Review"}
+        </button>
+      </div>
+      {fullReviewError && <p className="mt-4 border-l-4 border-red-600 bg-red-50 p-3 text-sm font-bold text-red-700">{fullReviewError}</p>}
+      {fullReview && (
+        <div className="mt-4 divide-y divide-zinc-200 border border-zinc-200">
+          {fullReview.recommendations.map((recommendation) => (
+            <details key={recommendation.questionKey}>
+              <summary className="cursor-pointer px-4 py-3">
+                <span className="font-din text-sm text-uplands-charcoal">{questionText[recommendation.questionKey] ?? recommendation.questionKey}</span>
+                <span className={`ml-3 inline-block px-2.5 py-1 text-xs font-bold ring-1 ${answerClass(recommendation.recommendation)}`}>
+                  {recommendation.recommendation}
+                </span>
+              </summary>
+              <div className="space-y-3 border-t border-zinc-100 bg-zinc-50 p-4">
+                <p className="text-sm leading-6 text-zinc-800">{recommendation.comment}</p>
+                <p className="text-xs font-bold uppercase text-uplands-muted">Confidence: {recommendation.confidence} · Model: {fullReview.model}</p>
+                <SearchResultsList results={recommendation.citations} onShowEvidence={onShowEvidence} emptyText="No validated citation was returned for this recommendation." />
+              </div>
+            </details>
+          ))}
+        </div>
+      )}
     </section>
   );
 }
@@ -383,6 +488,11 @@ function DocumentInformation({
             sections.map((section) => {
               const startPage = Math.max(1, section.startPage);
               const endPage = Math.max(startPage, section.endPage);
+              const showPage = (event: MouseEvent<HTMLButtonElement> | PointerEvent<HTMLButtonElement>) => {
+                event.preventDefault();
+                event.stopPropagation();
+                onShowPage(startPage);
+              };
               return (
                 <details key={section.id} className="border-b border-zinc-100 last:border-b-0">
                   <summary className="cursor-pointer px-4 py-3 text-sm font-bold text-zinc-800 hover:bg-uplands-paper">{section.title}</summary>
@@ -393,7 +503,10 @@ function DocumentInformation({
                     </span>
                     <button
                       type="button"
-                      onClick={() => onShowPage(startPage)}
+                      onClick={showPage}
+                      onPointerUp={(event) => {
+                        if (event.pointerType !== "mouse") showPage(event);
+                      }}
                       className="w-fit border border-uplands-magenta px-3 py-2 text-xs font-bold uppercase text-uplands-magenta hover:bg-uplands-magenta hover:text-white"
                     >
                       Show Page
@@ -412,12 +525,16 @@ function DocumentInformation({
 function DocumentIntelligenceSummary({
   document,
   processing,
+  asking,
   onProcess,
+  onReadSummary,
   onClose,
 }: {
   document: RamsIntelligenceDocument;
   processing: boolean;
+  asking: boolean;
   onProcess: () => void;
+  onReadSummary: () => void;
   onClose: () => void;
 }) {
   return (
@@ -442,8 +559,14 @@ function DocumentIntelligenceSummary({
               {processing ? "Processing..." : "Process RAMS"}
             </button>
           )}
-          <button type="button" disabled className="min-h-10 border border-zinc-300 px-4 text-sm font-bold uppercase text-zinc-400">
-            Read Summary
+          <button
+            type="button"
+            onClick={onReadSummary}
+            disabled={asking || document.processingStatus !== "READY"}
+            className="inline-flex min-h-10 items-center gap-2 border border-zinc-300 px-4 text-sm font-bold uppercase text-zinc-700 disabled:text-zinc-400"
+          >
+            {asking && <Spinner className="h-4 w-4" />}
+            {asking ? "Reading..." : "Read Summary"}
           </button>
           <button type="button" onClick={onClose} className="min-h-10 border border-zinc-300 px-4 text-sm font-bold uppercase text-zinc-700">
             Close
@@ -690,7 +813,9 @@ function UploadModal({
       const data = await response.json();
       if (!response.ok && response.status !== 202) throw new Error(data.error || "Unable to upload RAMS.");
       const refreshed = await fetch("/api/admin/rams").then((item) => item.json());
-      const document = refreshed.documents?.[0] as RamsIntelligenceDocument | undefined;
+      const document =
+        ((refreshed.documents as RamsIntelligenceDocument[] | undefined)?.find((item) => item.id === data.document?.id) as RamsIntelligenceDocument | undefined) ??
+        (data.document as RamsIntelligenceDocument | undefined);
       if (document) onUploaded(document);
       form.reset();
       onClose();
@@ -755,7 +880,7 @@ function UploadModal({
         {busy && (
           <div className="mt-4 flex items-center gap-3 border-l-4 border-uplands-magenta bg-uplands-paper p-3 text-sm font-bold">
             <Spinner />
-            <span>Uploading RAMS... Extracting document text... Creating search index...</span>
+            <span>Uploading RAMS... Processing will start automatically when a worker is configured, or can be started from the RAMS detail screen.</span>
           </div>
         )}
 
@@ -765,7 +890,7 @@ function UploadModal({
           </button>
           <button type="submit" disabled={busy} className="inline-flex min-h-11 items-center gap-2 bg-uplands-magenta px-5 text-sm font-bold uppercase text-white disabled:opacity-60">
             {busy && <Spinner className="h-4 w-4" />}
-            {busy ? "Processing..." : "Upload & Process"}
+            {busy ? "Uploading..." : "Upload RAMS"}
           </button>
         </div>
       </form>
@@ -785,7 +910,7 @@ function PdfWorkspace({
   onDocumentUpdated: (document: RamsIntelligenceDocument) => void;
 }) {
   const [page, setPage] = useState(1);
-  const [zoom, setZoom] = useState(100);
+  const [zoom, setZoom] = useState(() => (typeof window !== "undefined" && window.innerWidth < 768 ? 60 : 100));
   const [query, setQuery] = useState("");
   const [searching, setSearching] = useState(false);
   const [results, setResults] = useState<SearchResult[]>([]);
@@ -796,6 +921,9 @@ function PdfWorkspace({
   const [asking, setAsking] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [answer, setAnswer] = useState<CopilotAnswer | null>(null);
+  const [fullReview, setFullReview] = useState<{ model: string; recommendations: FullReviewRecommendation[] } | null>(null);
+  const [fullReviewing, setFullReviewing] = useState(false);
+  const [fullReviewError, setFullReviewError] = useState("");
   const [error, setError] = useState("");
   const [highlight, setHighlight] = useState<SearchResult | null>(null);
   const [highlightPulse, setHighlightPulse] = useState(0);
@@ -834,7 +962,8 @@ function PdfWorkspace({
     setPage(safePage);
     setHighlightPulse((value) => value + 1);
     window.setTimeout(() => {
-      pdfPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      const smallViewport = window.matchMedia("(max-width: 767px)").matches;
+      pdfPanelRef.current?.scrollIntoView({ behavior: smallViewport ? "auto" : "smooth", block: "start" });
     }, 0);
   }
 
@@ -888,16 +1017,15 @@ function PdfWorkspace({
     }
   }
 
-  async function askCopilot(event: FormEvent) {
-    event.preventDefault();
-    if (!question.trim()) return;
+  async function askRamsQuestion(nextQuestion: string) {
+    if (!nextQuestion.trim()) return;
     setAsking(true);
     setError("");
     try {
       const response = await fetch(`/api/admin/rams/${document.id}/ask`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question }),
+        body: JSON.stringify({ question: nextQuestion }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Unable to answer question.");
@@ -909,6 +1037,17 @@ function PdfWorkspace({
     } finally {
       setAsking(false);
     }
+  }
+
+  async function askCopilot(event: FormEvent) {
+    event.preventDefault();
+    await askRamsQuestion(question);
+  }
+
+  function readSummary() {
+    const summaryQuestion = "Give me a concise summary of this RAMS.";
+    setQuestion(summaryQuestion);
+    void askRamsQuestion(summaryQuestion);
   }
 
   async function runProcessing() {
@@ -926,6 +1065,21 @@ function PdfWorkspace({
       setError(caught instanceof Error ? caught.message : "Processing failed.");
     } finally {
       setProcessing(false);
+    }
+  }
+
+  async function runFullReview() {
+    setFullReviewing(true);
+    setFullReviewError("");
+    try {
+      const response = await fetch(`/api/admin/rams/${document.id}/full-review`, { method: "POST" });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Unable to run AI RAMS review.");
+      setFullReview(data);
+    } catch (caught) {
+      setFullReviewError(caught instanceof Error ? caught.message : "Unable to run AI RAMS review.");
+    } finally {
+      setFullReviewing(false);
     }
   }
 
@@ -948,6 +1102,7 @@ function PdfWorkspace({
               </button>
             </div>
             <select value={zoom} onChange={(event) => setZoom(Number(event.target.value))} className="min-h-10 border border-zinc-300 bg-white px-3 text-sm font-bold">
+              <option value={60}>60%</option>
               <option value={80}>80%</option>
               <option value={100}>100%</option>
               <option value={125}>125%</option>
@@ -974,7 +1129,24 @@ function PdfWorkspace({
             onShowPage={(targetPage) => jumpToPage(targetPage)}
           />
 
-          <DocumentIntelligenceSummary document={document} processing={processing} onProcess={runProcessing} onClose={onClose} />
+          <DocumentIntelligenceSummary
+            document={document}
+            processing={processing}
+            asking={asking}
+            onProcess={runProcessing}
+            onReadSummary={readSummary}
+            onClose={onClose}
+          />
+
+          {!legacyReview && (
+            <FullReviewPanel
+              onRunFullReview={runFullReview}
+              fullReviewing={fullReviewing}
+              fullReview={fullReview}
+              fullReviewError={fullReviewError}
+              onShowEvidence={showEvidence}
+            />
+          )}
 
           {legacyReview && (
             <section className="border border-zinc-200 bg-white p-5 shadow-soft">
@@ -1008,7 +1180,17 @@ function PdfWorkspace({
             </section>
           )}
 
-          {legacyReview && <ReviewEvidence review={legacyReview} onResolveEvidence={searchDocument} onShowEvidence={showEvidence} />}
+          {legacyReview && (
+            <ReviewEvidence
+              review={legacyReview}
+              onResolveEvidence={searchDocument}
+              onShowEvidence={showEvidence}
+              onRunFullReview={runFullReview}
+              fullReviewing={fullReviewing}
+              fullReview={fullReview}
+              fullReviewError={fullReviewError}
+            />
+          )}
 
           <section className="border border-zinc-200 bg-white p-5 shadow-soft">
             <h2 className="font-slab text-2xl text-uplands-charcoal">Search RAMS</h2>

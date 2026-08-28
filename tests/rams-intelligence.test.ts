@@ -4,7 +4,7 @@ import { detectSections } from "../lib/rams/detectSections.ts";
 import { disabledAiProvider } from "../lib/ai/disabled.ts";
 import { ramsCopilotRetrievalQuery } from "../lib/rams/copilotRetrieval.ts";
 import { normaliseText, snippetFor, tokenCount } from "../lib/rams/text.ts";
-import { validateRamsStructuredAnswer } from "../lib/ai/validateRamsAnswer.ts";
+import { validateRamsReviewRecommendations, validateRamsStructuredAnswer } from "../lib/ai/validateRamsAnswer.ts";
 
 test("normaliseText supports keyword matching", () => {
   assert.equal(normaliseText("IPAF / PASMA & PPE!"), "ipaf pasma ppe");
@@ -41,6 +41,34 @@ test("detectSections identifies RAMS headings without an LLM", () => {
   assert.equal(sections[1].title, "RISK ASSESSMENT");
 });
 
+test("detectSections clamps same-page sections and rejects noisy table fragments", () => {
+  const sections = detectSections([
+    {
+      pageNumber: 1,
+      width: 595,
+      height: 842,
+      text: [
+        "METHOD STATEMENT - FLOORING INSTALLATION",
+        "Activity Persons At Risk Assessor Assessment No.",
+        "Floor Area manual handling there is adequate room available allowing any operations to",
+        "Manual Handling Methods",
+      ].join("\n"),
+      items: [],
+    },
+    {
+      pageNumber: 2,
+      width: 595,
+      height: 842,
+      text: "RISK ASSESSMENT\nControls",
+      items: [],
+    },
+  ]);
+
+  assert.equal(sections.some((section) => section.endPage < section.startPage), false);
+  assert.equal(sections.some((section) => /Activity Persons At Risk/i.test(section.title)), false);
+  assert.equal(sections.some((section) => /Floor Area manual handling/i.test(section.title)), false);
+});
+
 test("AI structured answer validation rejects fabricated citation IDs", () => {
   const answer = validateRamsStructuredAnswer(
     {
@@ -54,6 +82,27 @@ test("AI structured answer validation rejects fabricated citation IDs", () => {
 
   assert.deepEqual(answer.citations, ["chunk-a"]);
   assert.equal(answer.confidence, "high");
+});
+
+test("full AI review validation strips fabricated citation IDs per question", () => {
+  const recommendations = validateRamsReviewRecommendations(
+    {
+      recommendations: [
+        {
+          questionKey: "q6",
+          recommendation: "Yes",
+          comment: "Training evidence was found.",
+          citations: ["allowed-q6", "fabricated-q6"],
+          confidence: "high",
+        },
+      ],
+    },
+    new Map([["q6", new Set(["allowed-q6"])]]),
+  );
+
+  assert.equal(recommendations[0].questionKey, "q6");
+  assert.deepEqual(recommendations[0].citations, ["allowed-q6"]);
+  assert.equal(recommendations[0].status, "needs_human_confirmation");
 });
 
 test("AI structured answer validation rejects empty answers", () => {
@@ -95,7 +144,8 @@ test("disabled AI provider returns a useful evidence-led summary fallback", asyn
     ],
   });
 
-  assert.match(answer.answer, /Ampthill Flooring Limited RAMS covers Flooring installation/);
+  assert.match(answer.answer, /AI is not configured/);
+  assert.match(answer.answer, /Ampthill Flooring Limited - Flooring installation/);
   assert.match(answer.answer, /risk assessments/);
   assert.match(answer.answer, /PPE/);
   assert.deepEqual(answer.citations, ["chunk-1"]);

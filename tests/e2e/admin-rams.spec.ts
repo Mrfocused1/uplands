@@ -76,7 +76,7 @@ test("legacy imported RAMS workspace renders PDF pages and highlights evidence",
     });
   });
   await page.route("**/api/admin/rams/legacy-ampthill-test/pdf**", (route) =>
-    route.fulfill({ contentType: "application/pdf", path: "public/rams/sources/ampthill-flooring-waitrose-newport-rams.pdf" }),
+    route.fulfill({ contentType: "application/pdf", path: "private/rams/sources/ampthill-flooring-waitrose-newport-rams.pdf" }),
   );
   await page.route("**/api/admin/rams/legacy-ampthill-test/sections", (route) =>
     route.fulfill({
@@ -108,6 +108,35 @@ test("legacy imported RAMS workspace renders PDF pages and highlights evidence",
       }),
     }),
   );
+  await page.route("**/api/admin/rams/legacy-ampthill-test/full-review", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        model: "gpt-5-mini",
+        recommendations: [
+          {
+            questionKey: "q10",
+            recommendation: "Yes",
+            comment: "PPE is identified in the retrieved RAMS evidence.",
+            confidence: "high",
+            status: "needs_human_confirmation",
+            citations: [
+              {
+                chunkId: "chunk-ppe",
+                pageNumber: 10,
+                endPageNumber: 10,
+                sectionTitle: "PPE Requirements",
+                snippet: "Suitable PPE is required for flooring preparation and installation.",
+                score: 0.9,
+                text: "Suitable PPE is required for flooring preparation and installation.",
+                boxes: [{ page_number: 10, x: 70, y: 110, width: 180, height: 20, page_width: 595, page_height: 842 }],
+              },
+            ],
+          },
+        ],
+      }),
+    }),
+  );
 
   await page.goto("/admin/rams");
   const uploadedRams = page.locator("section").filter({ has: page.getByRole("heading", { name: "Uploaded RAMS" }) });
@@ -122,6 +151,9 @@ test("legacy imported RAMS workspace renders PDF pages and highlights evidence",
   await expect(page.getByRole("heading", { name: "RAMS REVIEW FORM Back Page" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Review Answers" })).toBeVisible();
   await expect(page.getByText("10. Has appropriate PPE been identified?")).toBeVisible();
+  await page.getByRole("button", { name: "Run AI Review" }).click();
+  await expect(page.getByRole("heading", { name: "AI Review Recommendations" })).toBeVisible();
+  await expect(page.getByText("Human confirmation required")).toBeVisible();
 
   const ppeReviewAnswer = page.getByTestId("review-evidence-questions-q10");
   await ppeReviewAnswer.getByRole("button", { name: "Show RAMS References" }).click();
@@ -136,9 +168,10 @@ test("legacy imported RAMS workspace renders PDF pages and highlights evidence",
   await expect(page.locator('canvas[aria-label="Ampthill Flooring Limited RAMS page 60"]')).toBeVisible();
   await expect(page.getByText("Unable to load this RAMS PDF.")).toHaveCount(0);
 
-  await page.getByRole("button", { name: /PPE Requirements/ }).first().click();
-  await expect(page.getByText("Suitable PPE is required")).toBeVisible();
-  await page.getByText("Show in RAMS").first().click();
+  const searchRams = page.getByRole("heading", { name: "Search RAMS" }).locator("xpath=ancestor::section[1]");
+  await searchRams.getByRole("button", { name: /^PPE Requirements \+$/ }).click();
+  await expect(searchRams.getByText("Suitable PPE is required").first()).toBeVisible();
+  await searchRams.getByText("Show in RAMS").first().click();
   await expect(page.locator('canvas[aria-label="Ampthill Flooring Limited RAMS page 10"]')).toBeVisible();
   await expect(page.getByTestId("rams-highlight")).toBeVisible();
 });

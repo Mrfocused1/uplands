@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 
 const heroSlides = [
@@ -14,9 +15,11 @@ export default function Home() {
       <header className="bg-white">
         <div className="mx-auto flex min-h-28 w-full max-w-7xl items-center justify-between gap-6 px-5 py-6 sm:px-8 lg:min-h-36">
           <Link href="/" aria-label="Uplands home">
-            <img
+            <Image
               src="/wp-content/uploads/2018/08/uplands-construction-logo.svg"
               alt="Uplands Construction"
+              width={320}
+              height={62}
               className="h-auto w-52 sm:w-64 lg:w-80"
             />
           </Link>
@@ -73,10 +76,12 @@ export default function Home() {
         <section className="relative min-h-[560px] overflow-hidden bg-zinc-900 sm:min-h-[620px]">
           <div className="absolute inset-0" aria-hidden="true">
             {heroSlides.map((src, index) => (
-              <img
+              <Image
                 key={src}
                 src={src}
                 alt=""
+                fill
+                priority={index === 0}
                 className="absolute inset-0 h-full w-full object-cover opacity-0 [animation:heroFade_25s_infinite]"
                 style={{ animationDelay: `${index * 5}s` }}
               />

@@ -285,6 +285,7 @@ function FormTab({ id, printData }: { id: string; printData: UHSF1601PrintData }
                 <dt className="text-sm text-zinc-500">{row.label}</dt>
                 <dd className="text-sm font-medium text-zinc-900 sm:col-span-2">
                   {row.imageDataUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
                     <img src={row.imageDataUrl} alt={row.label} className="max-h-20 border border-zinc-200 bg-white" />
                   ) : (
                     row.text
