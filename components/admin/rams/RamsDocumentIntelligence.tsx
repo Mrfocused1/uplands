@@ -302,24 +302,28 @@ function DocumentInformation({
             </div>
           )}
           {!loadingSections &&
-            sections.map((section) => (
-              <details key={section.id} className="border-b border-zinc-100 last:border-b-0">
-                <summary className="cursor-pointer px-4 py-3 text-sm font-bold text-zinc-800 hover:bg-uplands-paper">{section.title}</summary>
-                <div className="grid gap-3 bg-zinc-50 px-4 py-3 text-sm text-zinc-700 sm:grid-cols-[1fr_auto] sm:items-center">
-                  <span>
-                    Page {section.startPage}
-                    {section.endPage !== section.startPage ? ` to ${section.endPage}` : ""}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => onShowPage(section.startPage)}
-                    className="w-fit border border-uplands-magenta px-3 py-2 text-xs font-bold uppercase text-uplands-magenta hover:bg-uplands-magenta hover:text-white"
-                  >
-                    Show Page
-                  </button>
-                </div>
-              </details>
-            ))}
+            sections.map((section) => {
+              const startPage = Math.max(1, section.startPage);
+              const endPage = Math.max(startPage, section.endPage);
+              return (
+                <details key={section.id} className="border-b border-zinc-100 last:border-b-0">
+                  <summary className="cursor-pointer px-4 py-3 text-sm font-bold text-zinc-800 hover:bg-uplands-paper">{section.title}</summary>
+                  <div className="grid gap-3 bg-zinc-50 px-4 py-3 text-sm text-zinc-700 sm:grid-cols-[1fr_auto] sm:items-center">
+                    <span>
+                      Page {startPage}
+                      {endPage > startPage ? ` to ${endPage}` : ""}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => onShowPage(startPage)}
+                      className="w-fit border border-uplands-magenta px-3 py-2 text-xs font-bold uppercase text-uplands-magenta hover:bg-uplands-magenta hover:text-white"
+                    >
+                      Show Page
+                    </button>
+                  </div>
+                </details>
+              );
+            })}
           {!loadingSections && sections.length === 0 && <p className="p-4 text-sm text-uplands-muted">No section titles have been extracted for this RAMS.</p>}
         </div>
       </details>
@@ -391,6 +395,11 @@ function SearchResultsList({ results, onShowEvidence }: { results: SearchResult[
   );
 }
 
+function isPdfCancellation(caught: unknown) {
+  if (!(caught instanceof Error)) return false;
+  return caught.name === "RenderingCancelledException" || caught.name === "AbortException" || /cancel|abort|destroy/i.test(caught.message);
+}
+
 function RamsPdfPageViewer({
   documentId,
   contractor,
@@ -408,6 +417,8 @@ function RamsPdfPageViewer({
 }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const renderTaskRef = useRef<RenderTask | null>(null);
+  const loadSequenceRef = useRef(0);
+  const renderSequenceRef = useRef(0);
   const [pdf, setPdf] = useState<PDFDocumentProxy | null>(null);
   const [pageSize, setPageSize] = useState<{ width: number; height: number } | null>(null);
   const [loading, setLoading] = useState(true);
@@ -415,6 +426,8 @@ function RamsPdfPageViewer({
   const [error, setError] = useState("");
 
   useEffect(() => {
+    const loadSequence = loadSequenceRef.current + 1;
+    loadSequenceRef.current = loadSequence;
     let cancelled = false;
     let loadingTask: { promise: Promise<PDFDocumentProxy>; destroy: () => Promise<void> } | null = null;
     setLoading(true);
@@ -429,13 +442,13 @@ function RamsPdfPageViewer({
         return loadingTask.promise;
       })
       .then((loadedPdf) => {
-        if (!cancelled) setPdf(loadedPdf);
+        if (!cancelled && loadSequenceRef.current === loadSequence) setPdf(loadedPdf);
       })
-      .catch(() => {
-        if (!cancelled) setError("Unable to load this RAMS PDF.");
+      .catch((caught) => {
+        if (!cancelled && loadSequenceRef.current === loadSequence && !isPdfCancellation(caught)) setError("Unable to load this RAMS PDF.");
       })
       .finally(() => {
-        if (!cancelled) setLoading(false);
+        if (!cancelled && loadSequenceRef.current === loadSequence) setLoading(false);
       });
 
     return () => {
@@ -448,6 +461,8 @@ function RamsPdfPageViewer({
   useEffect(() => {
     if (!pdf || !canvasRef.current) return;
 
+    const renderSequence = renderSequenceRef.current + 1;
+    renderSequenceRef.current = renderSequence;
     let cancelled = false;
     const canvas = canvasRef.current;
     const context = canvas.getContext("2d");
@@ -463,7 +478,7 @@ function RamsPdfPageViewer({
     pdf
       .getPage(page)
       .then((pdfPage) => {
-        if (cancelled) return null;
+        if (cancelled || renderSequenceRef.current !== renderSequence) return null;
         const viewport = pdfPage.getViewport({ scale: zoom / 100 });
         const outputScale = window.devicePixelRatio || 1;
         canvas.width = Math.floor(viewport.width * outputScale);
@@ -478,10 +493,10 @@ function RamsPdfPageViewer({
         return renderTask.promise;
       })
       .catch((caught) => {
-        if (!cancelled && !(caught instanceof Error && caught.name === "RenderingCancelledException")) setError("Unable to render this PDF page.");
+        if (!cancelled && renderSequenceRef.current === renderSequence && !isPdfCancellation(caught)) setError("Unable to render this PDF page.");
       })
       .finally(() => {
-        if (!cancelled) setRendering(false);
+        if (!cancelled && renderSequenceRef.current === renderSequence) setRendering(false);
       });
 
     return () => {
@@ -719,13 +734,18 @@ function PdfWorkspace({
     };
   }, [document.id]);
 
-  function showEvidence(result: SearchResult) {
-    setHighlight(result);
-    setPage(result.pageNumber);
+  function jumpToPage(targetPage: number, nextHighlight: SearchResult | null = null) {
+    const safePage = Math.min(pageCount, Math.max(1, targetPage));
+    setHighlight(nextHighlight);
+    setPage(safePage);
     setHighlightPulse((value) => value + 1);
     window.setTimeout(() => {
       pdfPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
     }, 0);
+  }
+
+  function showEvidence(result: SearchResult) {
+    jumpToPage(result.pageNumber, result);
   }
 
   async function searchDocument(searchQuery: string) {
@@ -857,10 +877,7 @@ function PdfWorkspace({
             document={document}
             sections={sections}
             loadingSections={loadingSections}
-            onShowPage={(targetPage) => {
-              setPage(targetPage);
-              setHighlight(null);
-            }}
+            onShowPage={(targetPage) => jumpToPage(targetPage)}
           />
 
           <DocumentIntelligenceSummary document={document} processing={processing} onProcess={runProcessing} onClose={onClose} />

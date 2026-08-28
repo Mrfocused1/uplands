@@ -123,7 +123,9 @@ test("legacy imported RAMS workspace renders PDF pages and highlights evidence",
 
   await page.getByText("Sections (10)").click();
   await page.getByText("Asbestos Controls").click();
-  await expect(page.getByRole("button", { name: "Show Page" }).last()).toBeVisible();
+  await page.getByRole("button", { name: "Show Page" }).last().click();
+  await expect(page.locator('canvas[aria-label="Ampthill Flooring Limited RAMS page 60"]')).toBeVisible();
+  await expect(page.getByText("Unable to load this RAMS PDF.")).toHaveCount(0);
 
   await page.getByRole("button", { name: /PPE Requirements/ }).first().click();
   await expect(page.getByText("Suitable PPE is required")).toBeVisible();
