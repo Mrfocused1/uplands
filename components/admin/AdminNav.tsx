@@ -37,7 +37,7 @@ export function AdminNav({ adminName }: { adminName?: string }) {
               Form
             </Link>
             <Link href="/admin/submissions" className={linkClass("/admin/submissions")}>
-              Admin
+              Inductions
             </Link>
             <Link href="/admin/rams" className={linkClass("/admin/rams")}>
               RAMS
@@ -74,7 +74,7 @@ export function AdminNav({ adminName }: { adminName?: string }) {
                 Form
               </Link>
               <Link className={`${linkClass("/admin/submissions")} block py-3`} href="/admin/submissions">
-                Admin
+                Inductions
               </Link>
               <Link className={`${linkClass("/admin/rams")} block py-3`} href="/admin/rams">
                 RAMS

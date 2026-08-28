@@ -18,10 +18,13 @@ async function expectNoHorizontalOverflow(page: Page) {
   expect(hasOverflow).toBe(false);
 }
 
-test("admin RAMS page renders cleanly on desktop and mobile", async ({ page }) => {
+test("admin RAMS page renders cleanly on desktop and mobile", async ({ page }, testInfo) => {
   await page.goto("/admin/rams");
 
   await expect(page.getByRole("heading", { name: "RAMS" }).first()).toBeVisible();
+  if (testInfo.project.name === "Desktop Chrome") {
+    await expect(page.getByRole("link", { name: "Inductions" })).toBeVisible();
+  }
   await expect(page.getByRole("button", { name: "+ Upload RAMS" })).toBeVisible();
   await expectNoHorizontalOverflow(page);
   await expectNoCriticalA11yViolations(page);
@@ -32,6 +35,7 @@ test("mobile admin navigation exposes RAMS from the submissions area", async ({ 
 
   await page.goto("/admin/submissions");
   await page.getByLabel("Open admin navigation menu").click();
+  await expect(page.locator("details nav").getByRole("link", { name: "Inductions" })).toBeVisible();
   await page.locator("details nav").getByRole("link", { name: "RAMS" }).click();
 
   await expect(page).toHaveURL(/\/admin\/rams$/);

@@ -341,8 +341,8 @@ function DocumentIntelligenceSummary({
     <section className="border border-zinc-200 bg-white p-5 shadow-soft">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <p className="text-xs font-bold uppercase tracking-[0.22em] text-uplands-magenta">Document Intelligence</p>
-          <h2 className="mt-1 font-slab text-2xl text-uplands-charcoal">{document.contractor}</h2>
+          <h2 className="font-slab text-2xl text-uplands-charcoal">Document Intelligence</h2>
+          <p className="mt-1 font-din text-lg text-uplands-charcoal">{document.contractor}</p>
           <p className="mt-1 text-sm text-uplands-muted">
             {document.title}
             {document.siteName ? ` · ${document.siteName}` : ""}
