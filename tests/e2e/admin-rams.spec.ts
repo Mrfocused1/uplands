@@ -18,6 +18,25 @@ async function expectNoHorizontalOverflow(page: Page) {
   expect(hasOverflow).toBe(false);
 }
 
+test("admin opens the site manager portal before workflow areas", async ({ page }) => {
+  await page.goto("/admin");
+
+  await expect(page.getByRole("heading", { name: "Select Your Site" })).toBeVisible();
+  await expect(page.getByLabel("Search Sites")).toBeVisible();
+  await expect(page.getByRole("button", { name: /Newport/i })).toBeVisible();
+
+  await page.getByLabel("Search Sites").fill("newport");
+  await expect(page.getByRole("button", { name: /Newport/i })).toBeVisible();
+  await page.getByRole("button", { name: /Newport/i }).click();
+
+  await expect(page.getByRole("heading", { name: "Waitrose Newport" })).toBeVisible();
+  await expect(page.getByRole("link", { name: /Open inductions/i })).toHaveAttribute("href", "/admin/submissions");
+  await expect(page.getByRole("link", { name: /Open RAMS/i })).toHaveAttribute("href", "/admin/rams");
+  await expect(page.getByRole("link", { name: /Open form/i })).toHaveAttribute("href", "/form");
+  await expectNoHorizontalOverflow(page);
+  await expectNoCriticalA11yViolations(page);
+});
+
 test("admin RAMS page renders cleanly on desktop and mobile", async ({ page }, testInfo) => {
   await page.goto("/admin/rams");
 

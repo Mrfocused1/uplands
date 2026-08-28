@@ -10,7 +10,7 @@ export function AdminNav({ adminName }: { adminName?: string }) {
 
   const linkClass = (href: string) =>
     `px-1 py-2 text-sm font-bold uppercase tracking-wide transition ${
-      pathname === href || (href !== "/admin/submissions" && pathname.startsWith(href))
+      pathname === href || (href !== "/admin" && href !== "/admin/submissions" && pathname.startsWith(href))
         ? "text-uplands-magenta"
         : "text-zinc-700 hover:text-uplands-magenta"
     }`;
@@ -35,6 +35,9 @@ export function AdminNav({ adminName }: { adminName?: string }) {
             </Link>
             <Link href="/form" className="px-1 py-2 text-sm font-bold uppercase tracking-wide text-zinc-700 hover:text-uplands-magenta">
               Form
+            </Link>
+            <Link href="/admin" className={linkClass("/admin")}>
+              Sites
             </Link>
             <Link href="/admin/submissions" className={linkClass("/admin/submissions")}>
               Inductions
@@ -75,6 +78,9 @@ export function AdminNav({ adminName }: { adminName?: string }) {
               </Link>
               <Link className="block py-3 hover:text-uplands-magenta" href="/form">
                 Form
+              </Link>
+              <Link className={`${linkClass("/admin")} block py-3`} href="/admin">
+                Sites
               </Link>
               <Link className={`${linkClass("/admin/submissions")} block py-3`} href="/admin/submissions">
                 Inductions

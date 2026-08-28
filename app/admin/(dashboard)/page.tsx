@@ -1,5 +1,5 @@
-import { redirect } from "next/navigation";
+import { SiteManagerPortal } from "@/components/admin/SiteManagerPortal";
 
 export default function AdminIndexPage() {
-  redirect("/admin/submissions");
+  return <SiteManagerPortal />;
 }
