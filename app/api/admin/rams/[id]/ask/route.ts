@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getAiProvider } from "@/lib/ai/provider";
 import { requireAdmin, UnauthorizedError } from "@/lib/auth/admin";
 import { addRamsChatCitations, addRamsChatMessage, createRamsChatThread, getRamsDocument } from "@/lib/db/rams";
+import { ramsCopilotRetrievalQuery } from "@/lib/rams/copilotRetrieval";
 import { searchRams } from "@/lib/rams/searchRams";
 
 export const runtime = "nodejs";
@@ -26,7 +27,12 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     return NextResponse.json({ error: document.processing_error ?? "This RAMS is not ready for questions.", status: document.processing_status }, { status: 409 });
   }
 
-  const evidence = await searchRams(id, question, 8);
+  const retrievalQuery = ramsCopilotRetrievalQuery({
+    question,
+    reviewComment: body?.reviewComment,
+    reviewQuestion: body?.reviewQuestionKey,
+  });
+  const evidence = await searchRams(id, retrievalQuery, 8);
   const provider = getAiProvider();
   const answer = await provider.answerRamsQuestion({
     question,

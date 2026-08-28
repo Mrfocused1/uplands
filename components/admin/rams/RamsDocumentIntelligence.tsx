@@ -181,8 +181,31 @@ function reviewDocumentsFor(review: LegacyRamsReview): PreviewDocument[] {
   return documents;
 }
 
-function ReviewEvidence({ review }: { review: LegacyRamsReview }) {
+type ReviewEvidenceItem = {
+  id: string;
+  title: string;
+  answer: Answer;
+  comment: string;
+};
+
+function reviewEvidenceQuery(item: ReviewEvidenceItem) {
+  return [item.title, item.comment].filter(Boolean).join(" ");
+}
+
+function ReviewEvidence({
+  review,
+  onResolveEvidence,
+  onShowEvidence,
+}: {
+  review: LegacyRamsReview;
+  onResolveEvidence: (query: string) => Promise<SearchResult[]>;
+  onShowEvidence: (result: SearchResult) => void;
+}) {
   const [tab, setTab] = useState<"questions" | "hazards">("questions");
+  const [openEvidenceId, setOpenEvidenceId] = useState<string | null>(null);
+  const [evidenceResults, setEvidenceResults] = useState<Record<string, SearchResult[]>>({});
+  const [evidenceLoadingId, setEvidenceLoadingId] = useState<string | null>(null);
+  const [evidenceErrors, setEvidenceErrors] = useState<Record<string, string>>({});
   const items = useMemo(() => {
     if (tab === "questions") {
       return review.questions.map(([id, answer, comment]) => ({
@@ -201,6 +224,31 @@ function ReviewEvidence({ review }: { review: LegacyRamsReview }) {
       comment: "",
     }));
   }, [review, tab]);
+
+  async function toggleEvidence(item: ReviewEvidenceItem) {
+    const evidenceId = `${tab}:${item.id}`;
+    if (openEvidenceId === evidenceId) {
+      setOpenEvidenceId(null);
+      return;
+    }
+
+    setOpenEvidenceId(evidenceId);
+    if (evidenceResults[evidenceId]) return;
+
+    setEvidenceLoadingId(evidenceId);
+    setEvidenceErrors((current) => ({ ...current, [evidenceId]: "" }));
+    try {
+      const results = await onResolveEvidence(reviewEvidenceQuery(item));
+      setEvidenceResults((current) => ({ ...current, [evidenceId]: results }));
+    } catch (caught) {
+      setEvidenceErrors((current) => ({
+        ...current,
+        [evidenceId]: caught instanceof Error ? caught.message : "Unable to find RAMS evidence.",
+      }));
+    } finally {
+      setEvidenceLoadingId(null);
+    }
+  }
 
   return (
     <section className="border border-zinc-200 bg-white p-5 shadow-soft">
@@ -227,15 +275,45 @@ function ReviewEvidence({ review }: { review: LegacyRamsReview }) {
         </div>
       </div>
       <div className="divide-y divide-zinc-200 border border-zinc-200 bg-white">
-        {items.map((item) => (
-          <div key={item.id} className="grid gap-3 px-4 py-3 sm:grid-cols-[1fr_auto] sm:items-start">
-            <div>
-              <p className="font-din text-sm text-uplands-charcoal">{item.title}</p>
-              {item.comment && <p className="mt-1 text-sm leading-6 text-zinc-700">{item.comment}</p>}
+        {items.map((item) => {
+          const evidenceId = `${tab}:${item.id}`;
+          const evidenceOpen = openEvidenceId === evidenceId;
+          const results = evidenceResults[evidenceId] ?? [];
+          const evidenceError = evidenceErrors[evidenceId];
+          return (
+            <div key={evidenceId} data-testid={`review-evidence-${tab}-${item.id}`} className="px-4 py-3">
+              <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-start">
+                <div>
+                  <p className="font-din text-sm text-uplands-charcoal">{item.title}</p>
+                  {item.comment && <p className="mt-1 text-sm leading-6 text-zinc-700">{item.comment}</p>}
+                </div>
+                <span className={`w-fit px-2.5 py-1 text-xs font-bold ring-1 ${answerClass(item.answer)}`}>{item.answer}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => toggleEvidence(item)}
+                aria-expanded={evidenceOpen}
+                className="mt-3 border border-zinc-300 px-3 py-2 text-xs font-bold uppercase text-zinc-700 hover:border-uplands-magenta hover:text-uplands-magenta"
+              >
+                {evidenceOpen ? "Hide RAMS References" : "Show RAMS References"}
+              </button>
+              {evidenceOpen && (
+                <div className="mt-3 border border-zinc-200 bg-zinc-50">
+                  {evidenceLoadingId === evidenceId ? (
+                    <div className="flex items-center gap-3 p-3 text-sm font-bold text-uplands-muted">
+                      <Spinner className="h-4 w-4" />
+                      <span>Finding RAMS references...</span>
+                    </div>
+                  ) : evidenceError ? (
+                    <p className="p-3 text-sm font-bold text-red-700">{evidenceError}</p>
+                  ) : (
+                    <SearchResultsList results={results} onShowEvidence={onShowEvidence} emptyText="No RAMS references found for this answer." />
+                  )}
+                </div>
+              )}
             </div>
-            <span className={`w-fit px-2.5 py-1 text-xs font-bold ring-1 ${answerClass(item.answer)}`}>{item.answer}</span>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </section>
   );
@@ -376,8 +454,16 @@ function DocumentIntelligenceSummary({
   );
 }
 
-function SearchResultsList({ results, onShowEvidence }: { results: SearchResult[]; onShowEvidence: (result: SearchResult) => void }) {
-  if (results.length === 0) return <p className="p-3 text-sm text-uplands-muted">No search results yet.</p>;
+function SearchResultsList({
+  results,
+  onShowEvidence,
+  emptyText = "No search results yet.",
+}: {
+  results: SearchResult[];
+  onShowEvidence: (result: SearchResult) => void;
+  emptyText?: string;
+}) {
+  if (results.length === 0) return <p className="p-3 text-sm text-uplands-muted">{emptyText}</p>;
 
   return (
     <>
@@ -922,7 +1008,7 @@ function PdfWorkspace({
             </section>
           )}
 
-          {legacyReview && <ReviewEvidence review={legacyReview} />}
+          {legacyReview && <ReviewEvidence review={legacyReview} onResolveEvidence={searchDocument} onShowEvidence={showEvidence} />}
 
           <section className="border border-zinc-200 bg-white p-5 shadow-soft">
             <h2 className="font-slab text-2xl text-uplands-charcoal">Search RAMS</h2>

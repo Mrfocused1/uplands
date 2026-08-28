@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { detectSections } from "../lib/rams/detectSections.ts";
+import { disabledAiProvider } from "../lib/ai/disabled.ts";
+import { ramsCopilotRetrievalQuery } from "../lib/rams/copilotRetrieval.ts";
 import { normaliseText, snippetFor, tokenCount } from "../lib/rams/text.ts";
 import { validateRamsStructuredAnswer } from "../lib/ai/validateRamsAnswer.ts";
 
@@ -59,4 +61,41 @@ test("AI structured answer validation rejects empty answers", () => {
     () => validateRamsStructuredAnswer({ answer: "", citations: ["chunk-a"], confidence: "high" }, new Set(["chunk-a"]), "test-model"),
     /empty answer/,
   );
+});
+
+test("RAMS Copilot summary prompts use a substantive retrieval query", () => {
+  const query = ramsCopilotRetrievalQuery({ question: "give me a summary about this" });
+  assert.match(query, /method statement/i);
+  assert.match(query, /risk assessment/i);
+  assert.match(query, /PPE/i);
+  assert.doesNotMatch(query, /^give me a summary/i);
+});
+
+test("disabled AI provider returns a useful evidence-led summary fallback", async () => {
+  const answer = await disabledAiProvider.answerRamsQuestion({
+    question: "give me a summary about this",
+    document: {
+      id: "rams-1",
+      title: "Flooring installation",
+      contractor: "Ampthill Flooring Limited",
+      siteName: "Newport - 81978",
+      revision: null,
+    },
+    evidence: [
+      {
+        chunkId: "chunk-1",
+        pageNumber: 4,
+        endPageNumber: 4,
+        sectionTitle: "METHOD STATEMENT",
+        snippet: "Flooring installation method statement.",
+        score: 1,
+        text: "Flooring installation method statement.",
+        boxes: [],
+      },
+    ],
+  });
+
+  assert.match(answer.answer, /Ampthill Flooring Limited RAMS covers Flooring installation/);
+  assert.match(answer.answer, /METHOD STATEMENT/);
+  assert.deepEqual(answer.citations, ["chunk-1"]);
 });

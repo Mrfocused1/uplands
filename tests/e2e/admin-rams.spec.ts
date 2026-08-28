@@ -44,6 +44,8 @@ test("mobile admin navigation exposes RAMS from the submissions area", async ({ 
 });
 
 test("legacy imported RAMS workspace renders PDF pages and highlights evidence", async ({ page }) => {
+  test.setTimeout(60_000);
+
   await page.route("**/api/admin/rams", async (route) => {
     if (route.request().method() !== "GET") return route.fallback();
     return route.fulfill({
@@ -120,6 +122,13 @@ test("legacy imported RAMS workspace renders PDF pages and highlights evidence",
   await expect(page.getByRole("heading", { name: "RAMS REVIEW FORM Back Page" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Review Answers" })).toBeVisible();
   await expect(page.getByText("10. Has appropriate PPE been identified?")).toBeVisible();
+
+  const ppeReviewAnswer = page.getByTestId("review-evidence-questions-q10");
+  await ppeReviewAnswer.getByRole("button", { name: "Show RAMS References" }).click();
+  await expect(ppeReviewAnswer.getByText("Suitable PPE is required")).toBeVisible();
+  await ppeReviewAnswer.getByText("Show in RAMS").click();
+  await expect(page.locator('canvas[aria-label="Ampthill Flooring Limited RAMS page 10"]')).toBeVisible();
+  await expect(page.getByTestId("rams-highlight")).toBeVisible();
 
   await page.getByText("Sections (10)").click();
   await page.getByText("Asbestos Controls").click();
