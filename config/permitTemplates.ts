@@ -631,4 +631,128 @@ export const PERMIT_TEMPLATES: PermitTemplate[] = [
       },
     ],
   },
+  {
+    id: "confined-space",
+    code: "UHSF21.04",
+    title: "Confined Space Permit",
+    description: "Structured digital permit for confined-space entry, rescue planning, atmosphere controls, supervision and closure.",
+    registerCode: "UHSF21.0",
+    version: "1",
+    sortOrder: 70,
+    sections: [
+      {
+        id: "planning-competence",
+        title: "Planning / Competence Checks",
+        description: "Confirm RAMS, briefing, competent supervision and confined-space certification before entry.",
+        sortOrder: 10,
+        questions: [
+          { key: "rams_prepared_approved", prompt: "Has a Risk Assessment and Method Statement been prepared and approved?" },
+          {
+            key: "rams_briefing_understood",
+            prompt: "Have all personnel been briefed on the contents of the RAMS and do they understand the task being carried out?",
+          },
+          { key: "emergency_procedures_rescue_plan", prompt: "Have emergency procedures been prepared and posted, including a rescue plan?" },
+          { key: "emergency_procedures_training", prompt: "Have all personnel involved been trained in the requirements of the emergency procedures?" },
+          {
+            key: "competent_supervisor",
+            prompt: "Has a competent supervisor been appointed?",
+            helpText: "Use the comment field to record who has been appointed.",
+          },
+          {
+            key: "confined_space_certification",
+            prompt: "Are operatives suitably trained and competent, including holding confined-space entry certification?",
+          },
+        ],
+      },
+      {
+        id: "atmosphere-ventilation",
+        title: "Atmosphere / Ventilation Controls",
+        description: "Confirm ventilation, oxygen or gas testing, communications and access arrangements are suitable.",
+        sortOrder: 20,
+        questions: [
+          {
+            key: "emergency_services_contact_required",
+            prompt: "Do emergency services need to be contacted?",
+            requiresCommentOn: ["YES"],
+          },
+          {
+            key: "ventilation_adequate",
+            prompt: "Is ventilation adequate?",
+            helpText: "If not, record whether ventilation calculations have been carried out and what suitable system is provided.",
+            requiresCommentOn: ["NO"],
+          },
+          {
+            key: "oxygen_gas_tests_required",
+            prompt: "Are oxygen or gas tests needed?",
+            helpText: "Record the test arrangement, frequency and responsible person where required.",
+            requiresCommentOn: ["YES"],
+          },
+          { key: "suitable_access_egress", prompt: "Is there suitable access and egress?" },
+          { key: "prevent_unauthorised_access", prompt: "Are arrangements in place to prevent unauthorised access?" },
+          {
+            key: "adequate_communications",
+            prompt: "Are adequate communications provided to ensure the continued safety of persons in the confined space?",
+          },
+        ],
+      },
+      {
+        id: "rescue-emergency",
+        title: "Rescue / Emergency Readiness",
+        description: "Confirm external observation, rescue arrangements, first aid and escape equipment before entry.",
+        sortOrder: 30,
+        questions: [
+          { key: "observer_outside_space", prompt: "Is there an observer outside the confined space?" },
+          { key: "rescue_provisions_available", prompt: "Are there provisions for rescue?" },
+          { key: "employees_trained_in_rescue", prompt: "Are employees trained in rescue?" },
+          { key: "first_aider_standby", prompt: "Is a first aider on standby?" },
+          { key: "ten_minute_escape_set", prompt: "Is a ten minute escape set available?" },
+          {
+            key: "suitable_ppe_rescue_kits",
+            prompt: "Have personnel been provided with adequate and suitable PPE, including rescue kits?",
+          },
+        ],
+      },
+      {
+        id: "site-conditions",
+        title: "Site Conditions / Additional Controls",
+        description: "Confirm infection, lighting and ingress controls are suitable for the confined-space task.",
+        sortOrder: 40,
+        questions: [
+          { key: "infection_precautions_investigated", prompt: "Have precautions to prevent infection been investigated?" },
+          { key: "adequate_lighting", prompt: "Is there adequate lighting?" },
+          { key: "prevent_ingress_water_fumes", prompt: "Are suitable arrangements in place to prevent the ingress of water, fumes etc.?" },
+        ],
+      },
+    ],
+    signatures: [
+      {
+        key: "manager_authorisation",
+        title: "Uplands Site Manager Authorisation",
+        role: "Uplands Site Manager",
+        action: "Authorised confined space permit issue",
+        sortOrder: 10,
+      },
+      {
+        key: "contractor_acceptance",
+        title: "Contractor / Operative Acceptance",
+        role: "Contractor / Operative",
+        action: "Accepted confined space permit controls",
+        sortOrder: 20,
+      },
+      {
+        key: "contractor_completion",
+        title: "Contractor / Operative Completion",
+        role: "Contractor / Operative",
+        action: "Confirmed confined space work completed and personnel withdrawn",
+        sortOrder: 30,
+      },
+      {
+        key: "manager_completion_acceptance",
+        title: "Uplands Site Manager Acceptance of Completion",
+        role: "Uplands Site Manager",
+        action: "Accepted completion and closed confined space permit",
+        sortOrder: 40,
+      },
+    ],
+  },
 ];

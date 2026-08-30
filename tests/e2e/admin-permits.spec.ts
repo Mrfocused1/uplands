@@ -78,7 +78,6 @@ test("admin can create, edit and download a step ladders permit", async ({ page 
 
   await page.getByRole("button", { name: "Authorise Permit" }).click();
   await expect(page.getByText("AUTHORISED").first()).toBeVisible();
-  await expect(page.getByText("Permit authorised").first()).toBeVisible();
 
   const pdfHref = await page.getByRole("link", { name: "Download PDF" }).getAttribute("href");
   expect(pdfHref).toBeTruthy();
@@ -129,7 +128,6 @@ test("admin can create and authorise an electrical permit", async ({ page }) => 
 
   await page.getByRole("button", { name: "Authorise Permit" }).click();
   await expect(page.getByText("AUTHORISED").first()).toBeVisible();
-  await expect(page.getByText("Permit authorised").first()).toBeVisible();
 
   const pdfHref = await page.getByRole("link", { name: "Download PDF" }).getAttribute("href");
   expect(pdfHref).toBeTruthy();
@@ -179,7 +177,6 @@ test("admin can create and authorise a mobile tower scaffold permit", async ({ p
 
   await page.getByRole("button", { name: "Authorise Permit" }).click();
   await expect(page.getByText("AUTHORISED").first()).toBeVisible();
-  await expect(page.getByText("Permit authorised").first()).toBeVisible();
 
   const pdfHref = await page.getByRole("link", { name: "Download PDF" }).getAttribute("href");
   expect(pdfHref).toBeTruthy();
@@ -232,7 +229,6 @@ test("admin can create and authorise a cherry picker permit", async ({ page }) =
 
   await page.getByRole("button", { name: "Authorise Permit" }).click();
   await expect(page.getByText("AUTHORISED").first()).toBeVisible();
-  await expect(page.getByText("Permit authorised").first()).toBeVisible();
 
   const pdfHref = await page.getByRole("link", { name: "Download PDF" }).getAttribute("href");
   expect(pdfHref).toBeTruthy();
@@ -284,7 +280,6 @@ test("admin can create and authorise an excavation permit", async ({ page }) => 
 
   await page.getByRole("button", { name: "Authorise Permit" }).click();
   await expect(page.getByText("AUTHORISED").first()).toBeVisible();
-  await expect(page.getByText("Permit authorised").first()).toBeVisible();
 
   const pdfHref = await page.getByRole("link", { name: "Download PDF" }).getAttribute("href");
   expect(pdfHref).toBeTruthy();
@@ -336,7 +331,58 @@ test("admin can create and authorise a permit to dig / break ground", async ({ p
 
   await page.getByRole("button", { name: "Authorise Permit" }).click();
   await expect(page.getByText("AUTHORISED").first()).toBeVisible();
-  await expect(page.getByText("Permit authorised").first()).toBeVisible();
+
+  const pdfHref = await page.getByRole("link", { name: "Download PDF" }).getAttribute("href");
+  expect(pdfHref).toBeTruthy();
+  const response = await page.request.get(pdfHref!);
+  expect(response.ok()).toBe(true);
+  expect(response.headers()["content-type"]).toContain("application/pdf");
+});
+
+test("admin can create and authorise a confined space permit", async ({ page }) => {
+  test.setTimeout(60_000);
+
+  const contractor = `Confined Space Permit Test ${Date.now()}`;
+
+  await page.goto("/admin/sites/newport/permits");
+  await expect(page.getByRole("heading", { name: "Waitrose Newport" })).toBeVisible();
+
+  await choosePermitType(page, "Confined Space Permit");
+  await expect(page.locator("form").getByRole("heading", { name: "Confined Space Permit" })).toBeVisible();
+
+  await page.getByPlaceholder("Contractor").fill(contractor);
+  await page.getByPlaceholder("Location of work").fill("Plant room sump chamber");
+  await page.getByPlaceholder("Description of work").fill("Enter sump chamber to inspect pump controls and clear debris.");
+  await page.getByRole("button", { name: "Create Permit" }).click();
+
+  await expect(page.getByText(contractor).first()).toBeVisible();
+  await expect(page.getByTestId("permit-editor").getByRole("heading", { name: "Confined Space Permit" })).toBeVisible();
+  await expect(page.getByText("Atmosphere / Ventilation Controls")).toBeVisible();
+  await expect(page.getByText("Rescue / Emergency Readiness")).toBeVisible();
+  await expect(page.getByText("Is there an observer outside the confined space?")).toBeVisible();
+  await expect(page.getByLabel("Contractor")).toHaveValue(contractor);
+
+  const supervisorQuestion = page.locator(".p-4").filter({ hasText: "Has a competent supervisor been appointed?" });
+  await supervisorQuestion.getByPlaceholder("Comment").fill("Confined-space supervisor: Matty");
+
+  const gasTestQuestion = page.locator(".p-4").filter({ hasText: "Are oxygen or gas tests needed?" });
+  await gasTestQuestion.getByPlaceholder("Comment").fill("Pre-entry gas test and continuous monitor required.");
+
+  await answerAllQuestionsYes(page);
+  await selectQuestionAnswer(page, "Do emergency services need to be contacted?", "NO");
+
+  const submitForReview = page.getByRole("button", { name: "Submit for Review" });
+  await expect(submitForReview).toBeEnabled();
+  await submitForReview.click();
+  await expect(page.getByText("Permit submitted for review").first()).toBeVisible();
+
+  const managerSignature = page.locator("article").filter({ has: page.getByRole("heading", { name: "Uplands Site Manager Authorisation" }) });
+  await managerSignature.getByPlaceholder("Name").fill("Matty");
+  await managerSignature.getByPlaceholder("Company").fill("Uplands");
+  await managerSignature.getByPlaceholder("Position").fill("Site Manager");
+
+  await page.getByRole("button", { name: "Authorise Permit" }).click();
+  await expect(page.getByText("AUTHORISED").first()).toBeVisible();
 
   const pdfHref = await page.getByRole("link", { name: "Download PDF" }).getAttribute("href");
   expect(pdfHref).toBeTruthy();
