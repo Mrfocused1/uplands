@@ -14,6 +14,12 @@ async function answerAllQuestionsYes(page: Page) {
   await expect(questionRows.locator("button.bg-uplands-magenta").filter({ hasText: "YES" })).toHaveCount(questionCount);
 }
 
+async function choosePermitType(page: Page, name: string) {
+  const permitTypeCard = page.locator("fieldset").filter({ hasText: "Permit Type" }).getByRole("button", { name: new RegExp(name) });
+  await permitTypeCard.click();
+  await expect(permitTypeCard).toHaveAttribute("aria-pressed", "true");
+}
+
 test("admin can create, edit and download a step ladders permit", async ({ page }) => {
   test.setTimeout(45_000);
 
@@ -21,6 +27,8 @@ test("admin can create, edit and download a step ladders permit", async ({ page 
 
   await page.goto("/admin/sites/newport/permits");
   await expect(page.getByRole("heading", { name: "Waitrose Newport" })).toBeVisible();
+  await expect(page.locator("header").getByText("UHSF16.01")).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "Back to admin" })).toHaveAttribute("href", "/admin/sites/newport");
   await expect(page.locator("form").getByRole("heading", { name: "Step Ladders / Ladders Permit" })).toBeVisible();
 
   await page.getByPlaceholder("Contractor").fill(contractor);
@@ -64,7 +72,7 @@ test("admin can create and authorise an electrical permit", async ({ page }) => 
   await page.goto("/admin/sites/newport/permits");
   await expect(page.getByRole("heading", { name: "Waitrose Newport" })).toBeVisible();
 
-  await page.getByLabel("Permit Type").selectOption("electrical");
+  await choosePermitType(page, "Electrical Permit");
   await expect(page.locator("form").getByRole("heading", { name: "Electrical Permit" })).toBeVisible();
 
   await page.getByPlaceholder("Contractor").fill(contractor);
@@ -115,7 +123,7 @@ test("admin can create and authorise a mobile tower scaffold permit", async ({ p
   await page.goto("/admin/sites/newport/permits");
   await expect(page.getByRole("heading", { name: "Waitrose Newport" })).toBeVisible();
 
-  await page.getByLabel("Permit Type").selectOption("mobile-tower-scaffold");
+  await choosePermitType(page, "Mobile Tower Scaffold Permit");
   await expect(page.locator("form").getByRole("heading", { name: "Mobile Tower Scaffold Permit" })).toBeVisible();
 
   await page.getByPlaceholder("Contractor").fill(contractor);

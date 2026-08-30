@@ -65,7 +65,6 @@ export function AdminNav({ adminName }: { adminName?: string }) {
         </div>
         <div className="flex shrink-0 items-center gap-3 xl:gap-4">
           <div className="text-right">
-            <p className="font-din text-xs uppercase tracking-normal text-uplands-magenta">UHSF16.01</p>
             <h1 className="mt-1 hidden whitespace-nowrap font-slab text-lg leading-tight text-uplands-charcoal sm:block xl:text-2xl">Admin Records</h1>
             {adminName && <p className="hidden text-xs font-bold uppercase text-zinc-500 sm:block">{adminName}</p>}
           </div>

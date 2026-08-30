@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 
 import { SignaturePad } from "@/components/induction/SignaturePad";
 import type { PermitAnswer, PermitSignatureKey, PermitStatus } from "@/config/permitTemplates";
@@ -287,9 +288,19 @@ export function PermitsWorkspace({ site, templates, initialPermits }: { site: Si
   return (
     <div className="space-y-8">
       <section className="border border-zinc-200 bg-white p-5 shadow-soft sm:p-6">
-        <p className="text-xs font-bold uppercase tracking-[0.28em] text-uplands-magenta">Permits</p>
-        <h1 className="mt-3 font-slab text-4xl leading-tight text-uplands-charcoal sm:text-5xl">{site.location}</h1>
-        <p className="mt-3 max-w-3xl text-base leading-7 text-uplands-muted">Create and manage structured permits for this site.</p>
+        <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.28em] text-uplands-magenta">Permits</p>
+            <h1 className="mt-3 font-slab text-4xl leading-tight text-uplands-charcoal sm:text-5xl">{site.location}</h1>
+            <p className="mt-3 max-w-3xl text-base leading-7 text-uplands-muted">Create and manage structured permits for this site.</p>
+          </div>
+          <Link
+            href={`/admin/sites/${site.id}`}
+            className="inline-flex min-h-11 w-fit items-center border border-zinc-300 px-4 text-sm font-bold uppercase text-zinc-700 hover:border-uplands-magenta hover:text-uplands-magenta"
+          >
+            Back to admin
+          </Link>
+        </div>
       </section>
 
       <section className="grid gap-5 lg:grid-cols-[360px_1fr]">
@@ -298,21 +309,30 @@ export function PermitsWorkspace({ site, templates, initialPermits }: { site: Si
             <p className="text-xs font-bold uppercase tracking-[0.22em] text-uplands-magenta">New Permit</p>
             <h2 className="mt-1 font-slab text-2xl text-uplands-charcoal">{selectedTemplate?.title ?? "Create Permit"}</h2>
             <div className="mt-4 space-y-3">
-              <label>
-                <span className="text-xs font-bold uppercase text-zinc-700">Permit Type</span>
-                <select
-                  name="templateId"
-                  className="mt-1 min-h-11 w-full border border-zinc-300 px-3 text-sm"
-                  value={selectedTemplateId}
-                  onChange={(event) => setSelectedTemplateId(event.target.value)}
-                >
-                  {templates.map((template) => (
-                    <option key={template.id} value={template.id}>
-                      {template.code} - {template.title}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <input type="hidden" name="templateId" value={selectedTemplateId} />
+              <fieldset>
+                <legend className="text-xs font-bold uppercase text-zinc-700">Permit Type</legend>
+                <div className="mt-2 grid gap-2">
+                  {templates.map((template) => {
+                    const isSelected = template.id === selectedTemplateId;
+                    return (
+                      <button
+                        key={template.id}
+                        type="button"
+                        aria-pressed={isSelected}
+                        onClick={() => setSelectedTemplateId(template.id)}
+                        className={`min-h-24 border p-3 text-left transition ${
+                          isSelected ? "border-uplands-magenta bg-uplands-paper shadow-soft" : "border-zinc-200 bg-white hover:border-uplands-magenta/60"
+                        }`}
+                      >
+                        <span className="block font-din text-sm font-bold text-uplands-magenta">{template.code}</span>
+                        <span className="mt-1 block font-din text-base text-uplands-charcoal">{template.title}</span>
+                        <span className="mt-1 block text-xs leading-5 text-uplands-muted">{template.description}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </fieldset>
               <input name="contractor" required placeholder="Contractor" className="min-h-11 w-full border border-zinc-300 px-3 text-sm" />
               <input name="locationOfWork" required placeholder="Location of work" className="min-h-11 w-full border border-zinc-300 px-3 text-sm" />
               <textarea name="descriptionOfWork" required placeholder="Description of work" className="min-h-24 w-full border border-zinc-300 px-3 py-2 text-sm" />
