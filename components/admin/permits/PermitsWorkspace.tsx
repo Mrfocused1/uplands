@@ -40,7 +40,7 @@ type PermitDetail = {
       id: string;
       title: string;
       description: string | null;
-      questions: Array<{ key: string; prompt: string; requiresCommentOn: string[] }>;
+      questions: Array<{ key: string; prompt: string; helpText: string | null; requiresCommentOn: string[] }>;
     }>;
   };
   answers: Array<{ questionKey: string; answer: PermitAnswer; comment: string | null }>;
@@ -137,9 +137,11 @@ export function PermitsWorkspace({ site, templates, initialPermits }: { site: Si
   const [permits, setPermits] = useState(initialPermits);
   const [selectedId, setSelectedId] = useState(initialPermits[0]?.id ?? "");
   const [detail, setDetail] = useState<PermitDetail | null>(null);
+  const [selectedTemplateId, setSelectedTemplateId] = useState(templates[0]?.id ?? "");
   const [creating, setCreating] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const selectedTemplate = templates.find((template) => template.id === selectedTemplateId) ?? templates[0];
 
   const fetchPermitDetail = useCallback(async (id: string): Promise<PermitDetail> => {
     const response = await fetch(`/api/admin/permits/${id}`);
@@ -207,6 +209,7 @@ export function PermitsWorkspace({ site, templates, initialPermits }: { site: Si
       await refreshPermits(data.id);
       setDetail(await fetchPermitDetail(data.id));
       event.currentTarget.reset();
+      setSelectedTemplateId(templates[0]?.id ?? "");
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Unable to create permit.");
     } finally {
@@ -293,9 +296,14 @@ export function PermitsWorkspace({ site, templates, initialPermits }: { site: Si
         <div className="space-y-5">
           <form onSubmit={createPermit} className="border border-zinc-200 bg-white p-5 shadow-soft">
             <p className="text-xs font-bold uppercase tracking-[0.22em] text-uplands-magenta">New Permit</p>
-            <h2 className="mt-1 font-slab text-2xl text-uplands-charcoal">Step Ladders</h2>
+            <h2 className="mt-1 font-slab text-2xl text-uplands-charcoal">{selectedTemplate?.title ?? "Create Permit"}</h2>
             <div className="mt-4 space-y-3">
-              <select name="templateId" className="min-h-11 w-full border border-zinc-300 px-3 text-sm" defaultValue={templates[0]?.id}>
+              <select
+                name="templateId"
+                className="min-h-11 w-full border border-zinc-300 px-3 text-sm"
+                value={selectedTemplateId}
+                onChange={(event) => setSelectedTemplateId(event.target.value)}
+              >
                 {templates.map((template) => (
                   <option key={template.id} value={template.id}>
                     {template.code} - {template.title}
@@ -469,6 +477,7 @@ function PermitEditor({
               return (
                 <div key={question.key} className="p-4">
                   <p className="font-din text-base text-uplands-charcoal">{question.prompt}</p>
+                  {question.helpText && <p className="mt-1 text-sm text-uplands-muted">{question.helpText}</p>}
                   <div className="mt-3 flex flex-wrap gap-2">
                     {(["YES", "NO", "NA"] as PermitAnswer[]).map((answer) => (
                       <button
