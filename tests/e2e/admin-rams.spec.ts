@@ -18,28 +18,20 @@ async function expectNoHorizontalOverflow(page: Page) {
   expect(hasOverflow).toBe(false);
 }
 
-test("admin opens the site manager portal before workflow areas", async ({ page }, testInfo) => {
+test("admin opens the site manager portal before workflow areas", async ({ page }) => {
   await page.goto("/admin");
 
   await expect(page.getByRole("heading", { name: "Select Your Site" })).toBeVisible();
   await expect(page.getByLabel("Search Sites")).toBeVisible();
   await expect(page.getByRole("link", { name: /Newport/i })).toBeVisible();
 
-  if (testInfo.project.name === "Desktop Chrome") {
-    const desktopNav = page.getByRole("navigation").first();
-    await expect(desktopNav.getByRole("link", { name: "Home" })).toBeVisible();
-    await expect(desktopNav.getByRole("link", { name: "Contact" })).toBeVisible();
-    await expect(desktopNav.getByRole("link", { name: "RAMS" })).toHaveCount(0);
-    await expect(desktopNav.getByRole("link", { name: "Inductions" })).toHaveCount(0);
-  } else {
-    await page.getByLabel("Open admin navigation menu").click();
-    const mobileNav = page.locator("details nav");
-    await expect(mobileNav.getByRole("link", { name: "Home" })).toBeVisible();
-    await expect(mobileNav.getByRole("link", { name: "Contact" })).toBeVisible();
-    await expect(mobileNav.getByRole("link", { name: "RAMS" })).toHaveCount(0);
-    await expect(mobileNav.getByRole("link", { name: "Inductions" })).toHaveCount(0);
-    await page.getByLabel("Open admin navigation menu").click();
-  }
+  await page.getByLabel("Open admin navigation menu").click();
+  const adminNav = page.locator("details nav");
+  await expect(adminNav.getByRole("link", { name: "Home" })).toBeVisible();
+  await expect(adminNav.getByRole("link", { name: "Contact" })).toBeVisible();
+  await expect(adminNav.getByRole("link", { name: "RAMS" })).toHaveCount(0);
+  await expect(adminNav.getByRole("link", { name: "Inductions" })).toHaveCount(0);
+  await page.getByLabel("Open admin navigation menu").click();
 
   await expect(page.getByRole("heading", { name: "Choose A Workflow" })).toHaveCount(0);
 
@@ -52,13 +44,9 @@ test("admin opens the site manager portal before workflow areas", async ({ page 
   await expect(page.getByRole("heading", { name: "Choose A Workflow" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Change Site" }).first()).toHaveAttribute("href", "/admin");
 
-  if (testInfo.project.name === "Desktop Chrome") {
-    await expect(page.getByRole("navigation").first().getByRole("link", { name: "RAMS" })).toBeVisible();
-  } else {
-    await page.getByLabel("Open admin navigation menu").click();
-    await expect(page.locator("details nav").getByRole("link", { name: "RAMS" })).toBeVisible();
-    await page.getByLabel("Open admin navigation menu").click();
-  }
+  await page.getByLabel("Open admin navigation menu").click();
+  await expect(page.locator("details nav").getByRole("link", { name: "RAMS" })).toBeVisible();
+  await page.getByLabel("Open admin navigation menu").click();
 
   await expect(page.getByRole("link", { name: /Open inductions/i })).toHaveAttribute("href", "/admin/sites/newport/forms");
   await expect(page.getByRole("link", { name: /Open RAMS/i })).toHaveAttribute("href", "/admin/sites/newport/rams");
@@ -67,17 +55,13 @@ test("admin opens the site manager portal before workflow areas", async ({ page 
   await expectNoCriticalA11yViolations(page);
 });
 
-test("admin forms workspace offers inductee and inductor workflows", async ({ page }, testInfo) => {
+test("admin forms workspace offers inductee and inductor workflows", async ({ page }) => {
   await page.goto("/admin/forms");
 
   await expect(page.getByRole("heading", { name: "Forms Workspace" })).toBeVisible();
-  if (testInfo.project.name === "Desktop Chrome") {
-    await expect(page.getByRole("navigation").first().getByRole("link", { name: "Inductions" })).toHaveAttribute("href", "/admin/forms");
-  } else {
-    await page.getByLabel("Open admin navigation menu").click();
-    await expect(page.locator("details nav").getByRole("link", { name: "Inductions" })).toHaveAttribute("href", "/admin/forms");
-    await page.getByLabel("Open admin navigation menu").click();
-  }
+  await page.getByLabel("Open admin navigation menu").click();
+  await expect(page.locator("details nav").getByRole("link", { name: "Inductions" })).toHaveAttribute("href", "/admin/forms");
+  await page.getByLabel("Open admin navigation menu").click();
   await expect(page.getByRole("heading", { name: "Inductee Form" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Inductor Form" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Start New Induction" })).toHaveAttribute("href", "/form?returnTo=/admin/forms");
@@ -96,21 +80,19 @@ test("admin-started induction can return to forms workspace from the wizard", as
   await expectNoCriticalA11yViolations(page);
 });
 
-test("admin RAMS page renders cleanly on desktop and mobile", async ({ page }, testInfo) => {
+test("admin RAMS page renders cleanly on desktop and mobile", async ({ page }) => {
   await page.goto("/admin/rams");
 
   await expect(page.getByRole("heading", { name: "RAMS" }).first()).toBeVisible();
-  if (testInfo.project.name === "Desktop Chrome") {
-    await expect(page.getByRole("link", { name: "Inductions" })).toBeVisible();
-  }
+  await page.getByLabel("Open admin navigation menu").click();
+  await expect(page.locator("details nav").getByRole("link", { name: "Inductions" })).toBeVisible();
+  await page.getByLabel("Open admin navigation menu").click();
   await expect(page.getByRole("button", { name: "+ Upload RAMS" })).toBeVisible();
   await expectNoHorizontalOverflow(page);
   await expectNoCriticalA11yViolations(page);
 });
 
-test("mobile admin navigation exposes RAMS from the submissions area", async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name === "Desktop Chrome", "Mobile navigation is hidden on desktop.");
-
+test("admin navigation exposes RAMS from the submissions area", async ({ page }) => {
   await page.goto("/admin/submissions");
   await page.getByLabel("Open admin navigation menu").click();
   await expect(page.locator("details nav").getByRole("link", { name: "Inductions" })).toBeVisible();

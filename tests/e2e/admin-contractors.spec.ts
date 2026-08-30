@@ -15,9 +15,9 @@ test("admin can manage contractors inside a site workspace", async ({ page }, te
   await expect(page.getByRole("heading", { name: "Waitrose Newport" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Back to admin" })).toHaveAttribute("href", "/admin/sites/newport");
 
-  if (testInfo.project.name === "Desktop Chrome") {
-    await expect(page.getByRole("navigation").first().getByRole("link", { name: "Contractors" })).toBeVisible();
-  }
+  await page.getByLabel("Open admin navigation menu").click();
+  await expect(page.locator("details nav").getByRole("link", { name: "Contractors" })).toBeVisible();
+  await page.getByLabel("Open admin navigation menu").click();
 
   const contractorForm = page.locator("form").filter({ has: page.getByRole("button", { name: /Add Contractor|Save Contractor/i }) });
   await contractorForm.getByRole("button", { name: "New" }).click();
