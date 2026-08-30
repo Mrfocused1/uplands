@@ -301,4 +301,99 @@ export const PERMIT_TEMPLATES: PermitTemplate[] = [
       },
     ],
   },
+  {
+    id: "cherry-picker-star-10",
+    code: "UHSF21.05",
+    title: "Cherry Picker / Star 10 Permit",
+    description: "Structured digital permit for cherry picker and Star 10 plant use, rescue planning and completion control.",
+    registerCode: "UHSF21.0",
+    version: "1",
+    sortOrder: 40,
+    sections: [
+      {
+        id: "planning-competence",
+        title: "Planning / Competence Checks",
+        description: "Confirm RAMS, briefing, IPAF competence, rescue planning and supervision are in place before plant use.",
+        sortOrder: 10,
+        questions: [
+          { key: "rams_prepared_approved", prompt: "Has a Risk Assessment and Method Statement been prepared and approved?" },
+          {
+            key: "rams_briefing_understood",
+            prompt: "Have all personnel been briefed on the contents of the RAMS and do they understand the task being carried out?",
+          },
+          { key: "ipaf_card_produced", prompt: "Have the operatives produced the relevant IPAF card for using this plant?" },
+          {
+            key: "rescue_plan_in_place",
+            prompt: "Is a rescue plan in place?",
+            helpText: "Use the comment field to name the person responsible for executing the plan.",
+          },
+          { key: "rescue_plan_briefed", prompt: "Have all operatives been briefed on the rescue plan and how to execute it?" },
+          {
+            key: "competent_supervisor",
+            prompt: "Has a competent appointed supervisor been identified?",
+            helpText: "Use the comment field to record who has been appointed.",
+          },
+        ],
+      },
+      {
+        id: "plant-records",
+        title: "Plant / Harness Records",
+        description: "Confirm statutory plant records and harness inspections are current and filed before work starts.",
+        sortOrder: 20,
+        questions: [
+          { key: "thorough_examination_certificate", prompt: "Is an up-to-date Thorough Examination Certificate filed in Folder 2?" },
+          { key: "harness_inspection_records", prompt: "Have Harness Inspection Records been provided and filed in Folder 2?" },
+        ],
+      },
+      {
+        id: "site-controls",
+        title: "Site Controls / Conditions",
+        description: "Confirm the exclusion zone, weather, ground and lighting conditions are suitable for MEWP work.",
+        sortOrder: 30,
+        questions: [
+          {
+            key: "exclusion_zone_below",
+            prompt: "Have signs and barriers been erected to form a suitable and sufficient exclusion zone beneath the area of work?",
+          },
+          { key: "adverse_weather_present", prompt: "Are adverse weather conditions present or forecast?", requiresCommentOn: ["YES"] },
+          { key: "ground_conditions_suitable", prompt: "Are ground conditions suitable?" },
+          { key: "lighting_conditions_suitable", prompt: "Are lighting conditions suitable?" },
+          {
+            key: "one_shift_validity",
+            prompt: "Is this permit limited to one shift, with a new permit issued and controls rechecked if work continues onto another shift?",
+          },
+        ],
+      },
+    ],
+    signatures: [
+      {
+        key: "manager_authorisation",
+        title: "Uplands Site Manager Authorisation",
+        role: "Uplands Site Manager",
+        action: "Authorised cherry picker / Star 10 permit issue",
+        sortOrder: 10,
+      },
+      {
+        key: "contractor_acceptance",
+        title: "Contractor / Operative Acceptance",
+        role: "Contractor / Operative",
+        action: "Accepted cherry picker / Star 10 permit controls",
+        sortOrder: 20,
+      },
+      {
+        key: "contractor_completion",
+        title: "Contractor / Operative Completion",
+        role: "Contractor / Operative",
+        action: "Confirmed cherry picker / Star 10 work completed",
+        sortOrder: 30,
+      },
+      {
+        key: "manager_completion_acceptance",
+        title: "Uplands Site Manager Acceptance of Completion",
+        role: "Uplands Site Manager",
+        action: "Accepted completion and closed cherry picker / Star 10 permit",
+        sortOrder: 40,
+      },
+    ],
+  },
 ];
