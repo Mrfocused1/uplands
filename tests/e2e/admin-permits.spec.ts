@@ -112,7 +112,7 @@ test("admin can create and authorise an electrical permit", async ({ page }) => 
   await expect(page.getByText("Are control panels locked off?")).toBeVisible();
 
   const supervisorQuestion = page.locator(".p-4").filter({ hasText: "Has a competent supervisor been appointed?" });
-  await supervisorQuestion.getByPlaceholder("Comment").fill("Electrical supervisor: Paul Bridges");
+  await supervisorQuestion.getByPlaceholder("Comment").fill("Electrical supervisor: Site Contact");
 
   const isolationQuestion = page.locator(".p-4").filter({ hasText: "Is the apparatus dead and isolated from supply" });
   await isolationQuestion.getByPlaceholder("Comment").fill("Isolated at DB-01 and DB-02.");
@@ -156,7 +156,7 @@ test("admin can create and authorise a mobile tower scaffold permit", async ({ p
   await expect(page.getByText("Has the operative produced the relevant PASMA card")).toBeVisible();
 
   const supervisorQuestion = page.locator(".p-4").filter({ hasText: "Has a competent supervisor been appointed?" });
-  await supervisorQuestion.getByPlaceholder("Comment").fill("PASMA supervisor: Paul Bridges");
+  await supervisorQuestion.getByPlaceholder("Comment").fill("PASMA supervisor: Site Contact");
 
   await answerAllQuestionsYes(page);
 
@@ -199,7 +199,7 @@ test("admin can create and authorise a cherry picker permit", async ({ page }) =
   await expect(page.getByText("Have the operatives produced the relevant IPAF card")).toBeVisible();
 
   const rescuePlanQuestion = page.locator(".p-4").filter({ hasText: "Is a rescue plan in place?" });
-  await rescuePlanQuestion.getByPlaceholder("Comment").fill("Rescue lead: Paul Bridges");
+  await rescuePlanQuestion.getByPlaceholder("Comment").fill("Rescue lead: Site Contact");
 
   const supervisorQuestion = page.locator(".p-4").filter({ hasText: "Has a competent appointed supervisor been identified?" });
   await supervisorQuestion.getByPlaceholder("Comment").fill("MEWP supervisor: Matty");
@@ -431,7 +431,7 @@ test("admin can create and authorise a temporary works permit", async ({ page })
   await expect(page.getByText("Has the TWC / TWS checked that the temporary works are in accordance with the design details?")).toBeVisible();
 
   const twcQuestion = page.locator(".p-4").filter({ hasText: "Has the authorising temporary works coordinator been identified?" });
-  await twcQuestion.getByPlaceholder("Comment").fill("TWC/TWS: Paul Bridges");
+  await twcQuestion.getByPlaceholder("Comment").fill("TWC/TWS: Site Contact");
 
   const siteManagerQuestion = page.locator(".p-4").filter({ hasText: "Has the site manager responsible for temporary works erection been identified?" });
   await siteManagerQuestion.getByPlaceholder("Comment").fill("Responsible site manager: Matty");

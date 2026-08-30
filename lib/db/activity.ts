@@ -10,6 +10,7 @@ export type SiteActivityEventType =
   | "operative_added"
   | "operative_updated"
   | "induction_invite_created"
+  | "induction_invite_email_sent"
   | "induction_invite_revoked"
   | "induction_invite_submitted"
   | "permit_created"
@@ -35,7 +36,7 @@ export type SiteActivityEventRow = {
   detail: string;
   actor: string | null;
   occurred_at: string;
-  metadata_json: string | null;
+  metadata_json: Record<string, unknown> | string | null;
 };
 
 export type RecordSiteActivityInput = {
@@ -142,4 +143,25 @@ export async function listEntityActivityEvents(entityType: string, entityId: str
        LIMIT ?`,
     )
     .all(entityType, entityId, limit) as SiteActivityEventRow[];
+}
+
+function activityMetadata(row: SiteActivityEventRow): Record<string, unknown> {
+  if (!row.metadata_json) return {};
+  if (typeof row.metadata_json === "object") return row.metadata_json;
+  try {
+    const parsed = JSON.parse(row.metadata_json) as unknown;
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? (parsed as Record<string, unknown>) : {};
+  } catch {
+    return {};
+  }
+}
+
+function isContractorActivity(row: SiteActivityEventRow, contractorId: string) {
+  if (row.entity_type === "contractor" && row.entity_id === contractorId) return true;
+  return activityMetadata(row).contractorId === contractorId;
+}
+
+export async function listContractorActivityEvents(siteId: string, contractorId: string, limit = 20) {
+  const recentSiteEvents = await listSiteActivityEvents(siteId, Math.max(limit * 5, 100));
+  return recentSiteEvents.filter((row) => isContractorActivity(row, contractorId)).slice(0, limit);
 }

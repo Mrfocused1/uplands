@@ -88,12 +88,31 @@ type InductionInvitation = {
   revokedAt: string | null;
 };
 
+type ContractorActivity = {
+  id: string;
+  entityType: string;
+  entityId: string;
+  eventType: string;
+  title: string;
+  detail: string;
+  actor: string | null;
+  occurredAt: string;
+};
+
+type InvitationDeliveryMode = "copy" | "email";
+
 type InvitationFormState = {
   invitedFullName: string;
   invitedEmail: string;
   invitedPhone: string;
   role: string;
   expiresAt: string;
+  deliveryMode: InvitationDeliveryMode;
+};
+
+type InvitationEmailDelivery = {
+  status: "sent" | "missing_recipient" | "not_configured" | "failed";
+  message: string;
 };
 
 const emptyForm: ContractorFormState = {
@@ -118,7 +137,7 @@ const emptyOperativeForm: OperativeFormState = {
   cscsExpiry: "",
 };
 
-function defaultInvitationForm(): InvitationFormState {
+function defaultInvitationForm(deliveryMode: InvitationDeliveryMode = "copy"): InvitationFormState {
   const date = new Date();
   date.setDate(date.getDate() + 14);
   return {
@@ -127,6 +146,7 @@ function defaultInvitationForm(): InvitationFormState {
     invitedPhone: "",
     role: "",
     expiresAt: date.toISOString().slice(0, 10),
+    deliveryMode,
   };
 }
 
@@ -165,6 +185,14 @@ function formatDate(value: string | null) {
   return new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "short", year: "numeric" }).format(new Date(value));
 }
 
+function formatDateTime(value: string) {
+  return new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }).format(new Date(value));
+}
+
+function deliveryNotice(result: InvitationEmailDelivery | null | undefined) {
+  return result?.message ?? "";
+}
+
 export function ContractorsWorkspace({ site, initialContractors }: { site: Site; initialContractors: Contractor[] }) {
   const [contractors, setContractors] = useState(initialContractors);
   const [selectedId, setSelectedId] = useState(initialContractors[0]?.contractorId ?? "");
@@ -179,11 +207,16 @@ export function ContractorsWorkspace({ site, initialContractors }: { site: Site;
   const [operativeSaving, setOperativeSaving] = useState(false);
   const [operativeError, setOperativeError] = useState("");
   const [invitations, setInvitations] = useState<InductionInvitation[]>([]);
+  const [contractorActivity, setContractorActivity] = useState<ContractorActivity[]>([]);
+  const [contractorActivityLoading, setContractorActivityLoading] = useState(false);
+  const [contractorActivityError, setContractorActivityError] = useState("");
   const [invitationsLoading, setInvitationsLoading] = useState(false);
   const [invitationSaving, setInvitationSaving] = useState(false);
   const [invitationError, setInvitationError] = useState("");
+  const [invitationNotice, setInvitationNotice] = useState("");
   const [invitationForm, setInvitationForm] = useState<InvitationFormState>(() => defaultInvitationForm());
   const [createdInviteUrl, setCreatedInviteUrl] = useState("");
+  const [createdMailtoHref, setCreatedMailtoHref] = useState("");
 
   const filteredContractors = useMemo(() => {
     const value = query.trim().toLowerCase();
@@ -197,6 +230,15 @@ export function ContractorsWorkspace({ site, initialContractors }: { site: Site;
   }, [contractors, query]);
 
   const selectedContractor = contractors.find((contractor) => contractor.contractorId === selectedId) ?? null;
+  const contractorActions = selectedContractor
+    ? [
+        { title: "Contractor Details", summary: "Update contact, trade and site status.", href: "#contractor-details", metric: selectedContractor.siteStatus },
+        { title: "Operatives", summary: "Manage the workforce linked to this contractor.", href: "#operatives", metric: String(selectedContractor.operativeCount) },
+        { title: "Induction Invites", summary: "Create secure pre-arrival induction links.", href: "#induction-invite", metric: String(invitations.filter((invite) => invite.status === "INVITED").length) },
+        { title: "Permits", summary: "Open permits connected to this site.", href: `/admin/sites/${site.id}/permits`, metric: String(selectedContractor.permitCount) },
+        { title: "RAMS", summary: "Open RAMS documents for this site.", href: `/admin/sites/${site.id}/rams`, metric: String(selectedContractor.ramsCount) },
+      ]
+    : [];
 
   useEffect(() => {
     if (!selectedId) {
@@ -204,8 +246,11 @@ export function ContractorsWorkspace({ site, initialContractors }: { site: Site;
       setSelectedOperativeId("");
       setOperativeForm(emptyOperativeForm);
       setInvitations([]);
+      setContractorActivity([]);
       setInvitationForm(defaultInvitationForm());
       setCreatedInviteUrl("");
+      setCreatedMailtoHref("");
+      setInvitationNotice("");
       return;
     }
 
@@ -258,6 +303,30 @@ export function ContractorsWorkspace({ site, initialContractors }: { site: Site;
     };
   }, [selectedId, site.id]);
 
+  useEffect(() => {
+    if (!selectedId) return;
+
+    let cancelled = false;
+    setContractorActivityLoading(true);
+    setContractorActivityError("");
+    fetch(`/api/admin/sites/${site.id}/contractors/${selectedId}/history`)
+      .then(async (response) => {
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "Unable to load contractor history.");
+        if (!cancelled) setContractorActivity(data.activity ?? []);
+      })
+      .catch((caught) => {
+        if (!cancelled) setContractorActivityError(caught instanceof Error ? caught.message : "Unable to load contractor history.");
+      })
+      .finally(() => {
+        if (!cancelled) setContractorActivityLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedId, site.id]);
+
   async function refreshContractors(nextSelectedId?: string) {
     const response = await fetch(`/api/admin/sites/${site.id}/contractors`);
     const data = await response.json();
@@ -276,7 +345,10 @@ export function ContractorsWorkspace({ site, initialContractors }: { site: Site;
     setError("");
     setOperativeError("");
     setInvitationError("");
+    setContractorActivityError("");
     setCreatedInviteUrl("");
+    setCreatedMailtoHref("");
+    setInvitationNotice("");
   }
 
   function startNewContractor() {
@@ -286,7 +358,10 @@ export function ContractorsWorkspace({ site, initialContractors }: { site: Site;
     setOperativeError("");
     setInvitationError("");
     setInvitations([]);
+    setContractorActivity([]);
     setCreatedInviteUrl("");
+    setCreatedMailtoHref("");
+    setInvitationNotice("");
   }
 
   function selectOperative(operative: Operative) {
@@ -328,6 +403,7 @@ export function ContractorsWorkspace({ site, initialContractors }: { site: Site;
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Unable to save contractor.");
       await refreshContractors(data.contractorId);
+      await refreshContractorActivity(data.contractorId);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Unable to save contractor.");
     } finally {
@@ -355,6 +431,13 @@ export function ContractorsWorkspace({ site, initialContractors }: { site: Site;
     setInvitations(data.invitations ?? []);
   }
 
+  async function refreshContractorActivity(contractorId: string) {
+    const response = await fetch(`/api/admin/sites/${site.id}/contractors/${contractorId}/history`);
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "Unable to refresh contractor history.");
+    setContractorActivity(data.activity ?? []);
+  }
+
   async function createInvitation(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!selectedContractor) {
@@ -364,7 +447,9 @@ export function ContractorsWorkspace({ site, initialContractors }: { site: Site;
 
     setInvitationSaving(true);
     setInvitationError("");
+    setInvitationNotice("");
     setCreatedInviteUrl("");
+    setCreatedMailtoHref("");
     try {
       const response = await fetch(`/api/admin/sites/${site.id}/contractors/${selectedContractor.contractorId}/invitations`, {
         method: "POST",
@@ -376,13 +461,17 @@ export function ContractorsWorkspace({ site, initialContractors }: { site: Site;
           invitedPhone: invitationForm.invitedPhone,
           role: invitationForm.role,
           expiresAt: invitationForm.expiresAt ? new Date(`${invitationForm.expiresAt}T23:59:59.000Z`).toISOString() : null,
+          deliveryMode: invitationForm.deliveryMode,
         }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Unable to create invitation.");
       setCreatedInviteUrl(data.inviteUrl);
-      setInvitationForm(defaultInvitationForm());
+      setCreatedMailtoHref(data.mailtoHref ?? "");
+      setInvitationNotice(deliveryNotice(data.emailDelivery));
+      setInvitationForm(defaultInvitationForm(invitationForm.deliveryMode));
       await refreshInvitations(selectedContractor.contractorId);
+      await refreshContractorActivity(selectedContractor.contractorId);
       await refreshContractors(selectedContractor.contractorId);
     } catch (caught) {
       setInvitationError(caught instanceof Error ? caught.message : "Unable to create invitation.");
@@ -403,6 +492,7 @@ export function ContractorsWorkspace({ site, initialContractors }: { site: Site;
       const data = await response.json().catch(() => null);
       if (!response.ok) throw new Error(data?.error || "Unable to revoke invitation.");
       await refreshInvitations(selectedContractor.contractorId);
+      await refreshContractorActivity(selectedContractor.contractorId);
     } catch (caught) {
       setInvitationError(caught instanceof Error ? caught.message : "Unable to revoke invitation.");
     }
@@ -411,6 +501,7 @@ export function ContractorsWorkspace({ site, initialContractors }: { site: Site;
   async function copyInviteUrl() {
     if (!createdInviteUrl) return;
     await navigator.clipboard?.writeText(createdInviteUrl);
+    setInvitationNotice("Invite link copied.");
   }
 
   async function saveOperative(event: FormEvent<HTMLFormElement>) {
@@ -446,6 +537,7 @@ export function ContractorsWorkspace({ site, initialContractors }: { site: Site;
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Unable to save operative.");
       await refreshOperatives(selectedContractor.contractorId, data.operativeId);
+      await refreshContractorActivity(selectedContractor.contractorId);
       await refreshContractors(selectedContractor.contractorId);
     } catch (caught) {
       setOperativeError(caught instanceof Error ? caught.message : "Unable to save operative.");
@@ -474,7 +566,7 @@ export function ContractorsWorkspace({ site, initialContractors }: { site: Site;
 
       <section className="grid gap-5 lg:grid-cols-[380px_1fr]">
         <div className="space-y-5">
-          <form onSubmit={saveContractor} className="border border-zinc-200 bg-white p-5 shadow-soft">
+          <form id="contractor-details" onSubmit={saveContractor} className="border border-zinc-200 bg-white p-5 shadow-soft">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="text-xs font-bold uppercase tracking-[0.22em] text-uplands-magenta">{form.contractorId ? "Selected Contractor" : "New Contractor"}</p>
@@ -535,13 +627,14 @@ export function ContractorsWorkspace({ site, initialContractors }: { site: Site;
             </div>
           )}
 
-          <form onSubmit={createInvitation} className="border border-zinc-200 bg-white p-5 shadow-soft">
+          <form id="induction-invite" onSubmit={createInvitation} className="border border-zinc-200 bg-white p-5 shadow-soft">
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.22em] text-uplands-magenta">Induction Invite</p>
               <h2 className="mt-1 font-slab text-2xl text-uplands-charcoal">{selectedContractor ? "Create Invite Link" : "Select Contractor"}</h2>
             </div>
 
             {invitationError && <p className="mt-4 border-l-4 border-red-600 bg-red-50 p-3 text-sm font-bold text-red-700">{invitationError}</p>}
+            {invitationNotice && <p className="mt-4 border-l-4 border-uplands-magenta bg-uplands-paper p-3 text-sm font-bold text-uplands-charcoal">{invitationNotice}</p>}
 
             <div className="mt-4 space-y-3">
               <label className="block">
@@ -549,7 +642,7 @@ export function ContractorsWorkspace({ site, initialContractors }: { site: Site;
                 <input value={invitationForm.invitedFullName} onChange={(event) => setInvitationForm((current) => ({ ...current, invitedFullName: event.target.value }))} disabled={!selectedContractor} className="mt-1 min-h-11 w-full border border-zinc-300 px-3 text-sm disabled:bg-zinc-100" />
               </label>
               <label className="block">
-                <span className="text-xs font-bold uppercase text-zinc-700">Email</span>
+                <span className="text-xs font-bold uppercase text-zinc-700">Operative Email</span>
                 <input value={invitationForm.invitedEmail} type="email" onChange={(event) => setInvitationForm((current) => ({ ...current, invitedEmail: event.target.value }))} disabled={!selectedContractor} className="mt-1 min-h-11 w-full border border-zinc-300 px-3 text-sm disabled:bg-zinc-100" />
               </label>
               <label className="block">
@@ -566,19 +659,38 @@ export function ContractorsWorkspace({ site, initialContractors }: { site: Site;
                   <input value={invitationForm.expiresAt} type="date" onChange={(event) => setInvitationForm((current) => ({ ...current, expiresAt: event.target.value }))} disabled={!selectedContractor} className="mt-1 min-h-11 w-full border border-zinc-300 px-3 text-sm disabled:bg-zinc-100" />
                 </label>
               </div>
+              <label className="block">
+                <span className="text-xs font-bold uppercase text-zinc-700">Delivery</span>
+                <select
+                  value={invitationForm.deliveryMode}
+                  onChange={(event) => setInvitationForm((current) => ({ ...current, deliveryMode: event.target.value as InvitationDeliveryMode }))}
+                  disabled={!selectedContractor}
+                  className="mt-1 min-h-11 w-full border border-zinc-300 px-3 text-sm disabled:bg-zinc-100"
+                >
+                  <option value="copy">Create link only</option>
+                  <option value="email">Create and email now</option>
+                </select>
+              </label>
             </div>
 
             <button type="submit" disabled={!selectedContractor || invitationSaving} className="mt-4 min-h-11 w-full bg-uplands-magenta px-4 text-sm font-bold uppercase text-white disabled:opacity-60">
-              {invitationSaving ? "Creating..." : "Create Invite"}
+              {invitationSaving ? "Creating..." : invitationForm.deliveryMode === "email" ? "Create & Email Invite" : "Create Invite"}
             </button>
 
             {createdInviteUrl && (
               <div className="mt-4 border border-uplands-magenta bg-uplands-paper p-3">
                 <p className="text-xs font-bold uppercase text-uplands-magenta">Invite Link Created</p>
                 <input value={createdInviteUrl} readOnly className="mt-2 min-h-11 w-full border border-zinc-300 bg-white px-3 text-sm text-uplands-charcoal" />
-                <button type="button" onClick={copyInviteUrl} className="mt-2 min-h-10 border border-zinc-300 px-3 text-xs font-bold uppercase text-zinc-700 hover:border-uplands-magenta hover:text-uplands-magenta">
-                  Copy Link
-                </button>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <button type="button" onClick={copyInviteUrl} className="min-h-10 border border-zinc-300 px-3 text-xs font-bold uppercase text-zinc-700 hover:border-uplands-magenta hover:text-uplands-magenta">
+                    Copy Link
+                  </button>
+                  {createdMailtoHref && (
+                    <a href={createdMailtoHref} className="inline-flex min-h-10 items-center border border-zinc-300 px-3 text-xs font-bold uppercase text-zinc-700 hover:border-uplands-magenta hover:text-uplands-magenta">
+                      Open Email
+                    </a>
+                  )}
+                </div>
               </div>
             )}
           </form>
@@ -631,7 +743,59 @@ export function ContractorsWorkspace({ site, initialContractors }: { site: Site;
         </div>
       </section>
 
-      <section className="grid gap-5 lg:grid-cols-[380px_1fr]">
+      {selectedContractor && (
+        <section className="border border-zinc-200 bg-white p-5 shadow-soft sm:p-6">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.22em] text-uplands-magenta">Selected Contractor</p>
+              <h2 className="mt-1 font-slab text-3xl text-uplands-charcoal">{selectedContractor.name}</h2>
+              <p className="mt-2 text-sm text-uplands-muted">
+                {[selectedContractor.trade, selectedContractor.primaryContactName, selectedContractor.primaryContactEmail, selectedContractor.primaryContactPhone].filter(Boolean).join(" · ") ||
+                  "No contact details recorded"}
+              </p>
+            </div>
+            <span className="w-fit border border-zinc-300 px-2.5 py-1 text-xs font-bold uppercase text-zinc-700">{formatStatus(selectedContractor.siteStatus)}</span>
+          </div>
+
+          <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+            {contractorActions.map((action) => (
+              <Link key={action.title} href={action.href} className="flex min-h-40 flex-col justify-between border border-zinc-200 bg-white p-4 transition hover:border-uplands-magenta hover:shadow-soft">
+                <span>
+                  <span className="block font-slab text-xl leading-tight text-uplands-charcoal">{action.title}</span>
+                  <span className="mt-2 block text-sm leading-6 text-uplands-muted">{action.summary}</span>
+                </span>
+                <span className="mt-4 inline-flex w-fit border border-zinc-300 bg-uplands-paper px-2.5 py-1 text-xs font-bold uppercase text-zinc-700">{formatStatus(action.metric)}</span>
+              </Link>
+            ))}
+          </div>
+
+          <div className="mt-6">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.22em] text-uplands-magenta">History</p>
+                <h3 className="mt-1 font-slab text-2xl text-uplands-charcoal">Recent Contractor Activity</h3>
+              </div>
+              {contractorActivityLoading && <p className="text-sm font-bold uppercase text-uplands-muted">Loading</p>}
+            </div>
+            {contractorActivityError && <p className="mt-4 border-l-4 border-red-600 bg-red-50 p-3 text-sm font-bold text-red-700">{contractorActivityError}</p>}
+            <div className="mt-4 divide-y divide-zinc-200 border border-zinc-200">
+              {contractorActivity.map((event) => (
+                <div key={event.id} className="grid gap-2 px-4 py-3 sm:grid-cols-[120px_1fr_160px] sm:items-start">
+                  <span className="text-xs font-bold uppercase text-uplands-muted">{formatDateTime(event.occurredAt)}</span>
+                  <span>
+                    <span className="block font-din text-base text-uplands-charcoal">{event.title}</span>
+                    <span className="mt-1 block text-sm text-uplands-muted">{event.detail}</span>
+                  </span>
+                  <span className="text-xs font-bold uppercase text-uplands-muted">{event.actor || formatStatus(event.eventType)}</span>
+                </div>
+              ))}
+              {!contractorActivityLoading && contractorActivity.length === 0 && <p className="p-4 text-sm text-uplands-muted">No contractor history recorded yet.</p>}
+            </div>
+          </div>
+        </section>
+      )}
+
+      <section id="operatives" className="grid gap-5 lg:grid-cols-[380px_1fr]">
         <form onSubmit={saveOperative} className="border border-zinc-200 bg-white p-5 shadow-soft">
           <div className="flex items-start justify-between gap-4">
             <div>

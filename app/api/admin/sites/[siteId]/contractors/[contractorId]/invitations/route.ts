@@ -1,8 +1,11 @@
 import { NextResponse } from "next/server";
 
 import { requireAdmin, UnauthorizedError } from "@/lib/auth/admin";
+import { buildInductionInviteMailto, sendInductionInviteEmail } from "@/lib/email/inductionInvites";
+import { recordSiteActivity } from "@/lib/db/activity";
 import {
   createInductionInvitation,
+  getPublicInductionInvitation,
   isInductionInvitationDatabaseSetupError,
   invitationUrl,
   listInductionInvitations,
@@ -13,6 +16,10 @@ export const runtime = "nodejs";
 
 function text(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
+}
+
+function deliveryMode(value: unknown) {
+  return text(value) === "email" ? "email" : "copy";
 }
 
 function serializeInvitation(row: Awaited<ReturnType<typeof listInductionInvitations>>[number]) {
@@ -80,11 +87,42 @@ export async function POST(request: Request, context: { params: Promise<{ siteId
       expiresAt: text(body.expiresAt) || null,
       createdBy: admin.displayName,
     });
+    const inviteUrl = invitationUrl(new URL(request.url).origin, token);
+    const publicInvitation = await getPublicInductionInvitation(token);
+    const emailInput = publicInvitation
+      ? {
+          to: publicInvitation.email,
+          inviteUrl,
+          siteName: publicInvitation.siteName,
+          contractorName: publicInvitation.contractorName,
+          fullName: publicInvitation.fullName,
+          role: publicInvitation.role,
+          expiresAt: publicInvitation.expiresAt,
+        }
+      : null;
+    const mailtoHref = emailInput ? buildInductionInviteMailto(emailInput) : "";
+    const emailDelivery = emailInput && deliveryMode(body.deliveryMode) === "email" ? await sendInductionInviteEmail(emailInput) : null;
+
+    if (emailDelivery?.status === "sent") {
+      await recordSiteActivity({
+        siteId: invitation.site_id,
+        projectId: invitation.project_id,
+        entityType: "induction_invitation",
+        entityId: invitation.id,
+        eventType: "induction_invite_email_sent",
+        title: "Induction invite email sent",
+        detail: invitation.invited_full_name || invitation.invited_email || "Invite email sent",
+        actor: admin.displayName,
+        metadata: { contractorId: invitation.contractor_id },
+      });
+    }
 
     return NextResponse.json(
       {
         invitation: serializeInvitation(invitation),
-        inviteUrl: invitationUrl(new URL(request.url).origin, token),
+        inviteUrl,
+        mailtoHref,
+        emailDelivery,
       },
       { status: 201 },
     );

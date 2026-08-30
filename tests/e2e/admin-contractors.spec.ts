@@ -23,8 +23,8 @@ test("admin can manage contractors inside a site workspace", async ({ page }, te
   await contractorForm.getByRole("button", { name: "New" }).click();
   await contractorForm.getByLabel("Company Name").fill(contractor);
   await contractorForm.getByLabel("Trade / Work Package").fill("Fire stopping");
-  await contractorForm.getByLabel("Primary Contact").fill("Paul Bridges");
-  await contractorForm.getByLabel("Email").fill("paul@example.com");
+  await contractorForm.getByLabel("Primary Contact").fill("Site Contact");
+  await contractorForm.getByLabel("Email").fill("site.contact@example.com");
   await contractorForm.getByLabel("Phone").fill("07700 900123");
 
   const [createResponse] = await Promise.all([
@@ -34,13 +34,16 @@ test("admin can manage contractors inside a site workspace", async ({ page }, te
   expect(createResponse.ok()).toBe(true);
 
   await page.getByPlaceholder("Search contractors").fill(contractor);
-  await expect(page.getByRole("button", { name: new RegExp(contractor) })).toBeVisible();
-  await expect(page.getByText("Fire stopping")).toBeVisible();
+  await expect(page.getByRole("button", { name: new RegExp(contractor) })).toContainText("Fire stopping");
+  await expect(page.getByRole("heading", { name: "Recent Contractor Activity" })).toBeVisible();
+  await expect(page.getByRole("link", { name: /Operatives/ })).toBeVisible();
+  await expect(page.getByRole("link", { name: /Induction Invites/ })).toBeVisible();
+  await expect(page.getByText("Contractor added")).toBeVisible();
 
   const invitedName = `Invited Operative ${testInfo.project.name} ${Date.now()}`;
   const invitationForm = page.locator("form").filter({ has: page.getByRole("button", { name: /Create Invite/i }) });
   await invitationForm.getByLabel("Operative Name").fill(invitedName);
-  await invitationForm.getByLabel("Email").fill("invited@example.com");
+  await invitationForm.getByLabel("Operative Email").fill("invited@example.com");
   await invitationForm.getByLabel("Phone").fill("07700 900555");
   await invitationForm.getByLabel("Role / Trade").fill("Electrician");
 
@@ -49,9 +52,11 @@ test("admin can manage contractors inside a site workspace", async ({ page }, te
     invitationForm.getByRole("button", { name: "Create Invite" }).click(),
   ]);
   expect(inviteResponse.ok()).toBe(true);
-  const invite = (await inviteResponse.json()) as { inviteUrl: string };
+  const invite = (await inviteResponse.json()) as { inviteUrl: string; mailtoHref: string };
+  expect(invite.mailtoHref).toContain("mailto:invited%40example.com");
   await expect(page.getByText("Invite Link Created")).toBeVisible();
-  await expect(page.getByText(invitedName)).toBeVisible();
+  await expect(page.getByRole("link", { name: "Open Email" })).toHaveAttribute("href", invite.mailtoHref);
+  await expect(page.getByText(invitedName).first()).toBeVisible();
 
   await page.evaluate(() => window.localStorage.clear());
   await page.goto(new URL(invite.inviteUrl).pathname);
