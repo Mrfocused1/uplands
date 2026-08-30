@@ -43,6 +43,19 @@ async function selectQuestionAnswer(page: Page, questionText: string, answer: "Y
   }
 }
 
+async function createPermit(page: Page, contractor: string, locationOfWork: string, descriptionOfWork: string) {
+  await page.getByPlaceholder("Contractor").fill(contractor);
+  await page.getByPlaceholder("Location of work").fill(locationOfWork);
+  await page.getByPlaceholder("Description of work").fill(descriptionOfWork);
+
+  const [response] = await Promise.all([
+    page.waitForResponse((item) => item.url().endsWith("/api/admin/permits") && item.request().method() === "POST"),
+    page.getByRole("button", { name: "Create Permit" }).click(),
+  ]);
+  expect(response.ok()).toBe(true);
+  await expect(page.getByTestId("permit-editor").getByLabel("Contractor")).toHaveValue(contractor);
+}
+
 test("admin can create, edit and download a step ladders permit", async ({ page }) => {
   test.setTimeout(45_000);
 
@@ -54,14 +67,8 @@ test("admin can create, edit and download a step ladders permit", async ({ page 
   await expect(page.getByRole("link", { name: "Back to admin" })).toHaveAttribute("href", "/admin/sites/newport");
   await expect(page.locator("form").getByRole("heading", { name: "Step Ladders / Ladders Permit" })).toBeVisible();
 
-  await page.getByPlaceholder("Contractor").fill(contractor);
-  await page.getByPlaceholder("Location of work").fill("Back of house stock room");
-  await page.getByPlaceholder("Description of work").fill("Inspect ceiling signage using a step ladder.");
-  await page.getByRole("button", { name: "Create Permit" }).click();
-
-  await expect(page.getByText(contractor).first()).toBeVisible();
+  await createPermit(page, contractor, "Back of house stock room", "Inspect ceiling signage using a step ladder.");
   await expect(page.getByTestId("permit-editor").getByRole("heading", { name: "Step Ladders / Ladders Permit" })).toBeVisible();
-  await expect(page.getByLabel("Contractor")).toHaveValue(contractor);
   await expect(page.getByText("Permit created").first()).toBeVisible();
 
   await answerAllQuestionsYes(page);
@@ -97,16 +104,10 @@ test("admin can create and authorise an electrical permit", async ({ page }) => 
   await choosePermitType(page, "Electrical Permit");
   await expect(page.locator("form").getByRole("heading", { name: "Electrical Permit" })).toBeVisible();
 
-  await page.getByPlaceholder("Contractor").fill(contractor);
-  await page.getByPlaceholder("Location of work").fill("Main distribution board");
-  await page.getByPlaceholder("Description of work").fill("Isolate and test circuits for controlled electrical works.");
-  await page.getByRole("button", { name: "Create Permit" }).click();
-
-  await expect(page.getByText(contractor).first()).toBeVisible();
+  await createPermit(page, contractor, "Main distribution board", "Isolate and test circuits for controlled electrical works.");
   await expect(page.getByTestId("permit-editor").getByRole("heading", { name: "Electrical Permit" })).toBeVisible();
   await expect(page.getByText("Uplands Site Electrician Declaration")).toBeVisible();
   await expect(page.getByText("Are control panels locked off?")).toBeVisible();
-  await expect(page.getByLabel("Contractor")).toHaveValue(contractor);
 
   const supervisorQuestion = page.locator(".p-4").filter({ hasText: "Has a competent supervisor been appointed?" });
   await supervisorQuestion.getByPlaceholder("Comment").fill("Electrical supervisor: Paul Bridges");
@@ -147,16 +148,10 @@ test("admin can create and authorise a mobile tower scaffold permit", async ({ p
   await choosePermitType(page, "Mobile Tower Scaffold Permit");
   await expect(page.locator("form").getByRole("heading", { name: "Mobile Tower Scaffold Permit" })).toBeVisible();
 
-  await page.getByPlaceholder("Contractor").fill(contractor);
-  await page.getByPlaceholder("Location of work").fill("Sales floor aisle 4");
-  await page.getByPlaceholder("Description of work").fill("Use mobile tower scaffold to access ceiling services.");
-  await page.getByRole("button", { name: "Create Permit" }).click();
-
-  await expect(page.getByText(contractor).first()).toBeVisible();
+  await createPermit(page, contractor, "Sales floor aisle 4", "Use mobile tower scaffold to access ceiling services.");
   await expect(page.getByTestId("permit-editor").getByRole("heading", { name: "Mobile Tower Scaffold Permit" })).toBeVisible();
   await expect(page.getByText("Tower System / Components")).toBeVisible();
   await expect(page.getByText("Has the operative produced the relevant PASMA card")).toBeVisible();
-  await expect(page.getByLabel("Contractor")).toHaveValue(contractor);
 
   const supervisorQuestion = page.locator(".p-4").filter({ hasText: "Has a competent supervisor been appointed?" });
   await supervisorQuestion.getByPlaceholder("Comment").fill("PASMA supervisor: Paul Bridges");
@@ -196,16 +191,10 @@ test("admin can create and authorise a cherry picker permit", async ({ page }) =
   await choosePermitType(page, "Cherry Picker / Star 10 Permit");
   await expect(page.locator("form").getByRole("heading", { name: "Cherry Picker / Star 10 Permit" })).toBeVisible();
 
-  await page.getByPlaceholder("Contractor").fill(contractor);
-  await page.getByPlaceholder("Location of work").fill("External service yard");
-  await page.getByPlaceholder("Description of work").fill("Use cherry picker to access high-level external signage.");
-  await page.getByRole("button", { name: "Create Permit" }).click();
-
-  await expect(page.getByText(contractor).first()).toBeVisible();
+  await createPermit(page, contractor, "External service yard", "Use cherry picker to access high-level external signage.");
   await expect(page.getByTestId("permit-editor").getByRole("heading", { name: "Cherry Picker / Star 10 Permit" })).toBeVisible();
   await expect(page.getByText("Plant / Harness Records")).toBeVisible();
   await expect(page.getByText("Have the operatives produced the relevant IPAF card")).toBeVisible();
-  await expect(page.getByLabel("Contractor")).toHaveValue(contractor);
 
   const rescuePlanQuestion = page.locator(".p-4").filter({ hasText: "Is a rescue plan in place?" });
   await rescuePlanQuestion.getByPlaceholder("Comment").fill("Rescue lead: Paul Bridges");
@@ -248,17 +237,11 @@ test("admin can create and authorise an excavation permit", async ({ page }) => 
   await choosePermitType(page, "Excavation Permit");
   await expect(page.locator("form").getByRole("heading", { name: "Excavation Permit" })).toBeVisible();
 
-  await page.getByPlaceholder("Contractor").fill(contractor);
-  await page.getByPlaceholder("Location of work").fill("Rear service trench");
-  await page.getByPlaceholder("Description of work").fill("Excavate shallow trench for service investigation.");
-  await page.getByRole("button", { name: "Create Permit" }).click();
-
-  await expect(page.getByText(contractor).first()).toBeVisible();
+  await createPermit(page, contractor, "Rear service trench", "Excavate shallow trench for service investigation.");
   await expect(page.getByTestId("permit-editor").getByRole("heading", { name: "Excavation Permit" })).toBeVisible();
   await expect(page.getByText("Services / Drawings / Materials")).toBeVisible();
   await expect(page.getByText("Atmosphere / Rescue Arrangements")).toBeVisible();
   await expect(page.getByText("Have all services been located and their positions verified?")).toBeVisible();
-  await expect(page.getByLabel("Contractor")).toHaveValue(contractor);
 
   const supervisorQuestion = page.locator(".p-4").filter({ hasText: "Has a competent supervisor been appointed?" });
   await supervisorQuestion.getByPlaceholder("Comment").fill("Excavation supervisor: Matty");
@@ -299,17 +282,11 @@ test("admin can create and authorise a permit to dig / break ground", async ({ p
   await choosePermitType(page, "Permit to Dig / Break Ground");
   await expect(page.locator("form").getByRole("heading", { name: "Permit to Dig / Break Ground" })).toBeVisible();
 
-  await page.getByPlaceholder("Contractor").fill(contractor);
-  await page.getByPlaceholder("Location of work").fill("Front entrance slab");
-  await page.getByPlaceholder("Description of work").fill("Break ground for shallow service inspection trench.");
-  await page.getByRole("button", { name: "Create Permit" }).click();
-
-  await expect(page.getByText(contractor).first()).toBeVisible();
+  await createPermit(page, contractor, "Front entrance slab", "Break ground for shallow service inspection trench.");
   await expect(page.getByTestId("permit-editor").getByRole("heading", { name: "Permit to Dig / Break Ground" })).toBeVisible();
   await expect(page.getByText("Plans / CAT Scanning")).toBeVisible();
   await expect(page.getByText("Services / Ground Controls")).toBeVisible();
   await expect(page.getByText("Have all utility and third-party plans / drawings been provided?")).toBeVisible();
-  await expect(page.getByLabel("Contractor")).toHaveValue(contractor);
 
   const catScanQuestion = page.locator(".p-4").filter({ hasText: "Has a CAT scan of the area taken place and been recorded?" });
   await catScanQuestion.getByPlaceholder("Comment").fill("CAT scan logged against entrance slab work pack.");
@@ -350,17 +327,11 @@ test("admin can create and authorise a confined space permit", async ({ page }) 
   await choosePermitType(page, "Confined Space Permit");
   await expect(page.locator("form").getByRole("heading", { name: "Confined Space Permit" })).toBeVisible();
 
-  await page.getByPlaceholder("Contractor").fill(contractor);
-  await page.getByPlaceholder("Location of work").fill("Plant room sump chamber");
-  await page.getByPlaceholder("Description of work").fill("Enter sump chamber to inspect pump controls and clear debris.");
-  await page.getByRole("button", { name: "Create Permit" }).click();
-
-  await expect(page.getByText(contractor).first()).toBeVisible();
+  await createPermit(page, contractor, "Plant room sump chamber", "Enter sump chamber to inspect pump controls and clear debris.");
   await expect(page.getByTestId("permit-editor").getByRole("heading", { name: "Confined Space Permit" })).toBeVisible();
   await expect(page.getByText("Atmosphere / Ventilation Controls")).toBeVisible();
   await expect(page.getByText("Rescue / Emergency Readiness")).toBeVisible();
   await expect(page.getByText("Is there an observer outside the confined space?")).toBeVisible();
-  await expect(page.getByLabel("Contractor")).toHaveValue(contractor);
 
   const supervisorQuestion = page.locator(".p-4").filter({ hasText: "Has a competent supervisor been appointed?" });
   await supervisorQuestion.getByPlaceholder("Comment").fill("Confined-space supervisor: Matty");
@@ -402,17 +373,11 @@ test("admin can create and authorise a demolition permit", async ({ page }) => {
   await choosePermitType(page, "Demolition Permit");
   await expect(page.locator("form").getByRole("heading", { name: "Demolition Permit" })).toBeVisible();
 
-  await page.getByPlaceholder("Contractor").fill(contractor);
-  await page.getByPlaceholder("Location of work").fill("Former customer service desk");
-  await page.getByPlaceholder("Description of work").fill("Controlled soft strip and demolition of redundant partition.");
-  await page.getByRole("button", { name: "Create Permit" }).click();
-
-  await expect(page.getByText(contractor).first()).toBeVisible();
+  await createPermit(page, contractor, "Former customer service desk", "Controlled soft strip and demolition of redundant partition.");
   await expect(page.getByTestId("permit-editor").getByRole("heading", { name: "Demolition Permit" })).toBeVisible();
   await expect(page.getByText("Services / Surveys / Drawings")).toBeVisible();
   await expect(page.getByText("Temporary Works / Waste Controls")).toBeVisible();
   await expect(page.getByText("Has a detailed demolition survey been carried out?")).toBeVisible();
-  await expect(page.getByLabel("Contractor")).toHaveValue(contractor);
 
   const supervisorQuestion = page.locator(".p-4").filter({ hasText: "Has a competent supervisor been appointed?" });
   await supervisorQuestion.getByPlaceholder("Comment").fill("Demolition supervisor: Matty");
@@ -457,17 +422,11 @@ test("admin can create and authorise a temporary works permit", async ({ page })
   await choosePermitType(page, "Temporary Works Permit to Load / Strike");
   await expect(page.locator("form").getByRole("heading", { name: "Temporary Works Permit to Load / Strike" })).toBeVisible();
 
-  await page.getByPlaceholder("Contractor").fill(contractor);
-  await page.getByPlaceholder("Location of work").fill("Loading bay temporary support");
-  await page.getByPlaceholder("Description of work").fill("Inspect temporary support and authorise controlled loading sequence.");
-  await page.getByRole("button", { name: "Create Permit" }).click();
-
-  await expect(page.getByText(contractor).first()).toBeVisible();
+  await createPermit(page, contractor, "Loading bay temporary support", "Inspect temporary support and authorise controlled loading sequence.");
   await expect(page.getByTestId("permit-editor").getByRole("heading", { name: "Temporary Works Permit to Load / Strike" })).toBeVisible();
   await expect(page.getByText("Temporary Works Team")).toBeVisible();
   await expect(page.getByText("Load / Strike Authorisation")).toBeVisible();
   await expect(page.getByText("Has the TWC / TWS checked that the temporary works are in accordance with the design details?")).toBeVisible();
-  await expect(page.getByLabel("Contractor")).toHaveValue(contractor);
 
   const twcQuestion = page.locator(".p-4").filter({ hasText: "Has the authorising temporary works coordinator been identified?" });
   await twcQuestion.getByPlaceholder("Comment").fill("TWC/TWS: Paul Bridges");
@@ -487,6 +446,55 @@ test("admin can create and authorise a temporary works permit", async ({ page })
   await expect(page.getByText("Permit submitted for review").first()).toBeVisible();
 
   const managerSignature = page.locator("article").filter({ has: page.getByRole("heading", { name: "Uplands Site Manager Responsible for Temporary Works Erection Authorisation" }) });
+  await managerSignature.getByPlaceholder("Name").fill("Matty");
+  await managerSignature.getByPlaceholder("Company").fill("Uplands");
+  await managerSignature.getByPlaceholder("Position").fill("Site Manager");
+
+  await page.getByRole("button", { name: "Authorise Permit" }).click();
+  await expect(page.getByText("AUTHORISED").first()).toBeVisible();
+
+  const pdfHref = await page.getByRole("link", { name: "Download PDF" }).getAttribute("href");
+  expect(pdfHref).toBeTruthy();
+  const response = await page.request.get(pdfHref!);
+  expect(response.ok()).toBe(true);
+  expect(response.headers()["content-type"]).toContain("application/pdf");
+});
+
+test("admin can create and authorise a PFS clearance certificate", async ({ page }) => {
+  test.setTimeout(60_000);
+
+  const contractor = `PFS Clearance Test ${Date.now()}`;
+
+  await page.goto("/admin/sites/newport/permits");
+  await expect(page.getByRole("heading", { name: "Waitrose Newport" })).toBeVisible();
+
+  await choosePermitType(page, "PFS Clearance Certificate");
+  await expect(page.locator("form").getByRole("heading", { name: "PFS Clearance Certificate" })).toBeVisible();
+
+  await createPermit(page, contractor, "Petrol filling station forecourt", "Low-risk inspection task at the PFS forecourt with controlled access.");
+  await expect(page.getByTestId("permit-editor").getByRole("heading", { name: "PFS Clearance Certificate" })).toBeVisible();
+  await expect(page.getByText("Task Scope / Risk Level")).toBeVisible();
+  await expect(page.getByText("Additional Hazards / Precautions")).toBeVisible();
+  await expect(page.getByText("Has the task risk level been recorded?")).toBeVisible();
+
+  const riskLevelQuestion = page.locator(".p-4").filter({ hasText: "Has the task risk level been recorded?" });
+  await riskLevelQuestion.getByPlaceholder("Comment").fill("Risk level: Low");
+
+  const workersQuestion = page.locator(".p-4").filter({ hasText: "Has the number of workers involved been recorded?" });
+  await workersQuestion.getByPlaceholder("Comment").fill("Number of workers: 2");
+
+  const hazardsQuestion = page.locator(".p-4").filter({ hasText: "Have any additional hazards beyond those in the RAMS been identified today?" });
+  await hazardsQuestion.getByPlaceholder("Comment").fill("No additional hazards identified at start of task.");
+
+  await answerAllQuestionsYes(page);
+  await selectQuestionAnswer(page, "Have any additional hazards beyond those in the RAMS been identified today?", "NO");
+
+  const submitForReview = page.getByRole("button", { name: "Submit for Review" });
+  await expect(submitForReview).toBeEnabled();
+  await submitForReview.click();
+  await expect(page.getByText("Permit submitted for review").first()).toBeVisible();
+
+  const managerSignature = page.locator("article").filter({ has: page.getByRole("heading", { name: "Uplands Site Manager Clearance Approval" }) });
   await managerSignature.getByPlaceholder("Name").fill("Matty");
   await managerSignature.getByPlaceholder("Company").fill("Uplands");
   await managerSignature.getByPlaceholder("Position").fill("Site Manager");

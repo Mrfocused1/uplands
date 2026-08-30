@@ -1022,4 +1022,120 @@ export const PERMIT_TEMPLATES: PermitTemplate[] = [
       },
     ],
   },
+  {
+    id: "pfs-clearance-certificate",
+    code: "UHSF21.11",
+    title: "PFS Clearance Certificate",
+    description: "Structured digital clearance certificate for PFS task risk level, RAMS checks, operative briefing, hazards and daily clearance control.",
+    registerCode: "UHSF21.0",
+    version: "1",
+    sortOrder: 100,
+    sections: [
+      {
+        id: "task-scope",
+        title: "Task Scope / Risk Level",
+        description: "Record the task risk level, description and number of workers involved before clearance is approved.",
+        sortOrder: 10,
+        questions: [
+          {
+            key: "task_risk_level_recorded",
+            prompt: "Has the task risk level been recorded?",
+            helpText: "Record Low, Medium or High in the comment field.",
+            requiresCommentOn: ["YES"],
+          },
+          {
+            key: "task_description_sufficient",
+            prompt: "Has the task description been recorded in enough detail for today's work?",
+            helpText: "Use the permit description field for the task description.",
+          },
+          {
+            key: "number_workers_recorded",
+            prompt: "Has the number of workers involved been recorded?",
+            helpText: "Record the number of workers in the comment field.",
+            requiresCommentOn: ["YES"],
+          },
+        ],
+      },
+      {
+        id: "rams-emergency-competence",
+        title: "RAMS / Emergency / Competence",
+        description: "Confirm RAMS, emergency procedures, supervision and operative competence before work starts.",
+        sortOrder: 20,
+        questions: [
+          { key: "rams_prepared_approved", prompt: "Has a Risk Assessment and Method Statement been prepared and approved?" },
+          {
+            key: "rams_briefing_understood",
+            prompt: "Have all personnel been briefed on the contents of the RAMS and do they understand the task they are carrying out?",
+          },
+          { key: "emergency_procedures_prepared_posted", prompt: "Have emergency procedures been prepared and posted?" },
+          {
+            key: "emergency_procedures_training",
+            prompt: "Have all personnel involved been trained in the requirements of the emergency procedures?",
+          },
+          {
+            key: "competent_supervisor",
+            prompt: "Has a competent supervisor been appointed?",
+            helpText: "Use the comment field to record who has been appointed.",
+          },
+          { key: "operatives_suitably_trained", prompt: "Are operatives suitably trained?" },
+          {
+            key: "protective_clothing_equipment",
+            prompt: "Has the appropriate protective clothing and equipment been identified and provided?",
+          },
+        ],
+      },
+      {
+        id: "additional-hazards",
+        title: "Additional Hazards / Precautions",
+        description: "Record additional hazards and confirm a new clearance certificate will be raised if conditions change.",
+        sortOrder: 30,
+        questions: [
+          {
+            key: "additional_hazards_identified",
+            prompt: "Have any additional hazards beyond those in the RAMS been identified today?",
+            helpText: "List additional hazards in the comment field where applicable.",
+            requiresCommentOn: ["YES"],
+          },
+          {
+            key: "additional_precautions_recorded",
+            prompt: "Have precautions for any additional hazards been recorded and briefed?",
+          },
+          {
+            key: "new_certificate_if_hazards_change",
+            prompt: "Has the team been briefed that a new clearance certificate is required if additional hazards emerge during today's work?",
+          },
+        ],
+      },
+    ],
+    signatures: [
+      {
+        key: "manager_authorisation",
+        title: "Uplands Site Manager Clearance Approval",
+        role: "Uplands Site Manager",
+        action: "Approved PFS clearance certificate",
+        sortOrder: 10,
+      },
+      {
+        key: "contractor_acceptance",
+        title: "Contractor / Operative Acceptance",
+        role: "Contractor / Operative",
+        action: "Accepted PFS clearance controls",
+        sortOrder: 20,
+      },
+      {
+        key: "contractor_completion",
+        title: "Contractor / Operative Completion",
+        role: "Contractor / Operative",
+        action: "Confirmed PFS task completed",
+        sortOrder: 30,
+      },
+      {
+        key: "manager_completion_acceptance",
+        title: "Uplands Site Manager Acceptance of Completion",
+        role: "Uplands Site Manager",
+        action: "Accepted completion and closed PFS clearance certificate",
+        sortOrder: 40,
+      },
+    ],
+  },
 ];
