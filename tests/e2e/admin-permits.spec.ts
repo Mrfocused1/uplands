@@ -28,6 +28,21 @@ async function choosePermitType(page: Page, name: string) {
   await expect(permitTypeCard).toHaveAttribute("aria-pressed", "true");
 }
 
+async function selectQuestionAnswer(page: Page, questionText: string, answer: "YES" | "NO" | "N/A") {
+  const question = page.locator(".p-4").filter({ hasText: questionText });
+  const button = question.getByRole("button", { name: answer });
+
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    await button.click();
+    try {
+      await expect(button).toHaveClass(/bg-uplands-magenta/, { timeout: 3000 });
+      return;
+    } catch (caught) {
+      if (attempt === 2) throw caught;
+    }
+  }
+}
+
 test("admin can create, edit and download a step ladders permit", async ({ page }) => {
   test.setTimeout(45_000);
 
@@ -150,10 +165,7 @@ test("admin can create and authorise a mobile tower scaffold permit", async ({ p
 
   await answerAllQuestionsYes(page);
 
-  const agrQuestion = page.locator(".p-4").filter({ hasText: "If the mobile tower is not an AGR system" });
-  const notApplicableButton = agrQuestion.getByRole("button", { name: "N/A" });
-  await notApplicableButton.click();
-  await expect(notApplicableButton).toHaveClass(/bg-uplands-magenta/);
+  await selectQuestionAnswer(page, "If the mobile tower is not an AGR system", "N/A");
 
   const submitForReview = page.getByRole("button", { name: "Submit for Review" });
   await expect(submitForReview).toBeEnabled();
@@ -206,10 +218,7 @@ test("admin can create and authorise a cherry picker permit", async ({ page }) =
 
   await answerAllQuestionsYes(page);
 
-  const adverseWeatherQuestion = page.locator(".p-4").filter({ hasText: "Are adverse weather conditions present or forecast?" });
-  const noButton = adverseWeatherQuestion.getByRole("button", { name: "NO" });
-  await noButton.click();
-  await expect(noButton).toHaveClass(/bg-uplands-magenta/);
+  await selectQuestionAnswer(page, "Are adverse weather conditions present or forecast?", "NO");
 
   const submitForReview = page.getByRole("button", { name: "Submit for Review" });
   await expect(submitForReview).toBeEnabled();
@@ -260,6 +269,58 @@ test("admin can create and authorise an excavation permit", async ({ page }) => 
 
   const servicesQuestion = page.locator(".p-4").filter({ hasText: "Have all services been located and their positions verified?" });
   await servicesQuestion.getByPlaceholder("Comment").fill("Drawing UCB-EX-01 checked and CAT scan completed.");
+
+  await answerAllQuestionsYes(page);
+
+  const submitForReview = page.getByRole("button", { name: "Submit for Review" });
+  await expect(submitForReview).toBeEnabled();
+  await submitForReview.click();
+  await expect(page.getByText("Permit submitted for review").first()).toBeVisible();
+
+  const managerSignature = page.locator("article").filter({ has: page.getByRole("heading", { name: "Uplands Site Manager Authorisation" }) });
+  await managerSignature.getByPlaceholder("Name").fill("Matty");
+  await managerSignature.getByPlaceholder("Company").fill("Uplands");
+  await managerSignature.getByPlaceholder("Position").fill("Site Manager");
+
+  await page.getByRole("button", { name: "Authorise Permit" }).click();
+  await expect(page.getByText("AUTHORISED").first()).toBeVisible();
+  await expect(page.getByText("Permit authorised").first()).toBeVisible();
+
+  const pdfHref = await page.getByRole("link", { name: "Download PDF" }).getAttribute("href");
+  expect(pdfHref).toBeTruthy();
+  const response = await page.request.get(pdfHref!);
+  expect(response.ok()).toBe(true);
+  expect(response.headers()["content-type"]).toContain("application/pdf");
+});
+
+test("admin can create and authorise a permit to dig / break ground", async ({ page }) => {
+  test.setTimeout(60_000);
+
+  const contractor = `Permit To Dig Test ${Date.now()}`;
+
+  await page.goto("/admin/sites/newport/permits");
+  await expect(page.getByRole("heading", { name: "Waitrose Newport" })).toBeVisible();
+
+  await choosePermitType(page, "Permit to Dig / Break Ground");
+  await expect(page.locator("form").getByRole("heading", { name: "Permit to Dig / Break Ground" })).toBeVisible();
+
+  await page.getByPlaceholder("Contractor").fill(contractor);
+  await page.getByPlaceholder("Location of work").fill("Front entrance slab");
+  await page.getByPlaceholder("Description of work").fill("Break ground for shallow service inspection trench.");
+  await page.getByRole("button", { name: "Create Permit" }).click();
+
+  await expect(page.getByText(contractor).first()).toBeVisible();
+  await expect(page.getByTestId("permit-editor").getByRole("heading", { name: "Permit to Dig / Break Ground" })).toBeVisible();
+  await expect(page.getByText("Plans / CAT Scanning")).toBeVisible();
+  await expect(page.getByText("Services / Ground Controls")).toBeVisible();
+  await expect(page.getByText("Have all utility and third-party plans / drawings been provided?")).toBeVisible();
+  await expect(page.getByLabel("Contractor")).toHaveValue(contractor);
+
+  const catScanQuestion = page.locator(".p-4").filter({ hasText: "Has a CAT scan of the area taken place and been recorded?" });
+  await catScanQuestion.getByPlaceholder("Comment").fill("CAT scan logged against entrance slab work pack.");
+
+  const gasElectricQuestion = page.locator(".p-4").filter({ hasText: "Have electricity or gas services been identified as present within 500mm" });
+  await gasElectricQuestion.getByPlaceholder("Comment").fill("Known electrical duct marked. Hand-dig rule briefed.");
 
   await answerAllQuestionsYes(page);
 

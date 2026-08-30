@@ -509,4 +509,126 @@ export const PERMIT_TEMPLATES: PermitTemplate[] = [
       },
     ],
   },
+  {
+    id: "permit-to-dig-break-ground",
+    code: "UHSF21.03",
+    title: "Permit to Dig / Break Ground",
+    description: "Structured digital permit for breaking ground, utility-plan checks, CAT scanning, service exposure and briefing controls.",
+    registerCode: "UHSF21.0",
+    version: "1",
+    sortOrder: 60,
+    sections: [
+      {
+        id: "plans-scanning",
+        title: "Plans / CAT Scanning",
+        description: "Confirm utility information, scanning records and service-location controls before breaking ground.",
+        sortOrder: 10,
+        questions: [
+          { key: "utility_plans_provided", prompt: "Have all utility and third-party plans / drawings been provided?" },
+          {
+            key: "cat_scan_completed_recorded",
+            prompt: "Has a CAT scan of the area taken place and been recorded?",
+            helpText: "Record scan date, area covered and reference details where needed.",
+          },
+          {
+            key: "cat_scans_every_300mm",
+            prompt: "If excavation work is being carried out, will CAT scans be repeated at least every 300mm of depth?",
+          },
+          {
+            key: "cat_genny_calibrated",
+            prompt: "Has the CAT and Genny equipment been calibrated in the last 12 months?",
+            helpText: "A copy of the calibration certificate is required for inspection and all pre-user checks must be carried out.",
+          },
+        ],
+      },
+      {
+        id: "services-ground-controls",
+        title: "Services / Ground Controls",
+        description: "Confirm known services are traced, marked and controlled before mechanical work starts.",
+        sortOrder: 20,
+        questions: [
+          {
+            key: "known_services_traced_marked",
+            prompt: "Have all known services been traced and marked out on the ground?",
+            helpText: "If this is No, do not proceed.",
+            requiresCommentOn: ["NO"],
+          },
+          {
+            key: "gas_electric_within_500mm",
+            prompt: "Have electricity or gas services been identified as present within 500mm of the dig in any direction?",
+            helpText: "If Yes, services must be fully exposed by hand dig before machinery starts. No breakers or mechanical equipment are to be used.",
+            requiresCommentOn: ["YES"],
+          },
+          {
+            key: "hand_dig_rule_briefed",
+            prompt: "Where services are within 500mm, has the hand-dig and no-breaker restriction been briefed and accepted?",
+          },
+        ],
+      },
+      {
+        id: "rams-competence",
+        title: "RAMS / Competence",
+        description: "Confirm the task has suitable RAMS, briefing and competent personnel before work starts.",
+        sortOrder: 30,
+        questions: [
+          { key: "suitable_sufficient_rams", prompt: "Are there suitable and sufficient RAMS in place for this operation?" },
+          { key: "personnel_plant_operator_briefed", prompt: "Have all personnel, including the plant operator, been briefed on the RAMS?" },
+          { key: "personnel_competent", prompt: "Are all personnel competent?" },
+          { key: "emergency_first_aid_in_place", prompt: "Are emergency procedures and first aid provisions in place?" },
+        ],
+      },
+      {
+        id: "permit-conditions",
+        title: "Permit Conditions",
+        description: "Confirm the permit-specific stop-work rules have been communicated to the work party.",
+        sortOrder: 40,
+        questions: [
+          {
+            key: "permit_conditions_briefed",
+            prompt: "Have all conditions and control measures of this permit been briefed to all operatives?",
+          },
+          {
+            key: "stop_if_services_encased",
+            prompt:
+              "Has the team been instructed to stop work immediately if gas or electricity services are found encased in concrete, with the service provider and Uplands site manager informed?",
+          },
+          {
+            key: "stop_if_foundations_encased",
+            prompt:
+              "Has the team been instructed to stop work immediately if foundations are found encased in concrete or isolated until the Uplands site manager confirms conditions are adhered to?",
+          },
+        ],
+      },
+    ],
+    signatures: [
+      {
+        key: "manager_authorisation",
+        title: "Uplands Site Manager Authorisation",
+        role: "Uplands Site Manager",
+        action: "Authorised permit to dig / break ground issue",
+        sortOrder: 10,
+      },
+      {
+        key: "contractor_acceptance",
+        title: "Supervisor Acceptance",
+        role: "Supervisor",
+        action: "Accepted permit to dig / break ground controls",
+        sortOrder: 20,
+      },
+      {
+        key: "contractor_completion",
+        title: "Contractor / Operative Completion",
+        role: "Contractor / Operative",
+        action: "Confirmed permit to dig / break ground work completed",
+        sortOrder: 30,
+      },
+      {
+        key: "manager_completion_acceptance",
+        title: "Uplands Site Manager Acceptance of Completion",
+        role: "Uplands Site Manager",
+        action: "Accepted completion and closed permit to dig / break ground",
+        sortOrder: 40,
+      },
+    ],
+  },
 ];
