@@ -755,4 +755,120 @@ export const PERMIT_TEMPLATES: PermitTemplate[] = [
       },
     ],
   },
+  {
+    id: "demolition",
+    code: "UHSF21.07",
+    title: "Demolition Permit",
+    description: "Structured digital permit for demolition planning, service isolation, surveys, temporary works, protection and completion control.",
+    registerCode: "UHSF21.0",
+    version: "1",
+    sortOrder: 80,
+    sections: [
+      {
+        id: "planning-competence",
+        title: "Planning / Competence Checks",
+        description: "Confirm RAMS, emergency arrangements, supervision and demolition competence before work starts.",
+        sortOrder: 10,
+        questions: [
+          { key: "rams_prepared_approved", prompt: "Has a Risk Assessment and Method Statement been prepared and approved?" },
+          {
+            key: "rams_briefing_understood",
+            prompt: "Have all personnel been briefed on the contents of the RAMS and do they understand the task they are carrying out?",
+          },
+          { key: "emergency_procedures_prepared", prompt: "Have emergency procedures been prepared and posted?" },
+          { key: "emergency_procedures_training", prompt: "Have all personnel involved been trained in the requirements of the emergency procedures?" },
+          {
+            key: "competent_supervisor",
+            prompt: "Has a competent supervisor been appointed?",
+            helpText: "Record the temporary works supervisor or demolition supervisor where applicable.",
+          },
+          {
+            key: "operatives_trained_ccdo",
+            prompt: "Are operatives suitably trained, including CCDO cards where required?",
+          },
+        ],
+      },
+      {
+        id: "services-surveys",
+        title: "Services / Surveys / Drawings",
+        description: "Confirm services, drawings and demolition survey findings have been checked before demolition starts.",
+        sortOrder: 20,
+        questions: [
+          {
+            key: "services_located_verified",
+            prompt: "Have all services been located and their positions verified?",
+            helpText: "Record isolation or verification references where needed.",
+          },
+          { key: "drawings_available", prompt: "Are necessary drawings available?" },
+          { key: "demolition_survey_completed", prompt: "Has a detailed demolition survey been carried out?" },
+          {
+            key: "survey_hazards_identified",
+            prompt:
+              "Has the survey identified possible hazards, including adjacent structures, confined spaces, voids, services, asbestos, dust, noise and vibration?",
+            requiresCommentOn: ["YES"],
+          },
+        ],
+      },
+      {
+        id: "site-protection-communication",
+        title: "Site Protection / Communication",
+        description: "Confirm barriers, signage, third-party communication and PPE/RPE controls are in place.",
+        sortOrder: 30,
+        questions: [
+          { key: "suitable_protection_in_place", prompt: "Is suitable protection in place, such as fencing?" },
+          { key: "suitable_signs_in_place", prompt: "Are suitable signs in place?" },
+          { key: "third_parties_informed", prompt: "Have third parties been informed?" },
+          { key: "adequate_ppe_rpe", prompt: "Have personnel been provided with adequate and suitable PPE / RPE?" },
+        ],
+      },
+      {
+        id: "temporary-works-waste",
+        title: "Temporary Works / Waste Controls",
+        description: "Confirm temporary works requirements, design approval and waste-removal arrangements.",
+        sortOrder: 40,
+        questions: [
+          {
+            key: "temporary_work_required",
+            prompt: "Is temporary work required?",
+            requiresCommentOn: ["YES"],
+          },
+          {
+            key: "temporary_works_design_approved",
+            prompt: "Has a design been completed and approved?",
+          },
+          { key: "waste_materials_removal", prompt: "Has suitable provision been made to remove waste materials?" },
+        ],
+      },
+    ],
+    signatures: [
+      {
+        key: "manager_authorisation",
+        title: "Uplands Site Manager Authorisation",
+        role: "Uplands Site Manager",
+        action: "Authorised demolition permit issue",
+        sortOrder: 10,
+      },
+      {
+        key: "contractor_acceptance",
+        title: "Contractor / Operative Acceptance",
+        role: "Contractor / Operative",
+        action: "Accepted demolition permit controls",
+        sortOrder: 20,
+      },
+      {
+        key: "contractor_completion",
+        title: "Contractor / Operative Completion",
+        role: "Contractor / Operative",
+        action: "Confirmed demolition work completed",
+        sortOrder: 30,
+      },
+      {
+        key: "manager_completion_acceptance",
+        title: "Uplands Site Manager Acceptance of Completion",
+        role: "Uplands Site Manager",
+        action: "Accepted completion and closed demolition permit",
+        sortOrder: 40,
+      },
+    ],
+  },
 ];

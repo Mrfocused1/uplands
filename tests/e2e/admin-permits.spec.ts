@@ -390,3 +390,58 @@ test("admin can create and authorise a confined space permit", async ({ page }) 
   expect(response.ok()).toBe(true);
   expect(response.headers()["content-type"]).toContain("application/pdf");
 });
+
+test("admin can create and authorise a demolition permit", async ({ page }) => {
+  test.setTimeout(60_000);
+
+  const contractor = `Demolition Permit Test ${Date.now()}`;
+
+  await page.goto("/admin/sites/newport/permits");
+  await expect(page.getByRole("heading", { name: "Waitrose Newport" })).toBeVisible();
+
+  await choosePermitType(page, "Demolition Permit");
+  await expect(page.locator("form").getByRole("heading", { name: "Demolition Permit" })).toBeVisible();
+
+  await page.getByPlaceholder("Contractor").fill(contractor);
+  await page.getByPlaceholder("Location of work").fill("Former customer service desk");
+  await page.getByPlaceholder("Description of work").fill("Controlled soft strip and demolition of redundant partition.");
+  await page.getByRole("button", { name: "Create Permit" }).click();
+
+  await expect(page.getByText(contractor).first()).toBeVisible();
+  await expect(page.getByTestId("permit-editor").getByRole("heading", { name: "Demolition Permit" })).toBeVisible();
+  await expect(page.getByText("Services / Surveys / Drawings")).toBeVisible();
+  await expect(page.getByText("Temporary Works / Waste Controls")).toBeVisible();
+  await expect(page.getByText("Has a detailed demolition survey been carried out?")).toBeVisible();
+  await expect(page.getByLabel("Contractor")).toHaveValue(contractor);
+
+  const supervisorQuestion = page.locator(".p-4").filter({ hasText: "Has a competent supervisor been appointed?" });
+  await supervisorQuestion.getByPlaceholder("Comment").fill("Demolition supervisor: Matty");
+
+  const surveyHazardsQuestion = page.locator(".p-4").filter({ hasText: "Has the survey identified possible hazards" });
+  await surveyHazardsQuestion.getByPlaceholder("Comment").fill("Survey identifies noise, dust and redundant services.");
+
+  const temporaryWorksQuestion = page.locator(".p-4").filter({ hasText: "Is temporary work required?" });
+  await temporaryWorksQuestion.getByPlaceholder("Comment").fill("Temporary support not required for soft strip.");
+
+  await answerAllQuestionsYes(page);
+  await selectQuestionAnswer(page, "Is temporary work required?", "NO");
+
+  const submitForReview = page.getByRole("button", { name: "Submit for Review" });
+  await expect(submitForReview).toBeEnabled();
+  await submitForReview.click();
+  await expect(page.getByText("Permit submitted for review").first()).toBeVisible();
+
+  const managerSignature = page.locator("article").filter({ has: page.getByRole("heading", { name: "Uplands Site Manager Authorisation" }) });
+  await managerSignature.getByPlaceholder("Name").fill("Matty");
+  await managerSignature.getByPlaceholder("Company").fill("Uplands");
+  await managerSignature.getByPlaceholder("Position").fill("Site Manager");
+
+  await page.getByRole("button", { name: "Authorise Permit" }).click();
+  await expect(page.getByText("AUTHORISED").first()).toBeVisible();
+
+  const pdfHref = await page.getByRole("link", { name: "Download PDF" }).getAttribute("href");
+  expect(pdfHref).toBeTruthy();
+  const response = await page.request.get(pdfHref!);
+  expect(response.ok()).toBe(true);
+  expect(response.headers()["content-type"]).toContain("application/pdf");
+});
