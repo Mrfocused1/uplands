@@ -245,8 +245,18 @@ export function ContractorsWorkspace({
         { title: "Open Profile", summary: "View this contractor as its own workspace.", href: `/admin/sites/${site.id}/contractors/${selectedContractor.contractorId}`, metric: "Profile" },
         { title: "Operatives", summary: "Manage the workforce linked to this contractor.", href: "#operatives", metric: String(selectedContractor.operativeCount) },
         { title: "Induction Invites", summary: "Create secure pre-arrival induction links.", href: "#induction-invite", metric: String(invitations.filter((invite) => invite.status === "INVITED").length) },
-        { title: "Permits", summary: "Open permits connected to this site.", href: `/admin/sites/${site.id}/permits`, metric: String(selectedContractor.permitCount) },
-        { title: "RAMS", summary: "Open RAMS documents for this site.", href: `/admin/sites/${site.id}/rams`, metric: String(selectedContractor.ramsCount) },
+        {
+          title: "Permits",
+          summary: "Open permits connected to this contractor.",
+          href: `/admin/sites/${site.id}/permits?contractorId=${encodeURIComponent(selectedContractor.contractorId)}`,
+          metric: String(selectedContractor.permitCount),
+        },
+        {
+          title: "RAMS",
+          summary: "Open RAMS documents for this contractor.",
+          href: `/admin/sites/${site.id}/rams?contractorId=${encodeURIComponent(selectedContractor.contractorId)}`,
+          metric: String(selectedContractor.ramsCount),
+        },
       ]
     : [];
 

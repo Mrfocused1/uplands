@@ -28,7 +28,7 @@ export default function Home() {
             <Link className="hover:text-uplands-magenta" href="/admin">
               Admin
             </Link>
-            <Link className="hover:text-uplands-magenta" href="#support">
+            <Link className="hover:text-uplands-magenta" href="/contact">
               Contact
             </Link>
             <Link className="hover:text-uplands-magenta" href="/form">
@@ -49,7 +49,7 @@ export default function Home() {
               <Link className="block py-3 hover:text-uplands-magenta" href="/admin">
                 Admin
               </Link>
-              <Link className="block py-3 hover:text-uplands-magenta" href="#support">
+              <Link className="block py-3 hover:text-uplands-magenta" href="/contact">
                 Contact
               </Link>
               <Link className="mt-3 block bg-uplands-magenta px-4 py-3 text-center text-white" href="/form">

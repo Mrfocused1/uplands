@@ -49,6 +49,10 @@ test("admin can manage contractors inside a site workspace", async ({ page }, te
   await expect(page.getByRole("heading", { level: 1, name: contractor })).toBeVisible();
   await expect(page.getByText("Contractor Workspace")).toBeVisible();
   await expect(page.getByRole("link", { name: "Manage contractor" })).toHaveAttribute("href", /\/admin\/sites\/newport\/contractors\?contractorId=.+/);
+  await expect(page.getByRole("link", { name: /Permits/ }).first()).toHaveAttribute("href", /\/admin\/sites\/newport\/permits\?contractorId=.+/);
+  await expect(page.getByRole("link", { name: /RAMS/ }).first()).toHaveAttribute("href", /\/admin\/sites\/newport\/rams\?contractorId=.+/);
+  await expect(page.getByRole("link", { name: "Open permits" })).toHaveAttribute("href", /\/admin\/sites\/newport\/permits\?contractorId=.+/);
+  await expect(page.getByRole("link", { name: "Open RAMS" })).toHaveAttribute("href", /\/admin\/sites\/newport\/rams\?contractorId=.+/);
   await expect(page.getByRole("heading", { name: "Current Workforce" })).toBeVisible();
   await page.getByRole("link", { name: "Manage contractor" }).click();
   await expect(page).toHaveURL(/\/admin\/sites\/newport\/contractors\?contractorId=.+/);

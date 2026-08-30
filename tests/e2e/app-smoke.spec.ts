@@ -49,6 +49,22 @@ test("admin submissions list API does not expose flattened print data", async ({
   expect(JSON.stringify(first)).not.toContain("data:image/png;base64");
 });
 
+test("contact page sends support email drafts to the Uplands inbox", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByRole("link", { name: "Contact" }).first()).toHaveAttribute("href", "/contact");
+
+  await page.goto("/contact");
+  await expect(page.getByRole("heading", { name: "Platform Support" })).toBeVisible();
+  await expect(page.getByText("support@uplands.site").first()).toBeVisible();
+  await expect(page.getByRole("link", { name: "Open Email" })).toHaveAttribute("href", "mailto:support@uplands.site");
+  await expect(page.locator("form")).toHaveAttribute("action", "mailto:support@uplands.site");
+
+  await page.getByLabel("Name").fill("Site Manager");
+  await page.getByLabel("Email").fill("manager@example.com");
+  await page.getByLabel("Site / Project").fill("Waitrose Newport");
+  await page.getByLabel("Message").fill("Please help with a permit record.");
+});
+
 test("public induction APIs reject malformed input with validation errors", async ({ request }) => {
   const submit = await request.post("/api/induction/submit", { data: null });
   expect(submit.status()).toBe(400);

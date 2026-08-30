@@ -52,7 +52,7 @@ export function AdminNav({ adminName }: { adminName?: string }) {
               <Link className="block py-3 hover:text-uplands-magenta" href="/">
                 Home
               </Link>
-              <Link className="block py-3 hover:text-uplands-magenta" href="/#support">
+              <Link className="block py-3 hover:text-uplands-magenta" href="/contact">
                 Contact
               </Link>
               {!isSiteSelector && (

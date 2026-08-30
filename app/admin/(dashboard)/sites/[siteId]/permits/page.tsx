@@ -9,8 +9,15 @@ export const metadata = {
   title: "Site Permits | Uplands Admin",
 };
 
-export default async function SitePermitsPage({ params }: { params: Promise<{ siteId: string }> }) {
+export default async function SitePermitsPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ siteId: string }>;
+  searchParams: Promise<{ contractorId?: string; permitId?: string }>;
+}) {
   const { siteId } = await params;
+  const { contractorId, permitId } = await searchParams;
   const site = await getSite(siteId);
   if (!site) notFound();
 
@@ -31,6 +38,8 @@ export default async function SitePermitsPage({ params }: { params: Promise<{ si
       </section>
     );
   }
+
+  const contractorFilter = contractorId ? contractors.find((contractor) => contractor.contractor_id === contractorId) ?? null : null;
 
   return (
     <PermitsWorkspace
@@ -59,6 +68,15 @@ export default async function SitePermitsPage({ params }: { params: Promise<{ si
         validToTime: permit.valid_to_time,
         status: permit.status,
       }))}
+      initialSelectedPermitId={permitId ?? null}
+      contractorFilter={
+        contractorFilter
+          ? {
+              contractorId: contractorFilter.contractor_id,
+              name: contractorFilter.name,
+            }
+          : null
+      }
     />
   );
 }

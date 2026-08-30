@@ -794,10 +794,12 @@ function fileSize(bytes: number) {
 
 function UploadModal({
   site,
+  contractorFilter,
   onClose,
   onUploaded,
 }: {
   site?: { id: string; location: string } | null;
+  contractorFilter?: { contractorId: string; name: string } | null;
   onClose: () => void;
   onUploaded: (document: RamsIntelligenceDocument) => void;
 }) {
@@ -860,7 +862,7 @@ function UploadModal({
           </label>
           <label>
             <span className="text-xs font-bold uppercase text-zinc-700">Contractor / Subcontractor</span>
-            <input name="contractor" required className="mt-1 min-h-11 w-full border border-zinc-300 px-3 outline-none focus:border-uplands-magenta" />
+            <input name="contractor" required defaultValue={contractorFilter?.name ?? ""} className="mt-1 min-h-11 w-full border border-zinc-300 px-3 outline-none focus:border-uplands-magenta" />
           </label>
           <label>
             <span className="text-xs font-bold uppercase text-zinc-700">Document / Reference No.</span>
@@ -1298,14 +1300,18 @@ function PdfWorkspace({
 export function RamsDocumentIntelligence({
   site,
   legacyReviews = [],
+  contractorFilter = null,
+  initialDocumentId = null,
   onWorkspaceChange,
 }: {
   site?: { id: string; location: string } | null;
   legacyReviews?: LegacyRamsReview[];
+  contractorFilter?: { contractorId: string; name: string } | null;
+  initialDocumentId?: string | null;
   onWorkspaceChange?: (active: boolean) => void;
 }) {
   const [documents, setDocuments] = useState<RamsIntelligenceDocument[]>([]);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(initialDocumentId);
   const [loading, setLoading] = useState(true);
   const [uploadOpen, setUploadOpen] = useState(false);
   const [error, setError] = useState("");
@@ -1329,7 +1335,14 @@ export function RamsDocumentIntelligence({
     };
   }, [site?.id]);
 
-  const selectedDocument = useMemo(() => documents.find((document) => document.id === selectedId) ?? null, [documents, selectedId]);
+  const visibleDocuments = useMemo(() => (contractorFilter ? documents.filter((document) => document.contractor === contractorFilter.name) : documents), [contractorFilter, documents]);
+  const selectedDocument = useMemo(() => visibleDocuments.find((document) => document.id === selectedId) ?? null, [selectedId, visibleDocuments]);
+
+  useEffect(() => {
+    if (selectedId && visibleDocuments.some((document) => document.id === selectedId)) return;
+    setSelectedId(null);
+  }, [selectedId, visibleDocuments]);
+
   const selectedLegacyReview = useMemo(() => {
     if (!selectedDocument?.documentReference?.startsWith("legacy:")) return null;
     const legacyId = selectedDocument.documentReference.slice("legacy:".length);
@@ -1356,7 +1369,9 @@ export function RamsDocumentIntelligence({
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h2 className="font-slab text-2xl text-uplands-charcoal">Uploaded RAMS</h2>
-          <p className="mt-1 text-sm text-uplands-muted">Upload, process, search and query RAMS documents.</p>
+          <p className="mt-1 text-sm text-uplands-muted">
+            {contractorFilter ? `Upload, process, search and query RAMS documents for ${contractorFilter.name}.` : "Upload, process, search and query RAMS documents."}
+          </p>
         </div>
         <button type="button" onClick={() => setUploadOpen(true)} className="min-h-11 bg-uplands-magenta px-5 text-sm font-bold uppercase text-white">
           + Upload RAMS
@@ -1371,7 +1386,7 @@ export function RamsDocumentIntelligence({
         </div>
       ) : (
         <div className="divide-y divide-zinc-200 border border-zinc-200">
-          {documents.map((document) => (
+          {visibleDocuments.map((document) => (
             <button
               key={document.id}
               type="button"
@@ -1397,13 +1412,14 @@ export function RamsDocumentIntelligence({
               </span>
             </button>
           ))}
-          {documents.length === 0 && <p className="p-5 text-sm text-uplands-muted">No uploaded RAMS documents yet.</p>}
+          {visibleDocuments.length === 0 && <p className="p-5 text-sm text-uplands-muted">{contractorFilter ? "No uploaded RAMS documents recorded for this contractor yet." : "No uploaded RAMS documents yet."}</p>}
         </div>
       )}
 
       {uploadOpen && (
         <UploadModal
           site={site}
+          contractorFilter={contractorFilter}
           onClose={() => setUploadOpen(false)}
           onUploaded={(document) => {
             setDocuments((current) => [document, ...current.filter((item) => item.id !== document.id)]);

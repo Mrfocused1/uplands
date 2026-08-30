@@ -2,6 +2,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 
 import ramsData from "@/config/ramsReviews.json";
 import { RamsDocumentIntelligence, type LegacyRamsReview } from "@/components/admin/rams/RamsDocumentIntelligence";
@@ -43,6 +44,8 @@ type EvidenceItem = {
   answer: Answer;
   comment?: string;
 };
+
+type ContractorFilter = { contractorId: string; name: string };
 
 const forms = ramsData.forms as RamsForm[];
 
@@ -184,13 +187,22 @@ function EvidenceAccordion({ items }: { items: EvidenceItem[] }) {
   );
 }
 
-export function RamsReview({ site = null }: { site?: Pick<SiteRow, "id" | "location"> | null }) {
+export function RamsReview({
+  site = null,
+  contractorFilter = null,
+  initialDocumentId = null,
+}: {
+  site?: Pick<SiteRow, "id" | "location"> | null;
+  contractorFilter?: ContractorFilter | null;
+  initialDocumentId?: string | null;
+}) {
   const [activeTab, setActiveTab] = useState<"hazards" | "questions">("questions");
   const [selectedFormId, setSelectedFormId] = useState<string | null>(null);
   const [previewDocument, setPreviewDocument] = useState<RamsDocument | null>(null);
   const [uploadedWorkspaceActive, setUploadedWorkspaceActive] = useState(false);
 
-  const selectedForm = useMemo(() => forms.find((form) => form.id === selectedFormId) ?? null, [selectedFormId]);
+  const visibleForms = useMemo(() => (contractorFilter ? forms.filter((form) => form.company === contractorFilter.name) : forms), [contractorFilter]);
+  const selectedForm = useMemo(() => visibleForms.find((form) => form.id === selectedFormId) ?? null, [selectedFormId, visibleForms]);
 
   const questionItems = useMemo<EvidenceItem[]>(() => {
     if (!selectedForm) return [];
@@ -222,7 +234,9 @@ export function RamsReview({ site = null }: { site?: Pick<SiteRow, "id" | "locat
             <p className="text-xs font-bold uppercase tracking-[0.28em] text-uplands-magenta">Admin</p>
             <h1 className="mt-2 font-slab text-3xl leading-tight text-uplands-charcoal sm:text-4xl">RAMS</h1>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-uplands-muted">
-              {site
+              {contractorFilter
+                ? `Review RAMS submissions and document intelligence for ${contractorFilter.name}.`
+                : site
                 ? `Review RAMS submissions and document intelligence for ${site.location}.`
                 : "Review company RAMS submissions, open source documents, view completed review form pages, and download completed review forms."}
             </p>
@@ -230,7 +244,16 @@ export function RamsReview({ site = null }: { site?: Pick<SiteRow, "id" | "locat
         </div>
       </section>
 
-      <RamsDocumentIntelligence site={site} legacyReviews={forms as LegacyRamsReview[]} onWorkspaceChange={setUploadedWorkspaceActive} />
+      {contractorFilter && site && (
+        <section className="flex flex-col gap-3 border border-uplands-magenta/30 bg-uplands-paper p-4 shadow-soft sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm font-bold text-uplands-charcoal">Showing RAMS for {contractorFilter.name}.</p>
+          <Link href={`/admin/sites/${site.id}/rams`} className="w-fit border border-uplands-magenta px-3 py-2 text-xs font-bold uppercase text-uplands-magenta">
+            Clear filter
+          </Link>
+        </section>
+      )}
+
+      <RamsDocumentIntelligence site={site} legacyReviews={forms as LegacyRamsReview[]} contractorFilter={contractorFilter} initialDocumentId={initialDocumentId} onWorkspaceChange={setUploadedWorkspaceActive} />
 
       {!uploadedWorkspaceActive && !selectedForm && (
         <section className="border border-zinc-200 bg-white p-5 shadow-soft">
@@ -239,10 +262,10 @@ export function RamsReview({ site = null }: { site?: Pick<SiteRow, "id" | "locat
               <h2 className="font-slab text-2xl text-uplands-charcoal">RAMS Forms</h2>
               <p className="mt-1 text-sm text-uplands-muted">Select a company to open its current RAMS review.</p>
             </div>
-            <span className="text-xs font-bold uppercase text-uplands-muted">{forms.length} forms</span>
+            <span className="text-xs font-bold uppercase text-uplands-muted">{visibleForms.length} forms</span>
           </div>
           <div className="divide-y divide-zinc-200 border border-zinc-200">
-            {forms.map((form) => (
+            {visibleForms.map((form) => (
               <button
                 key={form.id}
                 type="button"
@@ -262,6 +285,7 @@ export function RamsReview({ site = null }: { site?: Pick<SiteRow, "id" | "locat
                 </span>
               </button>
             ))}
+            {visibleForms.length === 0 && <p className="p-4 text-sm text-uplands-muted">No legacy RAMS forms recorded for this contractor.</p>}
           </div>
         </section>
       )}

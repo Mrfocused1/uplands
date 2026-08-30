@@ -68,8 +68,8 @@ export default async function ContractorWorkspacePage({ params }: { params: Prom
     { title: "Profile", value: formatStatus(contractor.site_status), href: metricHref(site.id, contractor.contractor_id, "#contractor-details") },
     { title: "Operatives", value: String(operatives.length), href: metricHref(site.id, contractor.contractor_id, "#operatives") },
     { title: "Induction Invites", value: String(activeInvites), href: metricHref(site.id, contractor.contractor_id, "#induction-invite") },
-    { title: "RAMS", value: String(rams.length), href: `/admin/sites/${site.id}/rams` },
-    { title: "Permits", value: String(permits.length), href: `/admin/sites/${site.id}/permits` },
+    { title: "RAMS", value: String(rams.length), href: `/admin/sites/${site.id}/rams?contractorId=${encodeURIComponent(contractor.contractor_id)}` },
+    { title: "Permits", value: String(permits.length), href: `/admin/sites/${site.id}/permits?contractorId=${encodeURIComponent(contractor.contractor_id)}` },
     { title: "History", value: String(activity.length), href: "#history" },
   ];
 
@@ -126,13 +126,13 @@ export default async function ContractorWorkspacePage({ params }: { params: Prom
               <p className="text-xs font-bold uppercase tracking-[0.22em] text-uplands-magenta">Permit Watch</p>
               <h2 className="mt-1 font-slab text-3xl text-uplands-charcoal">{activePermits} Active / Authorised</h2>
             </div>
-            <Link href={`/admin/sites/${site.id}/permits`} className="w-fit border border-uplands-magenta px-3 py-2 text-xs font-bold uppercase text-uplands-magenta">
+            <Link href={`/admin/sites/${site.id}/permits?contractorId=${encodeURIComponent(contractor.contractor_id)}`} className="w-fit border border-uplands-magenta px-3 py-2 text-xs font-bold uppercase text-uplands-magenta">
               Open permits
             </Link>
           </div>
           <div className="mt-5 divide-y divide-zinc-200 border border-zinc-200">
             {permits.slice(0, 6).map((permit) => (
-              <Link key={permit.id} href={`/admin/sites/${site.id}/permits?permitId=${encodeURIComponent(permit.id)}`} className="grid gap-2 p-4 hover:bg-uplands-paper md:grid-cols-[1fr_150px_120px] md:items-center">
+              <Link key={permit.id} href={`/admin/sites/${site.id}/permits?contractorId=${encodeURIComponent(contractor.contractor_id)}&permitId=${encodeURIComponent(permit.id)}`} className="grid gap-2 p-4 hover:bg-uplands-paper md:grid-cols-[1fr_150px_120px] md:items-center">
                 <span>
                   <span className="block font-din text-lg text-uplands-charcoal">{permit.template_title ?? permit.template_id}</span>
                   <span className="mt-1 block text-sm text-uplands-muted">{permit.permit_number} · {permit.location_of_work}</span>
@@ -204,13 +204,13 @@ export default async function ContractorWorkspacePage({ params }: { params: Prom
               <p className="text-xs font-bold uppercase tracking-[0.22em] text-uplands-magenta">RAMS</p>
               <h2 className="mt-1 font-slab text-3xl text-uplands-charcoal">Documents</h2>
             </div>
-            <Link href={`/admin/sites/${site.id}/rams`} className="w-fit border border-uplands-magenta px-3 py-2 text-xs font-bold uppercase text-uplands-magenta">
+            <Link href={`/admin/sites/${site.id}/rams?contractorId=${encodeURIComponent(contractor.contractor_id)}`} className="w-fit border border-uplands-magenta px-3 py-2 text-xs font-bold uppercase text-uplands-magenta">
               Open RAMS
             </Link>
           </div>
           <div className="mt-5 divide-y divide-zinc-200 border border-zinc-200">
             {rams.slice(0, 6).map((document) => (
-              <Link key={document.id} href={`/admin/sites/${site.id}/rams?documentId=${encodeURIComponent(document.id)}`} className="grid gap-3 p-4 hover:bg-uplands-paper md:grid-cols-[1fr_140px] md:items-center">
+              <Link key={document.id} href={`/admin/sites/${site.id}/rams?contractorId=${encodeURIComponent(contractor.contractor_id)}&documentId=${encodeURIComponent(document.id)}`} className="grid gap-3 p-4 hover:bg-uplands-paper md:grid-cols-[1fr_140px] md:items-center">
                 <span>
                   <span className="block font-din text-lg text-uplands-charcoal">{document.title}</span>
                   <span className="mt-1 block text-sm text-uplands-muted">{[document.document_reference, document.revision].filter(Boolean).join(" · ") || document.file_name}</span>

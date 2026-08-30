@@ -9,6 +9,7 @@ import type { PermitAnswer, PermitSignatureKey, PermitStatus, PermitTemplateFiel
 type Site = { id: string; location: string; project_id: string | null; project_name: string | null };
 type Template = { id: string; code: string; title: string; description: string };
 type Contractor = { contractorId: string; name: string; siteStatus: string; trade: string | null };
+type ContractorFilter = { contractorId: string; name: string };
 type PermitListItem = {
   id: string;
   permitNumber: string;
@@ -159,22 +160,39 @@ export function PermitsWorkspace({
   templates,
   contractors: initialContractors,
   initialPermits,
+  initialSelectedPermitId = null,
+  contractorFilter = null,
 }: {
   site: Site;
   templates: Template[];
   contractors: Contractor[];
   initialPermits: PermitListItem[];
+  initialSelectedPermitId?: string | null;
+  contractorFilter?: ContractorFilter | null;
 }) {
+  const initialVisiblePermits = contractorFilter
+    ? initialPermits.filter((permit) => permit.contractorId === contractorFilter.contractorId || permit.contractor === contractorFilter.name)
+    : initialPermits;
+  const initialSelectedVisiblePermit = initialVisiblePermits.some((permit) => permit.id === initialSelectedPermitId) ? initialSelectedPermitId : initialVisiblePermits[0]?.id ?? "";
   const [permits, setPermits] = useState(initialPermits);
   const [contractors, setContractors] = useState(initialContractors);
-  const [selectedId, setSelectedId] = useState(initialPermits[0]?.id ?? "");
+  const [selectedId, setSelectedId] = useState(initialSelectedVisiblePermit);
   const [detail, setDetail] = useState<PermitDetail | null>(null);
   const [selectedTemplateId, setSelectedTemplateId] = useState(templates[0]?.id ?? "");
-  const [newPermitContractorId, setNewPermitContractorId] = useState("__new__");
+  const [newPermitContractorId, setNewPermitContractorId] = useState(contractorFilter?.contractorId ?? "__new__");
   const [creating, setCreating] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const selectedTemplate = templates.find((template) => template.id === selectedTemplateId) ?? templates[0];
+  const visiblePermits = useMemo(
+    () => (contractorFilter ? permits.filter((permit) => permit.contractorId === contractorFilter.contractorId || permit.contractor === contractorFilter.name) : permits),
+    [contractorFilter, permits],
+  );
+
+  useEffect(() => {
+    if (selectedId && visiblePermits.some((permit) => permit.id === selectedId)) return;
+    setSelectedId(visiblePermits[0]?.id ?? "");
+  }, [selectedId, visiblePermits]);
 
   const fetchPermitDetail = useCallback(async (id: string): Promise<PermitDetail> => {
     const response = await fetch(`/api/admin/permits/${id}`);
@@ -254,7 +272,7 @@ export function PermitsWorkspace({
       await refreshPermits(data.id);
       event.currentTarget.reset();
       setSelectedTemplateId(templates[0]?.id ?? "");
-      setNewPermitContractorId("__new__");
+      setNewPermitContractorId(contractorFilter?.contractorId ?? "__new__");
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Unable to create permit.");
     } finally {
@@ -346,7 +364,9 @@ export function PermitsWorkspace({
           <div>
             <p className="text-xs font-bold uppercase tracking-[0.28em] text-uplands-magenta">Permits</p>
             <h1 className="mt-3 font-slab text-4xl leading-tight text-uplands-charcoal sm:text-5xl">{site.location}</h1>
-            <p className="mt-3 max-w-3xl text-base leading-7 text-uplands-muted">Create and manage structured permits for this site.</p>
+            <p className="mt-3 max-w-3xl text-base leading-7 text-uplands-muted">
+              {contractorFilter ? `Create and manage structured permits for ${contractorFilter.name}.` : "Create and manage structured permits for this site."}
+            </p>
           </div>
           <Link
             href={`/admin/sites/${site.id}`}
@@ -356,6 +376,15 @@ export function PermitsWorkspace({
           </Link>
         </div>
       </section>
+
+      {contractorFilter && (
+        <section className="flex flex-col gap-3 border border-uplands-magenta/30 bg-uplands-paper p-4 shadow-soft sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm font-bold text-uplands-charcoal">Showing permits for {contractorFilter.name}.</p>
+          <Link href={`/admin/sites/${site.id}/permits`} className="w-fit border border-uplands-magenta px-3 py-2 text-xs font-bold uppercase text-uplands-magenta">
+            Clear filter
+          </Link>
+        </section>
+      )}
 
       <section className="grid gap-5 lg:grid-cols-[360px_1fr]">
         <div className="space-y-5">
@@ -415,18 +444,18 @@ export function PermitsWorkspace({
 
           <div className="border border-zinc-200 bg-white p-5 shadow-soft">
             <div className="mb-3 flex items-end justify-between gap-3">
-              <h2 className="font-slab text-2xl text-uplands-charcoal">Site Permits</h2>
-              <span className="text-xs font-bold uppercase text-uplands-muted">{permits.length}</span>
+              <h2 className="font-slab text-2xl text-uplands-charcoal">{contractorFilter ? "Contractor Permits" : "Site Permits"}</h2>
+              <span className="text-xs font-bold uppercase text-uplands-muted">{visiblePermits.length}</span>
             </div>
             <div className="divide-y divide-zinc-200 border border-zinc-200">
-              {permits.map((permit) => (
+              {visiblePermits.map((permit) => (
                 <button key={permit.id} type="button" onClick={() => setSelectedId(permit.id)} className={`w-full px-3 py-3 text-left ${selectedId === permit.id ? "bg-uplands-paper" : "bg-white hover:bg-uplands-paper"}`}>
                   <span className="block font-din text-sm text-uplands-charcoal">{permit.permitNumber}</span>
                   <span className="mt-1 block text-sm text-zinc-700">{permit.contractor}</span>
                   <span className="mt-1 block text-xs uppercase text-uplands-muted">{statusLabel(permit.status)} - expires {permit.validToTime}</span>
                 </button>
               ))}
-              {permits.length === 0 && <p className="p-4 text-sm text-uplands-muted">No permits created for this site yet.</p>}
+              {visiblePermits.length === 0 && <p className="p-4 text-sm text-uplands-muted">{contractorFilter ? "No permits recorded for this contractor yet." : "No permits created for this site yet."}</p>}
             </div>
           </div>
         </div>
