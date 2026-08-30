@@ -10,10 +10,20 @@ type Site = { id: string; location: string; project_id: string | null; project_n
 type Template = { id: string; code: string; title: string; description: string };
 type Contractor = { contractorId: string; name: string; siteStatus: string; trade: string | null };
 type ContractorFilter = { contractorId: string; name: string };
+type RamsDocumentOption = {
+  id: string;
+  title: string;
+  contractorId: string | null;
+  contractor: string;
+  documentReference: string | null;
+  revision: string | null;
+  processingStatus: string;
+};
 type PermitListItem = {
   id: string;
   permitNumber: string;
   contractorId: string | null;
+  ramsDocumentId: string | null;
   templateCode?: string;
   templateTitle?: string;
   contractor: string;
@@ -36,6 +46,10 @@ type PermitDetail = {
     validToTime: string;
     status: PermitStatus;
     contractorId: string | null;
+    ramsDocumentId: string | null;
+    ramsDocumentTitle: string | null;
+    ramsDocumentReference: string | null;
+    ramsDocumentRevision: string | null;
   };
   template: {
     code: string;
@@ -96,6 +110,24 @@ function statusLabel(status: string) {
 
 function formatDateTime(value: string) {
   return new Date(value).toLocaleString("en-GB", { dateStyle: "short", timeStyle: "short" });
+}
+
+function ramsLabel(document: RamsDocumentOption) {
+  return [document.title, document.documentReference, document.revision ? `Rev ${document.revision}` : ""].filter(Boolean).join(" - ");
+}
+
+function ramsMatchesContractor(document: RamsDocumentOption, contractorId: string | null | undefined, contractorName: string | null | undefined) {
+  if (!document.contractorId && !document.contractor) return true;
+  if (contractorId && document.contractorId === contractorId) return true;
+  return Boolean(contractorName && document.contractor.trim().toLowerCase() === contractorName.trim().toLowerCase());
+}
+
+function sortRamsDocuments(documents: RamsDocumentOption[]) {
+  return [...documents].sort((a, b) => {
+    if (a.processingStatus === "READY" && b.processingStatus !== "READY") return -1;
+    if (a.processingStatus !== "READY" && b.processingStatus === "READY") return 1;
+    return a.title.localeCompare(b.title);
+  });
 }
 
 function lifecycleActions(status: PermitStatus) {
@@ -159,6 +191,7 @@ export function PermitsWorkspace({
   site,
   templates,
   contractors: initialContractors,
+  ramsDocuments,
   initialPermits,
   initialSelectedPermitId = null,
   contractorFilter = null,
@@ -166,6 +199,7 @@ export function PermitsWorkspace({
   site: Site;
   templates: Template[];
   contractors: Contractor[];
+  ramsDocuments: RamsDocumentOption[];
   initialPermits: PermitListItem[];
   initialSelectedPermitId?: string | null;
   contractorFilter?: ContractorFilter | null;
@@ -184,6 +218,11 @@ export function PermitsWorkspace({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const selectedTemplate = templates.find((template) => template.id === selectedTemplateId) ?? templates[0];
+  const selectedNewContractor = contractors.find((contractor) => contractor.contractorId === newPermitContractorId);
+  const newPermitRamsOptions = useMemo(
+    () => sortRamsDocuments(ramsDocuments.filter((document) => newPermitContractorId === "__new__" || ramsMatchesContractor(document, selectedNewContractor?.contractorId, selectedNewContractor?.name))),
+    [newPermitContractorId, ramsDocuments, selectedNewContractor?.contractorId, selectedNewContractor?.name],
+  );
   const visiblePermits = useMemo(
     () => (contractorFilter ? permits.filter((permit) => permit.contractorId === contractorFilter.contractorId || permit.contractor === contractorFilter.name) : permits),
     [contractorFilter, permits],
@@ -257,6 +296,7 @@ export function PermitsWorkspace({
           projectId: site.project_id,
           templateId: String(form.get("templateId") ?? ""),
           contractorId: selectedContractor?.contractorId ?? "",
+          ramsDocumentId: String(form.get("ramsDocumentId") ?? ""),
           contractor,
           locationOfWork: String(form.get("locationOfWork") ?? ""),
           descriptionOfWork: String(form.get("descriptionOfWork") ?? ""),
@@ -339,6 +379,7 @@ export function PermitsWorkspace({
           validToDate: detailToSave.permit.validToDate,
           validFromTime: detailToSave.permit.validFromTime,
           validToTime: detailToSave.permit.validToTime,
+          ramsDocumentId: detailToSave.permit.ramsDocumentId ?? "",
           status: detailToSave.permit.status,
           fieldValues: detailToSave.fieldValues,
           answers: detailToSave.answers,
@@ -428,6 +469,19 @@ export function PermitsWorkspace({
                 </select>
               </label>
               {newPermitContractorId === "__new__" && <input name="contractor" required placeholder="New contractor name" className="min-h-11 w-full border border-zinc-300 px-3 text-sm" />}
+              <label>
+                <span className="text-xs font-bold uppercase text-zinc-700">Linked RAMS</span>
+                <select name="ramsDocumentId" className="mt-1 min-h-11 w-full border border-zinc-300 px-3 text-sm">
+                  <option value="">No linked RAMS yet</option>
+                  {newPermitRamsOptions.map((document) => (
+                    <option key={document.id} value={document.id}>
+                      {ramsLabel(document)}
+                      {document.processingStatus !== "READY" ? ` (${document.processingStatus.replaceAll("_", " ")})` : ""}
+                    </option>
+                  ))}
+                </select>
+                <span className="mt-1 block text-xs leading-5 text-uplands-muted">Select the RAMS this permit is working under when it is available.</span>
+              </label>
               <input name="locationOfWork" required placeholder="Location of work" className="min-h-11 w-full border border-zinc-300 px-3 text-sm" />
               <textarea name="descriptionOfWork" required placeholder="Description of work" className="min-h-24 w-full border border-zinc-300 px-3 py-2 text-sm" />
               <div className="grid grid-cols-2 gap-3">
@@ -467,6 +521,7 @@ export function PermitsWorkspace({
             <PermitEditor
               detail={detail}
               contractors={contractors}
+              ramsDocuments={ramsDocuments}
               answersByKey={answersByKey}
               fieldValuesByKey={fieldValuesByKey}
               signaturesByKey={signaturesByKey}
@@ -543,6 +598,7 @@ function PermitFieldInput({
 function PermitEditor({
   detail,
   contractors,
+  ramsDocuments,
   answersByKey,
   fieldValuesByKey,
   signaturesByKey,
@@ -557,6 +613,7 @@ function PermitEditor({
 }: {
   detail: PermitDetail;
   contractors: Contractor[];
+  ramsDocuments: RamsDocumentOption[];
   answersByKey: Map<string, PermitDetail["answers"][number]>;
   fieldValuesByKey: Map<string, string>;
   signaturesByKey: Map<PermitSignatureKey, PermitDetail["signatures"][number]>;
@@ -572,6 +629,12 @@ function PermitEditor({
   const actions = lifecycleActions(detail.permit.status);
   const actionValidation = (status: PermitStatus) => permitValidationError({ ...detail, permit: { ...detail.permit, status } });
   const selectedContractorId = contractors.some((contractor) => contractor.contractorId === detail.permit.contractorId) ? detail.permit.contractorId : "__new__";
+  const ramsOptions = sortRamsDocuments(
+    ramsDocuments.filter((document) => document.id === detail.permit.ramsDocumentId || ramsMatchesContractor(document, detail.permit.contractorId, detail.permit.contractor)),
+  );
+  const linkedRamsSummary = [detail.permit.ramsDocumentTitle, detail.permit.ramsDocumentReference, detail.permit.ramsDocumentRevision ? `Rev ${detail.permit.ramsDocumentRevision}` : ""]
+    .filter(Boolean)
+    .join(" - ");
 
   return (
     <div className="space-y-5" data-testid="permit-editor">
@@ -640,6 +703,10 @@ function PermitEditor({
                     ...current.permit,
                     contractorId: contractor?.contractorId ?? null,
                     contractor: contractor?.name ?? "",
+                    ramsDocumentId: null,
+                    ramsDocumentTitle: null,
+                    ramsDocumentReference: null,
+                    ramsDocumentRevision: null,
                   },
                 }));
               }}
@@ -656,9 +723,55 @@ function PermitEditor({
           {selectedContractorId === "__new__" && (
             <label>
               <span className="text-xs font-bold uppercase text-zinc-700">New Contractor Name</span>
-              <input value={detail.permit.contractor} onChange={(event) => onDetailChange((current) => ({ ...current, permit: { ...current.permit, contractor: event.target.value, contractorId: null } }))} className="mt-1 min-h-11 w-full border border-zinc-300 px-3" />
+              <input
+                value={detail.permit.contractor}
+                onChange={(event) =>
+                  onDetailChange((current) => ({
+                    ...current,
+                    permit: {
+                      ...current.permit,
+                      contractor: event.target.value,
+                      contractorId: null,
+                      ramsDocumentId: null,
+                      ramsDocumentTitle: null,
+                      ramsDocumentReference: null,
+                      ramsDocumentRevision: null,
+                    },
+                  }))
+                }
+                className="mt-1 min-h-11 w-full border border-zinc-300 px-3"
+              />
             </label>
           )}
+          <label>
+            <span className="text-xs font-bold uppercase text-zinc-700">Linked RAMS</span>
+            <select
+              value={detail.permit.ramsDocumentId ?? ""}
+              onChange={(event) => {
+                const document = ramsDocuments.find((item) => item.id === event.target.value);
+                onDetailChange((current) => ({
+                  ...current,
+                  permit: {
+                    ...current.permit,
+                    ramsDocumentId: document?.id ?? null,
+                    ramsDocumentTitle: document?.title ?? null,
+                    ramsDocumentReference: document?.documentReference ?? null,
+                    ramsDocumentRevision: document?.revision ?? null,
+                  },
+                }));
+              }}
+              className="mt-1 min-h-11 w-full border border-zinc-300 px-3"
+            >
+              <option value="">No linked RAMS yet</option>
+              {ramsOptions.map((document) => (
+                <option key={document.id} value={document.id}>
+                  {ramsLabel(document)}
+                  {document.processingStatus !== "READY" ? ` (${document.processingStatus.replaceAll("_", " ")})` : ""}
+                </option>
+              ))}
+            </select>
+            <span className="mt-1 block text-xs leading-5 text-uplands-muted">{linkedRamsSummary || "Choose the approved RAMS this permit is working under when available."}</span>
+          </label>
           <label>
             <span className="text-xs font-bold uppercase text-zinc-700">Location of Work</span>
             <input value={detail.permit.locationOfWork} onChange={(event) => onDetailChange((current) => ({ ...current, permit: { ...current.permit, locationOfWork: event.target.value } }))} className="mt-1 min-h-11 w-full border border-zinc-300 px-3" />

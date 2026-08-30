@@ -144,6 +144,7 @@ function drawTitleBlock(page: PDFPage, fonts: Fonts, detail: PermitDetail, y: nu
 
 function drawDetails(page: PDFPage, fonts: Fonts, detail: PermitDetail, y: number) {
   const columnWidth = (CONTENT_WIDTH - 10) / 2;
+  const linkedRams = [detail.permit.rams_document_title, detail.permit.rams_document_reference, detail.permit.rams_document_revision ? `Rev ${detail.permit.rams_document_revision}` : ""].filter(Boolean).join(" - ");
   drawLabelValue(page, fonts, "Project / Site", detail.permit.site_location ?? detail.permit.project_name, MARGIN, y, columnWidth);
   drawLabelValue(page, fonts, "Contractor", detail.permit.contractor, MARGIN + columnWidth + 10, y, columnWidth);
   y -= 39;
@@ -157,6 +158,8 @@ function drawDetails(page: PDFPage, fonts: Fonts, detail: PermitDetail, y: numbe
     y,
     columnWidth,
   );
+  y -= 39;
+  drawLabelValue(page, fonts, "Linked RAMS", linkedRams || "Not linked", MARGIN, y, CONTENT_WIDTH);
   y -= 39;
   drawLabelValue(page, fonts, "Description of Work", detail.permit.description_of_work, MARGIN, y, CONTENT_WIDTH, 50);
   return y - 66;

@@ -221,6 +221,7 @@ function migrate(db: Db) {
       site_id TEXT NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
       project_id TEXT REFERENCES projects(id) ON DELETE SET NULL,
       contractor_id TEXT REFERENCES contractors(id) ON DELETE SET NULL,
+      rams_document_id TEXT REFERENCES rams_documents(id) ON DELETE SET NULL,
       contractor TEXT NOT NULL,
       location_of_work TEXT NOT NULL,
       description_of_work TEXT NOT NULL,
@@ -437,6 +438,7 @@ function migrate(db: Db) {
   ensureColumn(db, "rams_documents", "site_id", "TEXT REFERENCES sites(id) ON DELETE SET NULL");
   ensureColumn(db, "rams_documents", "contractor_id", "TEXT REFERENCES contractors(id) ON DELETE SET NULL");
   ensureColumn(db, "permits", "contractor_id", "TEXT REFERENCES contractors(id) ON DELETE SET NULL");
+  ensureColumn(db, "permits", "rams_document_id", "TEXT REFERENCES rams_documents(id) ON DELETE SET NULL");
   ensureColumn(db, "submissions", "contractor_id", "TEXT REFERENCES contractors(id) ON DELETE SET NULL");
   ensureColumn(db, "submissions", "operative_id", "TEXT REFERENCES operatives(id) ON DELETE SET NULL");
   ensureColumn(db, "rams_chunk_boxes", "page_width", "REAL");
@@ -446,6 +448,7 @@ function migrate(db: Db) {
     CREATE INDEX IF NOT EXISTS idx_submissions_site ON submissions(site_id, created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_rams_documents_site ON rams_documents(site_id, created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_rams_documents_contractor ON rams_documents(site_id, contractor_id, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_permits_rams_document ON permits(rams_document_id);
   `);
 }
 

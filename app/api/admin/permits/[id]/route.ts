@@ -49,6 +49,10 @@ function serializeDetail(detail: NonNullable<Awaited<ReturnType<typeof getPermit
       projectId: detail.permit.project_id,
       projectName: detail.permit.project_name,
       contractorId: detail.permit.contractor_id,
+      ramsDocumentId: detail.permit.rams_document_id,
+      ramsDocumentTitle: detail.permit.rams_document_title,
+      ramsDocumentReference: detail.permit.rams_document_reference,
+      ramsDocumentRevision: detail.permit.rams_document_revision,
       contractor: detail.permit.contractor,
       locationOfWork: detail.permit.location_of_work,
       descriptionOfWork: detail.permit.description_of_work,
@@ -244,6 +248,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     await updatePermit(id, {
       contractor: text(body.contractor),
       contractorId: text(body.contractorId) || null,
+      ramsDocumentId: text(body.ramsDocumentId) || null,
       locationOfWork: text(body.locationOfWork),
       descriptionOfWork: text(body.descriptionOfWork),
       validFromDate: text(body.validFromDate),

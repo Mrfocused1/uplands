@@ -76,6 +76,7 @@ export type PermitRow = {
   site_id: string;
   project_id: string | null;
   contractor_id: string | null;
+  rams_document_id: string | null;
   contractor: string;
   location_of_work: string;
   description_of_work: string;
@@ -91,6 +92,9 @@ export type PermitRow = {
   template_title?: string;
   site_location?: string;
   project_name?: string | null;
+  rams_document_title?: string | null;
+  rams_document_reference?: string | null;
+  rams_document_revision?: string | null;
 };
 
 export type PermitAnswerRow = {
@@ -141,6 +145,7 @@ export type PermitDetail = {
 export type UpsertPermitInput = {
   contractor: string;
   contractorId?: string | null;
+  ramsDocumentId?: string | null;
   locationOfWork: string;
   descriptionOfWork: string;
   validFromDate: string;
@@ -164,7 +169,10 @@ export type UpsertPermitInput = {
 };
 
 function shouldUseSupabasePermitsDb() {
-  const provider = env("PERMITS_DATABASE_PROVIDER", env("UPLANDS_DATABASE_PROVIDER", process.env.VERCEL && isSupabaseAdminConfigured() ? "supabase" : "sqlite"));
+  const provider = env(
+    "PERMITS_DATABASE_PROVIDER",
+    env("UPLANDS_DATABASE_PROVIDER", env("CONTRACTORS_DATABASE_PROVIDER", env("SUBMISSIONS_DATABASE_PROVIDER", process.env.VERCEL && isSupabaseAdminConfigured() ? "supabase" : "sqlite"))),
+  );
   if (provider === "supabase" && !isSupabaseAdminConfigured()) {
     throw new Error("PERMITS_DATABASE_PROVIDER is set to supabase, but Supabase admin environment variables are missing.");
   }
@@ -312,11 +320,13 @@ export async function listPermitsBySite(siteId: string): Promise<PermitRow[]> {
 
   return getDb()
     .prepare(
-      `SELECT p.*, t.code AS template_code, t.title AS template_title, s.location AS site_location, pr.name AS project_name
+      `SELECT p.*, t.code AS template_code, t.title AS template_title, s.location AS site_location, pr.name AS project_name,
+              rd.title AS rams_document_title, rd.document_reference AS rams_document_reference, rd.revision AS rams_document_revision
        FROM permits p
        JOIN permit_templates t ON t.id = p.template_id
        JOIN sites s ON s.id = p.site_id
        LEFT JOIN projects pr ON pr.id = p.project_id
+       LEFT JOIN rams_documents rd ON rd.id = p.rams_document_id
        WHERE p.site_id = ?
        ORDER BY p.created_at DESC`,
     )
@@ -375,6 +385,7 @@ export async function createPermit(input: {
   projectId?: string | null;
   templateId: string;
   contractorId?: string | null;
+  ramsDocumentId?: string | null;
   contractor: string;
   locationOfWork: string;
   descriptionOfWork: string;
@@ -404,6 +415,7 @@ export async function createPermit(input: {
       site_id: input.siteId,
       project_id: input.projectId ?? null,
       contractor_id: contractor.contractorId,
+      rams_document_id: input.ramsDocumentId ?? null,
       contractor: contractor.contractorName,
       location_of_work: input.locationOfWork,
       description_of_work: input.descriptionOfWork,
@@ -433,9 +445,9 @@ export async function createPermit(input: {
   getDb()
     .prepare(
       `INSERT INTO permits
-       (id, permit_number, template_id, site_id, project_id, contractor_id, contractor, location_of_work, description_of_work,
+       (id, permit_number, template_id, site_id, project_id, contractor_id, rams_document_id, contractor, location_of_work, description_of_work,
         valid_from_date, valid_to_date, valid_from_time, valid_to_time, status, created_by, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'DRAFT', ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'DRAFT', ?, ?, ?)`,
     )
     .run(
       id,
@@ -444,6 +456,7 @@ export async function createPermit(input: {
       input.siteId,
       input.projectId ?? null,
       contractor.contractorId,
+      input.ramsDocumentId ?? null,
       contractor.contractorName,
       input.locationOfWork,
       input.descriptionOfWork,
@@ -531,11 +544,13 @@ async function getPermit(permitId: string): Promise<PermitRow | null> {
 
   const row = getDb()
     .prepare(
-      `SELECT p.*, t.code AS template_code, t.title AS template_title, s.location AS site_location, pr.name AS project_name
+      `SELECT p.*, t.code AS template_code, t.title AS template_title, s.location AS site_location, pr.name AS project_name,
+              rd.title AS rams_document_title, rd.document_reference AS rams_document_reference, rd.revision AS rams_document_revision
        FROM permits p
        JOIN permit_templates t ON t.id = p.template_id
        JOIN sites s ON s.id = p.site_id
        LEFT JOIN projects pr ON pr.id = p.project_id
+       LEFT JOIN rams_documents rd ON rd.id = p.rams_document_id
        WHERE p.id = ?`,
     )
     .get(permitId) as PermitRow | undefined;
@@ -562,6 +577,7 @@ export async function updatePermit(permitId: string, input: UpsertPermitInput) {
           .from("permits")
           .update({
             contractor_id: contractor.contractorId,
+            rams_document_id: input.ramsDocumentId ?? null,
             contractor: contractor.contractorName,
             location_of_work: input.locationOfWork,
             description_of_work: input.descriptionOfWork,
@@ -588,10 +604,10 @@ export async function updatePermit(permitId: string, input: UpsertPermitInput) {
       .prepare(
         `UPDATE permits
          SET contractor_id = ?, contractor = ?, location_of_work = ?, description_of_work = ?, valid_from_date = ?, valid_to_date = ?,
-             valid_from_time = ?, valid_to_time = ?, status = ?, updated_at = ?
+             valid_from_time = ?, valid_to_time = ?, status = ?, rams_document_id = ?, updated_at = ?
          WHERE id = ?`,
       )
-      .run(contractor.contractorId, contractor.contractorName, input.locationOfWork, input.descriptionOfWork, input.validFromDate, input.validToDate, input.validFromTime, input.validToTime, input.status, now, permitId);
+      .run(contractor.contractorId, contractor.contractorName, input.locationOfWork, input.descriptionOfWork, input.validFromDate, input.validToDate, input.validFromTime, input.validToTime, input.status, input.ramsDocumentId ?? null, now, permitId);
 
     const answerStmt = getDb().prepare(
       `INSERT INTO permit_answers (id, permit_id, question_key, answer, comment, updated_at)

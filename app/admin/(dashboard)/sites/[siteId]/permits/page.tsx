@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { PermitsWorkspace } from "@/components/admin/permits/PermitsWorkspace";
 import { isContractorDatabaseSetupError, listSiteContractors } from "@/lib/db/contractors";
 import { isPermitDatabaseSetupError, listPermitTemplates, listPermitsBySite } from "@/lib/db/permits";
+import { listRamsDocuments } from "@/lib/db/rams";
 import { getSite } from "@/lib/db/sites";
 
 export const metadata = {
@@ -24,8 +25,9 @@ export default async function SitePermitsPage({
   let templates;
   let permits;
   let contractors;
+  let ramsDocuments;
   try {
-    [templates, permits, contractors] = await Promise.all([listPermitTemplates(), listPermitsBySite(site.id), listSiteContractors(site.id)]);
+    [templates, permits, contractors, ramsDocuments] = await Promise.all([listPermitTemplates(), listPermitsBySite(site.id), listSiteContractors(site.id), listRamsDocuments({ siteId: site.id })]);
   } catch (error) {
     if (!isPermitDatabaseSetupError(error) && !isContractorDatabaseSetupError(error)) throw error;
     return (
@@ -56,10 +58,20 @@ export default async function SitePermitsPage({
         siteStatus: contractor.site_status,
         trade: contractor.trade,
       }))}
+      ramsDocuments={ramsDocuments.map((document) => ({
+        id: document.id,
+        title: document.title,
+        contractorId: document.contractor_id,
+        contractor: document.contractor,
+        documentReference: document.document_reference,
+        revision: document.revision,
+        processingStatus: document.processing_status,
+      }))}
       initialPermits={permits.map((permit) => ({
         id: permit.id,
         permitNumber: permit.permit_number,
         contractorId: permit.contractor_id,
+        ramsDocumentId: permit.rams_document_id,
         templateCode: permit.template_code,
         templateTitle: permit.template_title,
         contractor: permit.contractor,
