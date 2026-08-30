@@ -5,6 +5,7 @@ import Link from "next/link";
 
 import { SignaturePad } from "@/components/induction/SignaturePad";
 import type { PermitAnswer, PermitSignatureKey, PermitStatus, PermitTemplateFieldType } from "@/config/permitTemplates";
+import { isPermitAnswer, lifecycleActions, PERMIT_STATUSES, validatePermitUpdate } from "@/lib/permits/lifecycle";
 
 type Site = { id: string; location: string; project_id: string | null; project_name: string | null };
 type Template = { id: string; code: string; title: string; description: string };
@@ -94,8 +95,6 @@ type PermitDetail = {
   }>;
 };
 
-const statuses: PermitStatus[] = ["DRAFT", "AWAITING_REVIEW", "AUTHORISED", "ACTIVE", "WORK_COMPLETED", "CLOSED", "REJECTED", "EXPIRED", "CANCELLED"];
-
 function today() {
   return new Date().toISOString().slice(0, 10);
 }
@@ -130,32 +129,6 @@ function sortRamsDocuments(documents: RamsDocumentOption[]) {
   });
 }
 
-function lifecycleActions(status: PermitStatus) {
-  switch (status) {
-    case "DRAFT":
-      return [{ label: "Submit for Review", status: "AWAITING_REVIEW" as const }];
-    case "AWAITING_REVIEW":
-      return [
-        { label: "Authorise Permit", status: "AUTHORISED" as const },
-        { label: "Reject Permit", status: "REJECTED" as const },
-      ];
-    case "AUTHORISED":
-      return [
-        { label: "Mark Active", status: "ACTIVE" as const },
-        { label: "Cancel Permit", status: "CANCELLED" as const },
-      ];
-    case "ACTIVE":
-      return [
-        { label: "Mark Work Complete", status: "WORK_COMPLETED" as const },
-        { label: "Cancel Permit", status: "CANCELLED" as const },
-      ];
-    case "WORK_COMPLETED":
-      return [{ label: "Close Permit", status: "CLOSED" as const }];
-    default:
-      return [];
-  }
-}
-
 function blankSignature(signature: PermitDetail["template"]["signatures"][number]) {
   return {
     signatureKey: signature.key,
@@ -169,22 +142,22 @@ function blankSignature(signature: PermitDetail["template"]["signatures"][number
   };
 }
 
-function permitValidationError(current: PermitDetail) {
-  if (!current.permit.contractor.trim()) return "Contractor is required.";
-  const fieldValues = new Map(current.fieldValues.map((fieldValue) => [fieldValue.fieldKey, fieldValue.value?.trim() ?? ""]));
-  const questionKeys = current.template.sections.flatMap((section) => section.questions.map((question) => question.key));
-  const answered = new Set(current.answers.map((answer) => answer.questionKey));
-  const requiresAnsweredQuestions = ["AWAITING_REVIEW", "AUTHORISED", "ACTIVE", "WORK_COMPLETED", "CLOSED"].includes(current.permit.status);
-  if (requiresAnsweredQuestions) {
-    const missingField = current.template.fields.find((field) => field.required && !fieldValues.get(field.key));
-    if (missingField) return `${missingField.label} is required before review or authorisation.`;
-    if (questionKeys.some((key) => !answered.has(key))) return "All permit questions need an answer before review or authorisation.";
-  }
-  const signed = new Set(current.signatures.filter((signature) => signature.name.trim()).map((signature) => signature.signatureKey));
-  if ((current.permit.status === "AUTHORISED" || current.permit.status === "ACTIVE") && !signed.has("manager_authorisation")) return "Manager authorisation is required before the permit can be authorised or active.";
-  if (current.permit.status === "WORK_COMPLETED" && !signed.has("contractor_completion")) return "Contractor completion is required before marking work completed.";
-  if (current.permit.status === "CLOSED" && (!signed.has("contractor_completion") || !signed.has("manager_completion_acceptance"))) return "Contractor completion and manager completion acceptance are required before closure.";
-  return "";
+function permitValidationError(current: PermitDetail, currentStatus: PermitStatus = current.permit.status) {
+  return validatePermitUpdate({
+    currentStatus,
+    nextStatus: current.permit.status,
+    contractor: current.permit.contractor,
+    fields: current.template.fields.map((field) => ({ key: field.key, label: field.label, required: field.required })),
+    fieldValues: current.fieldValues,
+      questions: current.template.sections.flatMap((section) =>
+        section.questions.map((question) => ({
+          ...question,
+          requiresCommentOn: question.requiresCommentOn.filter(isPermitAnswer),
+        })),
+      ),
+    answers: current.answers,
+    signatures: current.signatures,
+  });
 }
 
 export function PermitsWorkspace({
@@ -359,7 +332,7 @@ export function PermitsWorkspace({
   async function savePermit(nextStatus?: PermitStatus) {
     if (!detail) return;
     const detailToSave = nextStatus ? { ...detail, permit: { ...detail.permit, status: nextStatus } } : detail;
-    const validation = permitValidationError(detailToSave);
+    const validation = permitValidationError(detailToSave, detail.permit.status);
     if (validation) {
       setError(validation);
       return;
@@ -628,7 +601,7 @@ function PermitEditor({
   onLifecycle: (status: PermitStatus) => void;
 }) {
   const actions = lifecycleActions(detail.permit.status);
-  const actionValidation = (status: PermitStatus) => permitValidationError({ ...detail, permit: { ...detail.permit, status } });
+  const actionValidation = (status: PermitStatus) => permitValidationError({ ...detail, permit: { ...detail.permit, status } }, detail.permit.status);
   const selectedContractorId = contractors.some((contractor) => contractor.contractorId === detail.permit.contractorId) ? detail.permit.contractorId : "__new__";
   const ramsOptions = sortRamsDocuments(
     ramsDocuments.filter((document) => document.id === detail.permit.ramsDocumentId || ramsMatchesContractor(document, detail.permit.contractorId, detail.permit.contractor)),
@@ -686,7 +659,7 @@ function PermitEditor({
               onChange={(event) => onDetailChange((current) => ({ ...current, permit: { ...current.permit, status: event.target.value as PermitStatus } }))}
               className="mt-1 min-h-11 w-full border border-zinc-300 px-3"
             >
-              {statuses.map((status) => (
+              {PERMIT_STATUSES.map((status) => (
                 <option key={status} value={status}>
                   {statusLabel(status)}
                 </option>

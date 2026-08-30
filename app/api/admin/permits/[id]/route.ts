@@ -1,24 +1,11 @@
 import { NextResponse } from "next/server";
 
-import { PERMIT_TEMPLATES, type PermitAnswer, type PermitStatus } from "@/config/permitTemplates";
+import { PERMIT_TEMPLATES } from "@/config/permitTemplates";
 import { requireAdmin, UnauthorizedError } from "@/lib/auth/admin";
 import { getPermitDetail, isPermitDatabaseSetupError, updatePermit } from "@/lib/db/permits";
+import { isPermitAnswer, isPermitStatus, validatePermitUpdate } from "@/lib/permits/lifecycle";
 
 export const runtime = "nodejs";
-
-const statuses: PermitStatus[] = ["DRAFT", "AWAITING_REVIEW", "AUTHORISED", "ACTIVE", "WORK_COMPLETED", "CLOSED", "REJECTED", "EXPIRED", "CANCELLED"];
-const answers: PermitAnswer[] = ["YES", "NO", "NA"];
-const allowedTransitions: Record<PermitStatus, PermitStatus[]> = {
-  DRAFT: ["DRAFT", "AWAITING_REVIEW", "CANCELLED"],
-  AWAITING_REVIEW: ["AWAITING_REVIEW", "AUTHORISED", "REJECTED", "CANCELLED", "DRAFT"],
-  AUTHORISED: ["AUTHORISED", "ACTIVE", "CANCELLED", "EXPIRED"],
-  ACTIVE: ["ACTIVE", "WORK_COMPLETED", "CANCELLED", "EXPIRED"],
-  WORK_COMPLETED: ["WORK_COMPLETED", "CLOSED"],
-  CLOSED: ["CLOSED"],
-  REJECTED: ["REJECTED", "DRAFT"],
-  EXPIRED: ["EXPIRED"],
-  CANCELLED: ["CANCELLED"],
-};
 
 function text(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
@@ -91,7 +78,7 @@ function serializeDetail(detail: NonNullable<Awaited<ReturnType<typeof getPermit
           key: question.question_key,
           prompt: question.prompt,
           helpText: question.help_text,
-          requiresCommentOn: (question.requires_comment_on ?? "NO").split(",").filter(Boolean),
+          requiresCommentOn: (question.requires_comment_on ?? "NO").split(",").filter(isPermitAnswer),
         })),
       })),
     },
@@ -123,36 +110,6 @@ function serializeDetail(detail: NonNullable<Awaited<ReturnType<typeof getPermit
       occurredAt: event.occurred_at,
     })),
   };
-}
-
-function validatePermitUpdate(
-  detail: NonNullable<Awaited<ReturnType<typeof getPermitDetail>>>,
-  nextStatus: PermitStatus,
-  parsedFieldValues: Array<{ fieldKey: string; value: string | null }>,
-  parsedAnswers: Array<{ questionKey: string; answer: PermitAnswer; comment: string | null }>,
-  parsedSignatures: Array<{ signatureKey: string; role: string; name: string; company: string | null; position: string | null; signedAt: string; signatureDataUrl: string | null; action: string }>,
-) {
-  if (!allowedTransitions[detail.permit.status].includes(nextStatus)) {
-    return `Permit cannot move from ${detail.permit.status.replaceAll("_", " ")} to ${nextStatus.replaceAll("_", " ")}.`;
-  }
-
-  const requiresAnsweredQuestions = ["AWAITING_REVIEW", "AUTHORISED", "ACTIVE", "WORK_COMPLETED", "CLOSED"].includes(nextStatus);
-  if (requiresAnsweredQuestions) {
-    const fieldsByKey = new Map(parsedFieldValues.map((fieldValue) => [fieldValue.fieldKey, fieldValue.value?.trim() ?? ""]));
-    const missingField = detail.template.fields.find((field) => Boolean(field.required) && !fieldsByKey.get(field.field_key));
-    if (missingField) return `${missingField.label} is required before review or authorisation.`;
-
-    const questionKeys = detail.template.sections.flatMap((section) => section.questions.map((question) => question.question_key));
-    const answered = new Set(parsedAnswers.map((answer) => answer.questionKey));
-    if (questionKeys.some((key) => !answered.has(key))) return "All permit questions need an answer before review or authorisation.";
-  }
-
-  const signed = new Set(parsedSignatures.filter((signature) => signature.name.trim()).map((signature) => signature.signatureKey));
-  if ((nextStatus === "AUTHORISED" || nextStatus === "ACTIVE") && !signed.has("manager_authorisation")) return "Manager authorisation is required before the permit can be authorised or active.";
-  if (nextStatus === "WORK_COMPLETED" && !signed.has("contractor_completion")) return "Contractor completion is required before marking work completed.";
-  if (nextStatus === "CLOSED" && (!signed.has("contractor_completion") || !signed.has("manager_completion_acceptance"))) return "Contractor completion and manager completion acceptance are required before closure.";
-
-  return "";
 }
 
 export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
@@ -188,8 +145,8 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
   if (!body) return NextResponse.json({ error: "Invalid permit payload." }, { status: 400 });
 
-  const status = text(body.status) as PermitStatus;
-  if (!statuses.includes(status)) return NextResponse.json({ error: "Invalid permit status." }, { status: 400 });
+  const status = text(body.status);
+  if (!isPermitStatus(status)) return NextResponse.json({ error: "Invalid permit status." }, { status: 400 });
 
   const rawAnswers = Array.isArray(body.answers) ? body.answers : [];
   const rawFieldValues = Array.isArray(body.fieldValues) ? body.fieldValues : [];
@@ -205,8 +162,8 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
 
   const parsedAnswers = rawAnswers.map((item) => {
     const row = item as Record<string, unknown>;
-    const answer = text(row.answer) as PermitAnswer;
-    if (!answers.includes(answer)) throw new Error("Invalid answer.");
+    const answer = text(row.answer);
+    if (!isPermitAnswer(answer)) throw new Error("Invalid answer.");
     return {
       questionKey: text(row.questionKey),
       answer,
@@ -241,7 +198,22 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   if (!detail) return NextResponse.json({ error: "Permit not found." }, { status: 404 });
   if (!text(body.contractorId) && !text(body.contractor)) return NextResponse.json({ error: "contractor is required." }, { status: 400 });
 
-  const validation = validatePermitUpdate(detail, status, parsedFieldValues, parsedAnswers, parsedSignatures);
+  const validation = validatePermitUpdate({
+    currentStatus: detail.permit.status,
+    nextStatus: status,
+    contractor: text(body.contractor),
+    fields: detail.template.fields.map((field) => ({ key: field.field_key, label: field.label, required: Boolean(field.required) })),
+    fieldValues: parsedFieldValues,
+    questions: detail.template.sections.flatMap((section) =>
+      section.questions.map((question) => ({
+        key: question.question_key,
+        prompt: question.prompt,
+        requiresCommentOn: (question.requires_comment_on ?? "NO").split(",").filter(isPermitAnswer),
+      })),
+    ),
+    answers: parsedAnswers,
+    signatures: parsedSignatures,
+  });
   if (validation) return NextResponse.json({ error: validation }, { status: 400 });
 
   try {
