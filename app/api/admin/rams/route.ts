@@ -22,6 +22,7 @@ function serializeDocument(row: RamsDocumentWithCounts | Awaited<ReturnType<type
     title: row.title,
     siteId: row.site_id,
     siteName: row.site_name,
+    contractorId: row.contractor_id,
     contractor: row.contractor,
     documentReference: row.document_reference,
     revision: row.revision,
@@ -73,9 +74,10 @@ export async function POST(request: Request) {
   if (!(file instanceof File)) return NextResponse.json({ error: "Choose a RAMS PDF to upload." }, { status: 400 });
 
   const title = value(formData, "title");
+  const contractorId = value(formData, "contractorId");
   const contractor = value(formData, "contractor");
   if (!title) return NextResponse.json({ error: "RAMS title is required." }, { status: 400 });
-  if (!contractor) return NextResponse.json({ error: "Contractor/subcontractor is required." }, { status: 400 });
+  if (!contractor && !contractorId) return NextResponse.json({ error: "Contractor/subcontractor is required." }, { status: 400 });
   if (file.size <= 0) return NextResponse.json({ error: "The uploaded PDF is empty." }, { status: 400 });
   if (file.size > MAX_PDF_SIZE) return NextResponse.json({ error: "PDF is too large. Maximum size is 80MB." }, { status: 400 });
   if (file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {
@@ -102,6 +104,8 @@ export async function POST(request: Request) {
     title,
     siteId: value(formData, "siteId") || null,
     siteName: value(formData, "siteName") || null,
+    projectId: value(formData, "projectId") || null,
+    contractorId: contractorId || null,
     contractor,
     documentReference: value(formData, "documentReference") || null,
     revision: value(formData, "revision") || null,

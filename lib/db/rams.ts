@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { getDb } from "@/lib/db";
+import { resolvePermitContractor } from "@/lib/db/contractors";
 import { env, isSupabaseAdminConfigured } from "@/lib/env";
 import { getSite } from "@/lib/db/sites";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -18,6 +19,8 @@ export interface CreateRamsDocumentInput {
   title: string;
   siteId?: string | null;
   siteName?: string | null;
+  projectId?: string | null;
+  contractorId?: string | null;
   contractor: string;
   documentReference?: string | null;
   revision?: string | null;
@@ -58,7 +61,7 @@ function isMissingRelationError(error: { message: string } | null) {
 
 function isMissingSiteIdError(error: { message: string } | null) {
   if (!error) return false;
-  return /site_id|Could not find .*site_id/i.test(error.message);
+  return /site_id|contractor_id|Could not find .*(site_id|contractor_id)/i.test(error.message);
 }
 
 function chunkArray<T>(items: T[], size: number) {
@@ -86,6 +89,14 @@ async function filterRowsByLegacySiteName<T extends { site_name: string | null; 
 export async function createRamsDocument(input: CreateRamsDocumentInput) {
   const id = randomUUID();
   const now = new Date().toISOString();
+  const resolvedContractor = input.siteId
+    ? await resolvePermitContractor({
+        siteId: input.siteId,
+        projectId: input.projectId ?? null,
+        contractorId: input.contractorId ?? null,
+        contractorName: input.contractor,
+      })
+    : { contractorId: input.contractorId ?? null, contractorName: input.contractor };
 
   if (shouldUseSupabaseRamsDb()) {
     const supabase = createSupabaseAdminClient();
@@ -94,7 +105,8 @@ export async function createRamsDocument(input: CreateRamsDocumentInput) {
       title: input.title,
       site_id: input.siteId ?? null,
       site_name: input.siteName ?? null,
-      contractor: input.contractor,
+      contractor_id: resolvedContractor.contractorId,
+      contractor: resolvedContractor.contractorName,
       document_reference: input.documentReference ?? null,
       revision: input.revision ?? null,
       revision_date: input.revisionDate ?? null,
@@ -111,8 +123,9 @@ export async function createRamsDocument(input: CreateRamsDocumentInput) {
     };
     const { error } = await supabase.from("rams_documents").insert(documentPayload);
     if (isMissingSiteIdError(error)) {
-      const { site_id: removedSiteId, ...legacyPayload } = documentPayload;
+      const { site_id: removedSiteId, contractor_id: removedContractorId, ...legacyPayload } = documentPayload;
       void removedSiteId;
+      void removedContractorId;
       assertNoError((await supabase.from("rams_documents").insert(legacyPayload)).error, "Unable to create RAMS document");
     } else {
       assertNoError(error, "Unable to create RAMS document");
@@ -123,16 +136,17 @@ export async function createRamsDocument(input: CreateRamsDocumentInput) {
   getDb()
     .prepare(
       `INSERT INTO rams_documents
-       (id, title, site_id, site_name, contractor, document_reference, revision, revision_date, file_name, storage_key,
+       (id, title, site_id, site_name, contractor_id, contractor, document_reference, revision, revision_date, file_name, storage_key,
         file_size, mime_type, page_count, processing_status, text_extraction_status, created_by, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'UPLOADED', 'PENDING', ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'UPLOADED', 'PENDING', ?, ?, ?)`,
     )
     .run(
       id,
       input.title,
       input.siteId ?? null,
       input.siteName ?? null,
-      input.contractor,
+      resolvedContractor.contractorId,
+      resolvedContractor.contractorName,
       input.documentReference ?? null,
       input.revision ?? null,
       input.revisionDate ?? null,

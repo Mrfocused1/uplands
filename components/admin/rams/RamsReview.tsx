@@ -46,6 +46,7 @@ type EvidenceItem = {
 };
 
 type ContractorFilter = { contractorId: string; name: string };
+type Contractor = { contractorId: string; name: string; siteStatus: string; trade: string | null };
 
 const forms = ramsData.forms as RamsForm[];
 
@@ -189,10 +190,12 @@ function EvidenceAccordion({ items }: { items: EvidenceItem[] }) {
 
 export function RamsReview({
   site = null,
+  contractors = [],
   contractorFilter = null,
   initialDocumentId = null,
 }: {
   site?: Pick<SiteRow, "id" | "location"> | null;
+  contractors?: Contractor[];
   contractorFilter?: ContractorFilter | null;
   initialDocumentId?: string | null;
 }) {
@@ -253,7 +256,7 @@ export function RamsReview({
         </section>
       )}
 
-      <RamsDocumentIntelligence site={site} legacyReviews={forms as LegacyRamsReview[]} contractorFilter={contractorFilter} initialDocumentId={initialDocumentId} onWorkspaceChange={setUploadedWorkspaceActive} />
+      <RamsDocumentIntelligence site={site} contractors={contractors} legacyReviews={forms as LegacyRamsReview[]} contractorFilter={contractorFilter} initialDocumentId={initialDocumentId} onWorkspaceChange={setUploadedWorkspaceActive} />
 
       {!uploadedWorkspaceActive && !selectedForm && (
         <section className="border border-zinc-200 bg-white p-5 shadow-soft">

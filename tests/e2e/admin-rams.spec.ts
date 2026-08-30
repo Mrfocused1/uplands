@@ -92,6 +92,27 @@ test("admin RAMS page renders cleanly on desktop and mobile", async ({ page }) =
   await expectNoCriticalA11yViolations(page);
 });
 
+test("site RAMS upload uses the site contractor register", async ({ page, request }, testInfo) => {
+  const contractorName = `RAMS Contractor ${testInfo.project.name} ${Date.now()}`;
+  const createContractor = await request.post("/api/admin/sites/newport/contractors", {
+    data: {
+      name: contractorName,
+      trade: "Ceilings",
+      siteStatus: "ACTIVE",
+    },
+  });
+  expect(createContractor.ok()).toBe(true);
+
+  await page.goto("/admin/sites/newport/rams");
+  await page.getByRole("button", { name: "+ Upload RAMS" }).click();
+
+  await expect(page.getByRole("heading", { name: "New RAMS Document" })).toBeVisible();
+  await expect(page.getByLabel("Project / Site")).toHaveValue("Waitrose Newport");
+  await expect(page.getByLabel("Contractor / Subcontractor")).toContainText(contractorName);
+  await page.getByLabel("Contractor / Subcontractor").selectOption({ label: contractorName });
+  await expect(page.getByLabel("Contractor / Subcontractor")).toHaveValue((await createContractor.json()).contractorId);
+});
+
 test("admin navigation exposes RAMS from the submissions area", async ({ page }) => {
   await page.goto("/admin/submissions");
   await page.getByLabel("Open admin navigation menu").click();

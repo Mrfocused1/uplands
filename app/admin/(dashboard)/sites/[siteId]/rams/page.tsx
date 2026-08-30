@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 
 import { RamsReview } from "@/components/admin/rams/RamsReview";
-import { isContractorDatabaseSetupError, listSiteContractors } from "@/lib/db/contractors";
+import { isContractorDatabaseSetupError, listSiteContractors, type SiteContractorSummaryRow } from "@/lib/db/contractors";
 import { getSite } from "@/lib/db/sites";
 
 export const metadata = {
@@ -23,16 +23,29 @@ export default async function SiteRamsPage({
     notFound();
   }
 
+  let contractors: SiteContractorSummaryRow[] = [];
   let contractorFilter = null;
-  if (contractorId) {
-    try {
-      const contractors = await listSiteContractors(site.id);
+  try {
+    contractors = await listSiteContractors(site.id);
+    if (contractorId) {
       const contractor = contractors.find((item) => item.contractor_id === contractorId);
       contractorFilter = contractor ? { contractorId: contractor.contractor_id, name: contractor.name } : null;
-    } catch (error) {
-      if (!isContractorDatabaseSetupError(error)) throw error;
     }
+  } catch (error) {
+    if (!isContractorDatabaseSetupError(error)) throw error;
   }
 
-  return <RamsReview site={site} contractorFilter={contractorFilter} initialDocumentId={documentId ?? null} />;
+  return (
+    <RamsReview
+      site={site}
+      contractors={contractors.map((contractor) => ({
+        contractorId: contractor.contractor_id,
+        name: contractor.name,
+        siteStatus: contractor.site_status,
+        trade: contractor.trade,
+      }))}
+      contractorFilter={contractorFilter}
+      initialDocumentId={documentId ?? null}
+    />
+  );
 }

@@ -326,6 +326,7 @@ function migrate(db: Db) {
       title TEXT NOT NULL,
       site_id TEXT REFERENCES sites(id) ON DELETE SET NULL,
       site_name TEXT,
+      contractor_id TEXT REFERENCES contractors(id) ON DELETE SET NULL,
       contractor TEXT NOT NULL,
       document_reference TEXT,
       revision TEXT,
@@ -434,6 +435,7 @@ function migrate(db: Db) {
   ensureColumn(db, "submissions", "pinned", "INTEGER NOT NULL DEFAULT 0");
   ensureColumn(db, "submissions", "is_sample", "INTEGER NOT NULL DEFAULT 0");
   ensureColumn(db, "rams_documents", "site_id", "TEXT REFERENCES sites(id) ON DELETE SET NULL");
+  ensureColumn(db, "rams_documents", "contractor_id", "TEXT REFERENCES contractors(id) ON DELETE SET NULL");
   ensureColumn(db, "permits", "contractor_id", "TEXT REFERENCES contractors(id) ON DELETE SET NULL");
   ensureColumn(db, "submissions", "contractor_id", "TEXT REFERENCES contractors(id) ON DELETE SET NULL");
   ensureColumn(db, "submissions", "operative_id", "TEXT REFERENCES operatives(id) ON DELETE SET NULL");
@@ -443,6 +445,7 @@ function migrate(db: Db) {
   db.exec(`
     CREATE INDEX IF NOT EXISTS idx_submissions_site ON submissions(site_id, created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_rams_documents_site ON rams_documents(site_id, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_rams_documents_contractor ON rams_documents(site_id, contractor_id, created_at DESC);
   `);
 }
 
@@ -650,6 +653,7 @@ function seedContractorsFromExistingRecords(db: Db) {
        updated_at = excluded.updated_at`,
   );
   const updatePermits = db.prepare("UPDATE permits SET contractor_id = ? WHERE contractor_id IS NULL AND contractor = ?");
+  const updateRams = db.prepare("UPDATE rams_documents SET contractor_id = ? WHERE contractor_id IS NULL AND contractor = ?");
 
   const run = db.transaction(() => {
     for (const row of rows) {
@@ -666,6 +670,7 @@ function seedContractorsFromExistingRecords(db: Db) {
         insertSiteContractor.run(randomUUID(), row.site_id, row.project_id, contractor.id, now, now);
       }
       updatePermits.run(contractor.id, name);
+      updateRams.run(contractor.id, name);
     }
   });
 

@@ -7,6 +7,7 @@ export interface RamsDocumentRow {
   title: string;
   site_id: string | null;
   site_name: string | null;
+  contractor_id: string | null;
   contractor: string;
   document_reference: string | null;
   revision: string | null;

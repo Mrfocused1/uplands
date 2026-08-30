@@ -36,6 +36,7 @@ interface RamsIntelligenceDocument {
   title: string;
   siteId: string | null;
   siteName: string | null;
+  contractorId: string | null;
   contractor: string;
   documentReference: string | null;
   revision: string | null;
@@ -794,17 +795,21 @@ function fileSize(bytes: number) {
 
 function UploadModal({
   site,
+  contractors,
   contractorFilter,
   onClose,
   onUploaded,
 }: {
-  site?: { id: string; location: string } | null;
+  site?: { id: string; location: string; project_id?: string | null } | null;
+  contractors?: Array<{ contractorId: string; name: string }>;
   contractorFilter?: { contractorId: string; name: string } | null;
   onClose: () => void;
   onUploaded: (document: RamsIntelligenceDocument) => void;
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [selectedContractorId, setSelectedContractorId] = useState(contractorFilter?.contractorId ?? (contractors?.[0]?.contractorId ?? "__new__"));
+  const selectedContractor = contractors?.find((contractor) => contractor.contractorId === selectedContractorId) ?? null;
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -853,6 +858,7 @@ function UploadModal({
           <label>
             <span className="text-xs font-bold uppercase text-zinc-700">Project / Site</span>
             {site?.id && <input type="hidden" name="siteId" value={site.id} />}
+            {site?.project_id && <input type="hidden" name="projectId" value={site.project_id} />}
             <input
               name="siteName"
               defaultValue={site?.location ?? ""}
@@ -860,10 +866,33 @@ function UploadModal({
               className="mt-1 min-h-11 w-full border border-zinc-300 px-3 outline-none focus:border-uplands-magenta read-only:bg-zinc-100"
             />
           </label>
-          <label>
-            <span className="text-xs font-bold uppercase text-zinc-700">Contractor / Subcontractor</span>
-            <input name="contractor" required defaultValue={contractorFilter?.name ?? ""} className="mt-1 min-h-11 w-full border border-zinc-300 px-3 outline-none focus:border-uplands-magenta" />
-          </label>
+          {site?.id && contractors && contractors.length > 0 ? (
+            <div>
+              <label>
+                <span className="text-xs font-bold uppercase text-zinc-700">Contractor / Subcontractor</span>
+                <select value={selectedContractorId} onChange={(event) => setSelectedContractorId(event.target.value)} className="mt-1 min-h-11 w-full border border-zinc-300 px-3 outline-none focus:border-uplands-magenta">
+                  {contractors.map((contractor) => (
+                    <option key={contractor.contractorId} value={contractor.contractorId}>
+                      {contractor.name}
+                    </option>
+                  ))}
+                  <option value="__new__">Add new contractor</option>
+                </select>
+              </label>
+              {selectedContractor && (
+                <>
+                  <input type="hidden" name="contractorId" value={selectedContractor.contractorId} />
+                  <input type="hidden" name="contractor" value={selectedContractor.name} />
+                </>
+              )}
+              {selectedContractorId === "__new__" && <input name="contractor" required placeholder="New contractor name" className="mt-2 min-h-11 w-full border border-zinc-300 px-3 outline-none focus:border-uplands-magenta" />}
+            </div>
+          ) : (
+            <label>
+              <span className="text-xs font-bold uppercase text-zinc-700">Contractor / Subcontractor</span>
+              <input name="contractor" required defaultValue={contractorFilter?.name ?? ""} className="mt-1 min-h-11 w-full border border-zinc-300 px-3 outline-none focus:border-uplands-magenta" />
+            </label>
+          )}
           <label>
             <span className="text-xs font-bold uppercase text-zinc-700">Document / Reference No.</span>
             <input name="documentReference" className="mt-1 min-h-11 w-full border border-zinc-300 px-3 outline-none focus:border-uplands-magenta" />
@@ -1299,12 +1328,14 @@ function PdfWorkspace({
 
 export function RamsDocumentIntelligence({
   site,
+  contractors = [],
   legacyReviews = [],
   contractorFilter = null,
   initialDocumentId = null,
   onWorkspaceChange,
 }: {
-  site?: { id: string; location: string } | null;
+  site?: { id: string; location: string; project_id?: string | null } | null;
+  contractors?: Array<{ contractorId: string; name: string; siteStatus: string; trade: string | null }>;
   legacyReviews?: LegacyRamsReview[];
   contractorFilter?: { contractorId: string; name: string } | null;
   initialDocumentId?: string | null;
@@ -1335,7 +1366,10 @@ export function RamsDocumentIntelligence({
     };
   }, [site?.id]);
 
-  const visibleDocuments = useMemo(() => (contractorFilter ? documents.filter((document) => document.contractor === contractorFilter.name) : documents), [contractorFilter, documents]);
+  const visibleDocuments = useMemo(
+    () => (contractorFilter ? documents.filter((document) => document.contractorId === contractorFilter.contractorId || document.contractor === contractorFilter.name) : documents),
+    [contractorFilter, documents],
+  );
   const selectedDocument = useMemo(() => visibleDocuments.find((document) => document.id === selectedId) ?? null, [selectedId, visibleDocuments]);
 
   useEffect(() => {
@@ -1419,6 +1453,7 @@ export function RamsDocumentIntelligence({
       {uploadOpen && (
         <UploadModal
           site={site}
+          contractors={contractors}
           contractorFilter={contractorFilter}
           onClose={() => setUploadOpen(false)}
           onUploaded={(document) => {
