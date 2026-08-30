@@ -1,4 +1,5 @@
 import { DEFAULT_SITE_SEEDS } from "@/config/siteSeeds";
+import { countCurrentAttendance, isAttendanceDatabaseSetupError } from "@/lib/db/attendance";
 import { listSiteActivityEvents, type SiteActivityEventRow } from "@/lib/db/activity";
 import { getDb } from "@/lib/db";
 import { countPermitsBySite, listPriorityPermitsBySite, type PermitRow } from "@/lib/db/permits";
@@ -174,14 +175,24 @@ export async function getSiteWorkspaceSummary(siteId: string): Promise<SiteWorks
   const site = await getSite(siteId);
   if (!site) return buildSummary([], []);
 
-  const [inductionRows, ramsRows, permits, priorityPermits, activityRows] = await Promise.all([
+  const [inductionRows, ramsRows, peopleOnSite, permits, priorityPermits, activityRows] = await Promise.all([
     listSiteSummaryInductions(site),
     listSiteSummaryRams(site),
+    countCurrentAttendanceSafe(site.id),
     countPermitsBySite(site.id),
     listPriorityPermitsBySite(site.id),
     listSiteActivityEvents(site.id, 20),
   ]);
-  return buildSummary(inductionRows, ramsRows, permits, priorityPermits, activityRows);
+  return buildSummary(inductionRows, ramsRows, peopleOnSite, permits, priorityPermits, activityRows);
+}
+
+async function countCurrentAttendanceSafe(siteId: string) {
+  try {
+    return await countCurrentAttendance(siteId);
+  } catch (error) {
+    if (isAttendanceDatabaseSetupError(error)) return 0;
+    throw error;
+  }
 }
 
 async function listSiteSummaryInductions(site: SiteRow) {
@@ -260,6 +271,7 @@ type SummaryRamsRow = { id: string; title: string; contractor: string; site_name
 function buildSummary(
   inductionRows: SummaryInductionRow[],
   ramsRows: SummaryRamsRow[],
+  peopleOnSite = 0,
   permits = { active: 0, expiringSoon: 0, awaitingClosure: 0, missingLinkedRams: 0 },
   priorityPermits: PermitRow[] = [],
   activityRows: SiteActivityEventRow[] = [],
@@ -271,7 +283,7 @@ function buildSummary(
       title: row.title,
       detail: row.detail,
       occurredAt: row.occurred_at,
-      href: row.entity_type === "permit" ? `/admin/sites/${row.site_id}/permits` : undefined,
+      href: row.entity_type === "permit" ? `/admin/sites/${row.site_id}/permits` : row.entity_type === "attendance" ? `/admin/sites/${row.site_id}/attendance` : undefined,
     })),
     ...inductionRows.map((row) => ({
       id: `induction-${row.id}`,
@@ -292,7 +304,7 @@ function buildSummary(
     .slice(0, 6);
 
   return {
-    peopleOnSite: 0,
+    peopleOnSite,
     inductions: {
       total: inductionRows.length,
       awaitingReview: inductionRows.filter((row) => row.print_review_status !== "ready").length,

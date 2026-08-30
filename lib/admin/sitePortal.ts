@@ -48,6 +48,7 @@ export function portalActionsForSite(siteId?: string): PortalAction[] {
   const ramsHref = siteId ? `/admin/sites/${siteId}/rams` : "/admin/rams";
   const permitsHref = siteId ? `/admin/sites/${siteId}/permits` : "/admin";
   const contractorsHref = siteId ? `/admin/sites/${siteId}/contractors` : "/admin";
+  const attendanceHref = siteId ? `/admin/sites/${siteId}/attendance` : "/admin";
   const editImagesHref = siteId ? `/admin/sites/${siteId}/edit-images` : "/edit-images";
   const formReturn = siteId ? encodeURIComponent(formsHref) : formsHref;
 
@@ -75,6 +76,12 @@ export function portalActionsForSite(siteId?: string): PortalAction[] {
       summary: "Manage site contractor records, contacts, trade packages and linked permits, RAMS and induction records.",
       href: contractorsHref,
       label: "Open contractors",
+    },
+    {
+      title: "Attendance",
+      summary: "See who is currently on site and sign operatives in or out against their contractor record.",
+      href: attendanceHref,
+      label: "Open attendance",
     },
     {
       title: "Forms",

@@ -13,6 +13,8 @@ export type SiteActivityEventType =
   | "induction_invite_email_sent"
   | "induction_invite_revoked"
   | "induction_invite_submitted"
+  | "operative_signed_in"
+  | "operative_signed_out"
   | "permit_created"
   | "permit_updated"
   | "permit_submitted"

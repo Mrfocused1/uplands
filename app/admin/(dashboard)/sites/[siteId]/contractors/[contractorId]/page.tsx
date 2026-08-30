@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { listContractorActivityEvents } from "@/lib/db/activity";
+import { listAttendanceBySite } from "@/lib/db/attendance";
 import { isContractorDatabaseSetupError, listSiteContractors } from "@/lib/db/contractors";
 import { listInductionInvitations } from "@/lib/db/inductionInvitations";
 import { listSiteOperatives } from "@/lib/db/operatives";
@@ -52,15 +53,18 @@ export default async function ContractorWorkspacePage({ params }: { params: Prom
   const contractor = contractors.find((row) => row.contractor_id === contractorId);
   if (!contractor) notFound();
 
-  const [operatives, invitations, activity, sitePermits, siteRams] = await Promise.all([
+  const [operatives, invitations, activity, sitePermits, siteRams, siteAttendance] = await Promise.all([
     listSiteOperatives(site.id, contractor.contractor_id),
     listInductionInvitations(site.id, contractor.contractor_id),
     listContractorActivityEvents(site.id, contractor.contractor_id),
     listPermitsBySite(site.id),
     listRamsDocuments({ siteId: site.id }),
+    listAttendanceBySite(site.id),
   ]);
   const permits = sitePermits.filter((permit) => permit.contractor_id === contractor.contractor_id || permit.contractor === contractor.name);
   const rams = siteRams.filter((document) => document.contractor_id === contractor.contractor_id || document.contractor === contractor.name);
+  const attendance = siteAttendance.filter((record) => record.contractor_id === contractor.contractor_id || record.contractor_name === contractor.name);
+  const currentlyOnSite = attendance.filter((record) => record.status === "SIGNED_IN").length;
   const activeInvites = invitations.filter((invite) => invite.status === "INVITED").length;
   const activePermits = permits.filter((permit) => permit.status === "ACTIVE" || permit.status === "AUTHORISED").length;
   const openPermitStatuses = new Set(["DRAFT", "AWAITING_REVIEW", "AUTHORISED", "ACTIVE", "WORK_COMPLETED"]);
@@ -69,6 +73,7 @@ export default async function ContractorWorkspacePage({ params }: { params: Prom
 
   const cards = [
     { title: "Profile", value: formatStatus(contractor.site_status), href: metricHref(site.id, contractor.contractor_id, "#contractor-details") },
+    { title: "On Site", value: String(currentlyOnSite), href: `/admin/sites/${site.id}/attendance?contractorId=${encodeURIComponent(contractor.contractor_id)}` },
     { title: "Operatives", value: String(operatives.length), href: metricHref(site.id, contractor.contractor_id, "#operatives") },
     { title: "Induction Invites", value: String(activeInvites), href: metricHref(site.id, contractor.contractor_id, "#induction-invite") },
     { title: "RAMS", value: String(rams.length), href: `/admin/sites/${site.id}/rams?contractorId=${encodeURIComponent(contractor.contractor_id)}` },
@@ -253,6 +258,32 @@ export default async function ContractorWorkspacePage({ params }: { params: Prom
             ))}
             {activity.length === 0 && <p className="p-4 text-sm text-uplands-muted">No contractor activity recorded yet.</p>}
           </div>
+        </div>
+      </section>
+
+      <section className="border border-zinc-200 bg-white p-5 shadow-soft">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.22em] text-uplands-magenta">Attendance</p>
+            <h2 className="mt-1 font-slab text-3xl text-uplands-charcoal">{currentlyOnSite} Currently On Site</h2>
+          </div>
+          <Link href={`/admin/sites/${site.id}/attendance?contractorId=${encodeURIComponent(contractor.contractor_id)}`} className="w-fit border border-uplands-magenta px-3 py-2 text-xs font-bold uppercase text-uplands-magenta">
+            Open attendance
+          </Link>
+        </div>
+        <div className="mt-5 divide-y divide-zinc-200 border border-zinc-200">
+          {attendance.slice(0, 8).map((record) => (
+            <div key={record.id} className="grid gap-3 p-4 md:grid-cols-[1fr_130px_130px_120px] md:items-center">
+              <span>
+                <span className="block font-din text-lg text-uplands-charcoal">{record.full_name ?? "Operative"}</span>
+                <span className="mt-1 block text-sm text-uplands-muted">{[record.role, record.induction_reference].filter(Boolean).join(" · ") || "No extra details recorded"}</span>
+              </span>
+              <span className="text-sm text-uplands-muted">{formatDateTime(record.signed_in_at)}</span>
+              <span className="text-sm text-uplands-muted">{record.signed_out_at ? formatDateTime(record.signed_out_at) : "Still on site"}</span>
+              <span className="w-fit border border-zinc-300 px-2.5 py-1 text-xs font-bold uppercase text-zinc-700">{formatStatus(record.status)}</span>
+            </div>
+          ))}
+          {attendance.length === 0 && <p className="p-4 text-sm text-uplands-muted">No attendance records for this contractor yet.</p>}
         </div>
       </section>
     </div>
