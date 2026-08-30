@@ -86,6 +86,9 @@ UPDATE public.rams_documents
 SET site_id = 'balham'
 WHERE site_id IS NULL AND lower(COALESCE(site_name, '')) LIKE '%balham%';
 
+DROP VIEW IF EXISTS public.submissions_with_counts;
+DROP VIEW IF EXISTS public.rams_documents_with_counts;
+
 CREATE OR REPLACE VIEW public.sites_with_primary_project AS
 SELECT
   s.id,
