@@ -871,4 +871,155 @@ export const PERMIT_TEMPLATES: PermitTemplate[] = [
       },
     ],
   },
+  {
+    id: "temporary-works-load-strike",
+    code: "UHSF23.7",
+    title: "Temporary Works Permit to Load / Strike",
+    description: "Structured digital permit for temporary works erection checks, TWC/TWS authorisation, loading controls and strike closure.",
+    registerCode: "UHSF21.0",
+    version: "1",
+    sortOrder: 90,
+    sections: [
+      {
+        id: "temporary-works-team",
+        title: "Temporary Works Team",
+        description: "Identify the temporary works coordinator, responsible site manager and competent subcontractor supervisor.",
+        sortOrder: 10,
+        questions: [
+          {
+            key: "authorising_temporary_works_coordinator",
+            prompt: "Has the authorising temporary works coordinator been identified?",
+            helpText: "Use the comment field to record the TWC/TWS name.",
+          },
+          {
+            key: "site_manager_responsible",
+            prompt: "Has the site manager responsible for temporary works erection been identified?",
+            helpText: "Use the comment field to record the responsible site manager.",
+          },
+          {
+            key: "competent_subcontractor_supervisor",
+            prompt: "Has the competent subcontractor supervisor been identified?",
+            helpText: "Use the comment field to record the supervisor name.",
+          },
+          {
+            key: "operatives_suitably_trained",
+            prompt: "Are operatives suitably trained?",
+            helpText: "Record relevant cards or competency evidence where required.",
+          },
+        ],
+      },
+      {
+        id: "drawings-method",
+        title: "Drawings / Method Statement",
+        description: "Confirm drawings, deviations, method statement and risk-assessment briefings are controlled.",
+        sortOrder: 20,
+        questions: [
+          { key: "drawings_issued_to_supervisor", prompt: "Have the drawings been issued to the site supervisor?" },
+          {
+            key: "drawing_deviations_identified",
+            prompt: "Are there any deviations from the drawings?",
+            helpText: "If Yes, record what has changed.",
+            requiresCommentOn: ["YES"],
+          },
+          { key: "method_statement_prepared", prompt: "Has a satisfactory method statement been prepared?" },
+          {
+            key: "risk_assessment_results_briefed",
+            prompt: "Have personnel involved in, or likely to be affected by the work, been informed of the results of the risk assessments?",
+          },
+          {
+            key: "method_statement_training",
+            prompt: "Have all personnel involved in the work been trained in the requirements of the method statement?",
+          },
+        ],
+      },
+      {
+        id: "emergency-site-controls",
+        title: "Emergency / Site Controls",
+        description: "Confirm emergency arrangements, service locations, protection, signage and third-party notifications.",
+        sortOrder: 30,
+        questions: [
+          {
+            key: "emergency_procedures_prepared_posted",
+            prompt: "Have emergency procedures been prepared and posted?",
+            helpText: "Record where the emergency procedures are posted.",
+          },
+          {
+            key: "emergency_procedures_training",
+            prompt: "Have all personnel involved been trained in the requirements of the emergency procedures?",
+          },
+          {
+            key: "services_located_marked_protected",
+            prompt: "Have all services been located and their positions verified, marked and protected?",
+            helpText: "Record CAT scan, sub scan or existing drawing references where needed.",
+          },
+          { key: "suitable_protection_in_place", prompt: "Is suitable protection in place?", helpText: "For example fencing." },
+          { key: "suitable_signs_in_place", prompt: "Are suitable signs in place?" },
+          {
+            key: "third_parties_informed",
+            prompt: "Have third parties been informed?",
+            helpText: "For example client awareness of risks such as noise.",
+          },
+        ],
+      },
+      {
+        id: "load-strike-authorisation",
+        title: "Load / Strike Authorisation",
+        description: "Confirm temporary works are built to design and authorised before loading or striking.",
+        sortOrder: 40,
+        questions: [
+          {
+            key: "erected_to_design_final_inspection",
+            prompt: "Has the temporary works been erected in accordance with the design and has a final inspection been carried out?",
+          },
+          {
+            key: "twc_tws_checked_to_design",
+            prompt: "Has the TWC / TWS checked that the temporary works are in accordance with the design details?",
+          },
+          {
+            key: "loading_restraints_briefed",
+            prompt: "Have restraints imposed on the loading of the temporary works been understood and passed to the site manager in charge?",
+          },
+          {
+            key: "load_type_confirmed",
+            prompt: "Has the authorised load type been confirmed?",
+            helpText: "Record reinforcement, concrete, other or none in the comment field.",
+          },
+          {
+            key: "strike_conditions_confirmed",
+            prompt: "Have the conditions for striking or removing the temporary works been confirmed?",
+          },
+        ],
+      },
+    ],
+    signatures: [
+      {
+        key: "manager_authorisation",
+        title: "Uplands Site Manager Responsible for Temporary Works Erection Authorisation",
+        role: "Uplands Site Manager",
+        action: "Confirmed temporary works erection is ready for TWC/TWS checking",
+        sortOrder: 10,
+      },
+      {
+        key: "contractor_acceptance",
+        title: "TWC / TWS Authorisation",
+        role: "Temporary Works Coordinator / Supervisor",
+        action: "Authorised temporary works loading controls",
+        sortOrder: 20,
+      },
+      {
+        key: "contractor_completion",
+        title: "Contractor / Operative Completion",
+        role: "Contractor / Operative",
+        action: "Confirmed temporary works load / strike operation completed",
+        sortOrder: 30,
+      },
+      {
+        key: "manager_completion_acceptance",
+        title: "Uplands Site Manager Acceptance of Completion",
+        role: "Uplands Site Manager",
+        action: "Accepted completion and closed temporary works permit",
+        sortOrder: 40,
+      },
+    ],
+  },
 ];

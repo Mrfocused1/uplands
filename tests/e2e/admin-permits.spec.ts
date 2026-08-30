@@ -445,3 +445,58 @@ test("admin can create and authorise a demolition permit", async ({ page }) => {
   expect(response.ok()).toBe(true);
   expect(response.headers()["content-type"]).toContain("application/pdf");
 });
+
+test("admin can create and authorise a temporary works permit", async ({ page }) => {
+  test.setTimeout(60_000);
+
+  const contractor = `Temporary Works Permit Test ${Date.now()}`;
+
+  await page.goto("/admin/sites/newport/permits");
+  await expect(page.getByRole("heading", { name: "Waitrose Newport" })).toBeVisible();
+
+  await choosePermitType(page, "Temporary Works Permit to Load / Strike");
+  await expect(page.locator("form").getByRole("heading", { name: "Temporary Works Permit to Load / Strike" })).toBeVisible();
+
+  await page.getByPlaceholder("Contractor").fill(contractor);
+  await page.getByPlaceholder("Location of work").fill("Loading bay temporary support");
+  await page.getByPlaceholder("Description of work").fill("Inspect temporary support and authorise controlled loading sequence.");
+  await page.getByRole("button", { name: "Create Permit" }).click();
+
+  await expect(page.getByText(contractor).first()).toBeVisible();
+  await expect(page.getByTestId("permit-editor").getByRole("heading", { name: "Temporary Works Permit to Load / Strike" })).toBeVisible();
+  await expect(page.getByText("Temporary Works Team")).toBeVisible();
+  await expect(page.getByText("Load / Strike Authorisation")).toBeVisible();
+  await expect(page.getByText("Has the TWC / TWS checked that the temporary works are in accordance with the design details?")).toBeVisible();
+  await expect(page.getByLabel("Contractor")).toHaveValue(contractor);
+
+  const twcQuestion = page.locator(".p-4").filter({ hasText: "Has the authorising temporary works coordinator been identified?" });
+  await twcQuestion.getByPlaceholder("Comment").fill("TWC/TWS: Paul Bridges");
+
+  const siteManagerQuestion = page.locator(".p-4").filter({ hasText: "Has the site manager responsible for temporary works erection been identified?" });
+  await siteManagerQuestion.getByPlaceholder("Comment").fill("Responsible site manager: Matty");
+
+  const loadTypeQuestion = page.locator(".p-4").filter({ hasText: "Has the authorised load type been confirmed?" });
+  await loadTypeQuestion.getByPlaceholder("Comment").fill("Authorised load: concrete.");
+
+  await answerAllQuestionsYes(page);
+  await selectQuestionAnswer(page, "Are there any deviations from the drawings?", "NO");
+
+  const submitForReview = page.getByRole("button", { name: "Submit for Review" });
+  await expect(submitForReview).toBeEnabled();
+  await submitForReview.click();
+  await expect(page.getByText("Permit submitted for review").first()).toBeVisible();
+
+  const managerSignature = page.locator("article").filter({ has: page.getByRole("heading", { name: "Uplands Site Manager Responsible for Temporary Works Erection Authorisation" }) });
+  await managerSignature.getByPlaceholder("Name").fill("Matty");
+  await managerSignature.getByPlaceholder("Company").fill("Uplands");
+  await managerSignature.getByPlaceholder("Position").fill("Site Manager");
+
+  await page.getByRole("button", { name: "Authorise Permit" }).click();
+  await expect(page.getByText("AUTHORISED").first()).toBeVisible();
+
+  const pdfHref = await page.getByRole("link", { name: "Download PDF" }).getAttribute("href");
+  expect(pdfHref).toBeTruthy();
+  const response = await page.request.get(pdfHref!);
+  expect(response.ok()).toBe(true);
+  expect(response.headers()["content-type"]).toContain("application/pdf");
+});
