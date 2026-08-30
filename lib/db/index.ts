@@ -334,6 +334,18 @@ function migrate(db: Db) {
       UNIQUE(permit_id, signature_key)
     );
 
+    CREATE TABLE IF NOT EXISTS permit_register_sequences (
+      id TEXT PRIMARY KEY,
+      template_id TEXT NOT NULL REFERENCES permit_templates(id) ON DELETE CASCADE,
+      site_id TEXT NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
+      year INTEGER NOT NULL,
+      prefix TEXT NOT NULL,
+      last_number INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      UNIQUE(template_id, site_id, year)
+    );
+
     CREATE INDEX IF NOT EXISTS idx_permits_site ON permits(site_id, status, created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_contractors_name ON contractors(name);
     CREATE INDEX IF NOT EXISTS idx_site_contractors_site ON site_contractors(site_id, status);
@@ -358,6 +370,7 @@ function migrate(db: Db) {
     CREATE INDEX IF NOT EXISTS idx_permit_answers_permit ON permit_answers(permit_id);
     CREATE INDEX IF NOT EXISTS idx_permit_field_values_permit ON permit_field_values(permit_id);
     CREATE INDEX IF NOT EXISTS idx_permit_signatures_permit ON permit_signatures(permit_id);
+    CREATE INDEX IF NOT EXISTS idx_permit_register_sequences_site ON permit_register_sequences(site_id, year);
     CREATE INDEX IF NOT EXISTS idx_site_activity_site ON site_activity_events(site_id, occurred_at DESC);
     CREATE INDEX IF NOT EXISTS idx_site_activity_entity ON site_activity_events(entity_type, entity_id, occurred_at DESC);
 
@@ -524,6 +537,30 @@ function migrate(db: Db) {
     CREATE INDEX IF NOT EXISTS idx_rams_documents_contractor ON rams_documents(site_id, contractor_id, created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_permits_rams_document ON permits(rams_document_id);
   `);
+
+  const existingPermitNumbers = db
+    .prepare(
+      `SELECT p.template_id, p.site_id, p.permit_number, p.created_at, t.code
+       FROM permits p
+       LEFT JOIN permit_templates t ON t.id = p.template_id`,
+    )
+    .all() as Array<{ template_id: string; site_id: string; permit_number: string; created_at: string; code: string | null }>;
+  const upsertPermitSequence = db.prepare(
+    `INSERT INTO permit_register_sequences (id, template_id, site_id, year, prefix, last_number, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(template_id, site_id, year) DO UPDATE SET
+       prefix = excluded.prefix,
+       last_number = max(permit_register_sequences.last_number, excluded.last_number),
+       updated_at = excluded.updated_at`,
+  );
+  const now = new Date().toISOString();
+  for (const permit of existingPermitNumbers) {
+    const match = /^(.*-(\d{4})-)(\d+)$/.exec(permit.permit_number);
+    const year = match ? Number(match[2]) : new Date(permit.created_at).getFullYear();
+    const prefix = match ? match[1] : `${permit.code ?? permit.template_id.toUpperCase()}-${permit.site_id.toUpperCase()}-${year}-`;
+    const sequence = match ? Number(match[3]) : 0;
+    upsertPermitSequence.run(randomUUID(), permit.template_id, permit.site_id, year, prefix, sequence, now, now);
+  }
 }
 
 function seedAdmin(db: Db) {

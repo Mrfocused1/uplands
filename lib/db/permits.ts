@@ -521,17 +521,39 @@ async function nextPermitNumber(templateId: string, siteId: string) {
   const template = await getPermitTemplate(templateId);
   const code = template?.code ?? templateId.toUpperCase();
   const year = new Date().getFullYear();
+  const prefix = `${code}-${siteId.toUpperCase()}-${year}-`;
   if (shouldUseSupabasePermitsDb()) {
     const supabase = createSupabaseAdminClient();
-    const prefix = `${code}-${siteId.toUpperCase()}-${year}-`;
-    const { count, error } = await supabase.from("permits").select("id", { count: "exact", head: true }).like("permit_number", `${prefix}%`);
+    const { data, error } = await supabase.rpc("next_permit_register_number", {
+      p_template_id: templateId,
+      p_site_id: siteId,
+      p_year: year,
+      p_prefix: prefix,
+    });
     assertNoError(error, "Unable to generate permit number");
-    return `${prefix}${String((count ?? 0) + 1).padStart(4, "0")}`;
+    return String(data);
   }
 
-  const prefix = `${code}-${siteId.toUpperCase()}-${year}-`;
-  const row = getDb().prepare("SELECT COUNT(*) AS count FROM permits WHERE permit_number LIKE ?").get(`${prefix}%`) as { count: number };
-  return `${prefix}${String(row.count + 1).padStart(4, "0")}`;
+  return getDb().transaction(() => {
+    const now = new Date().toISOString();
+    getDb()
+      .prepare(
+        `INSERT INTO permit_register_sequences (id, template_id, site_id, year, prefix, last_number, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, 0, ?, ?)
+         ON CONFLICT(template_id, site_id, year) DO NOTHING`,
+      )
+      .run(randomUUID(), templateId, siteId, year, prefix, now, now);
+
+    const row = getDb()
+      .prepare(
+        `UPDATE permit_register_sequences
+         SET last_number = last_number + 1, prefix = ?, updated_at = ?
+         WHERE template_id = ? AND site_id = ? AND year = ?
+         RETURNING last_number`,
+      )
+      .get(prefix, now, templateId, siteId, year) as { last_number: number };
+    return `${prefix}${String(row.last_number).padStart(4, "0")}`;
+  })();
 }
 
 export async function getPermitDetail(permitId: string): Promise<PermitDetail | null> {

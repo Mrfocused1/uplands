@@ -299,8 +299,9 @@ export function PermitsWorkspace({
 
   function setAnswer(questionKey: string, answer: PermitAnswer) {
     updateDetail((current) => {
+      const existing = current.answers.find((item) => item.questionKey === questionKey);
       const next = current.answers.filter((item) => item.questionKey !== questionKey);
-      return { ...current, answers: [...next, { questionKey, answer, comment: answersByKey.get(questionKey)?.comment ?? null }] };
+      return { ...current, answers: [...next, { questionKey, answer, comment: existing?.comment ?? null }] };
     });
   }
 
