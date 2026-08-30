@@ -49,6 +49,7 @@ export function portalActionsForSite(siteId?: string): PortalAction[] {
   const permitsHref = siteId ? `/admin/sites/${siteId}/permits` : "/admin";
   const contractorsHref = siteId ? `/admin/sites/${siteId}/contractors` : "/admin";
   const attendanceHref = siteId ? `/admin/sites/${siteId}/attendance` : "/admin";
+  const handoverHref = siteId ? `/admin/sites/${siteId}/handover` : "/admin";
   const editImagesHref = siteId ? `/admin/sites/${siteId}/edit-images` : "/edit-images";
   const formReturn = siteId ? encodeURIComponent(formsHref) : formsHref;
 
@@ -82,6 +83,12 @@ export function portalActionsForSite(siteId?: string): PortalAction[] {
       summary: "See who is currently on site and sign operatives in or out against their contractor record.",
       href: attendanceHref,
       label: "Open attendance",
+    },
+    {
+      title: "Handover",
+      summary: "Create day and night shift records, capture outstanding actions and review the previous shift.",
+      href: handoverHref,
+      label: "Open handover",
     },
     {
       title: "Forms",

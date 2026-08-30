@@ -14,6 +14,7 @@ export function AdminNav({ adminName }: { adminName?: string }) {
   const permitsHref = siteId ? `/admin/sites/${siteId}/permits` : "/admin";
   const contractorsHref = siteId ? `/admin/sites/${siteId}/contractors` : "/admin";
   const attendanceHref = siteId ? `/admin/sites/${siteId}/attendance` : "/admin";
+  const handoverHref = siteId ? `/admin/sites/${siteId}/handover` : "/admin";
   const editImagesHref = siteId ? `/admin/sites/${siteId}/edit-images` : "/edit-images";
 
   const linkClass = (href: string) =>
@@ -75,6 +76,9 @@ export function AdminNav({ adminName }: { adminName?: string }) {
                   </Link>
                   <Link className={`${linkClass(attendanceHref)} block py-3`} href={attendanceHref}>
                     Attendance
+                  </Link>
+                  <Link className={`${linkClass(handoverHref)} block py-3`} href={handoverHref}>
+                    Handover
                   </Link>
                   <Link className={`${linkClass(editImagesHref)} block py-3`} href={editImagesHref}>
                     Edit Images

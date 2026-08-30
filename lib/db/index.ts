@@ -181,6 +181,31 @@ function migrate(db: Db) {
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
 
+    CREATE TABLE IF NOT EXISTS site_handovers (
+      id TEXT PRIMARY KEY,
+      site_id TEXT NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
+      project_id TEXT REFERENCES projects(id) ON DELETE SET NULL,
+      handover_date TEXT NOT NULL,
+      shift TEXT NOT NULL DEFAULT 'DAY',
+      status TEXT NOT NULL DEFAULT 'DRAFT',
+      manager_name TEXT,
+      summary TEXT,
+      work_completed TEXT,
+      contractors_present TEXT,
+      permits_summary TEXT,
+      issues TEXT,
+      deliveries TEXT,
+      outstanding_actions TEXT,
+      next_shift_notes TEXT,
+      submitted_at TEXT,
+      submitted_by TEXT,
+      acknowledged_at TEXT,
+      acknowledged_by TEXT,
+      created_by TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
     CREATE TABLE IF NOT EXISTS permit_templates (
       id TEXT PRIMARY KEY,
       code TEXT NOT NULL UNIQUE,
@@ -299,6 +324,8 @@ function migrate(db: Db) {
     CREATE INDEX IF NOT EXISTS idx_attendance_contractor ON attendance_records(site_id, contractor_id, signed_in_at DESC);
     CREATE INDEX IF NOT EXISTS idx_attendance_operative ON attendance_records(site_id, operative_id, status);
     CREATE UNIQUE INDEX IF NOT EXISTS idx_attendance_one_open_record ON attendance_records(site_id, operative_id) WHERE status = 'SIGNED_IN';
+    CREATE INDEX IF NOT EXISTS idx_site_handovers_site_date ON site_handovers(site_id, handover_date DESC, shift);
+    CREATE INDEX IF NOT EXISTS idx_site_handovers_status ON site_handovers(site_id, status, updated_at DESC);
     CREATE INDEX IF NOT EXISTS idx_induction_invitations_site ON induction_invitations(site_id, contractor_id, status);
     CREATE INDEX IF NOT EXISTS idx_induction_invitations_submission ON induction_invitations(submission_id);
     CREATE INDEX IF NOT EXISTS idx_induction_invitations_expires ON induction_invitations(expires_at);

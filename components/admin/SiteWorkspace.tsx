@@ -1,7 +1,6 @@
 import Link from "next/link";
 
 import { portalActionsForSite, portalSiteFromRow } from "@/lib/admin/sitePortal";
-import type { SiteOperationsAgentSnapshot } from "@/lib/agents/siteOperationsAgents";
 import type { SiteRow, SiteWorkspaceSummary } from "@/lib/db/sites";
 
 function formatTime(value: string) {
@@ -21,57 +20,9 @@ function formatPermitExpiry(date: string, time: string) {
   return `Expires ${expiry.toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit" })} ${time}`;
 }
 
-function agentToneClasses(status: string) {
-  if (status === "ACTION") return "border-red-200 bg-red-50 text-red-800";
-  if (status === "WATCH") return "border-amber-200 bg-amber-50 text-amber-800";
-  return "border-emerald-200 bg-emerald-50 text-emerald-800";
-}
-
-export function SiteWorkspace({ site, summary, agents }: { site: SiteRow; summary: SiteWorkspaceSummary; agents: SiteOperationsAgentSnapshot }) {
+export function SiteWorkspace({ site, summary }: { site: SiteRow; summary: SiteWorkspaceSummary }) {
   const portalSite = portalSiteFromRow(site);
   const actions = portalActionsForSite(site.id);
-  const agentCards = [
-    {
-      title: "Attendance",
-      value: agents.attendance.currentlyOnSite,
-      label: "on site",
-      status: agents.attendance.status,
-      note: agents.attendance.note,
-      href: agents.attendance.href,
-    },
-    {
-      title: "Contractors",
-      value: agents.contractors.activeContractors,
-      label: "active",
-      status: agents.contractors.status,
-      note: agents.contractors.note,
-      href: agents.contractors.href,
-    },
-    {
-      title: "Handover",
-      value: agents.handover.outstandingActions,
-      label: "actions",
-      status: agents.handover.status,
-      note: agents.handover.note,
-      href: agents.handover.actions[0]?.href ?? `/admin/sites/${site.id}`,
-    },
-    {
-      title: "Timeline",
-      value: agents.timeline.eventCount,
-      label: "events",
-      status: agents.timeline.status,
-      note: agents.timeline.note,
-      href: agents.timeline.href,
-    },
-    {
-      title: "Compliance",
-      value: agents.compliance.openIssues,
-      label: "open",
-      status: agents.compliance.status,
-      note: agents.compliance.note,
-      href: agents.compliance.issues[0]?.href ?? agents.compliance.href,
-    },
-  ];
 
   return (
     <div className="space-y-8">
@@ -154,34 +105,6 @@ export function SiteWorkspace({ site, summary, agents }: { site: SiteRow; summar
             <p className="mt-1 text-sm text-uplands-muted">{summary.permits.expiringSoon} expiring soon, {summary.permits.awaitingClosure} awaiting closure</p>
             {summary.permits.missingLinkedRams > 0 && <p className="mt-2 text-xs font-bold uppercase text-amber-800">{summary.permits.missingLinkedRams} missing linked RAMS</p>}
           </article>
-        </div>
-      </section>
-
-      <section className="border border-zinc-200 bg-white p-5 shadow-soft sm:p-6">
-        <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <p className="text-xs font-bold uppercase tracking-[0.22em] text-uplands-magenta">Operations Agents</p>
-            <h2 className="mt-1 font-slab text-3xl text-uplands-charcoal">Site Watch</h2>
-          </div>
-          <span className="w-fit border border-zinc-300 px-2.5 py-1 text-xs font-bold uppercase text-zinc-700">
-            {new Date(agents.generatedAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}
-          </span>
-        </div>
-
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-          {agentCards.map((card) => (
-            <Link key={card.title} href={card.href} className="flex min-h-44 flex-col justify-between border border-zinc-200 bg-uplands-paper p-4 transition hover:border-uplands-magenta hover:shadow-soft">
-              <span>
-                <span className="flex items-start justify-between gap-3">
-                  <span className="text-xs font-bold uppercase text-uplands-muted">{card.title}</span>
-                  <span className={`border px-2 py-0.5 text-[10px] font-bold uppercase ${agentToneClasses(card.status)}`}>{card.status}</span>
-                </span>
-                <span className="mt-3 block font-slab text-4xl text-uplands-charcoal">{card.value}</span>
-                <span className="mt-1 block text-xs font-bold uppercase text-uplands-muted">{card.label}</span>
-              </span>
-              <span className="mt-4 block text-sm leading-6 text-zinc-700">{card.note}</span>
-            </Link>
-          ))}
         </div>
       </section>
 

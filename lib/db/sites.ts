@@ -283,7 +283,14 @@ function buildSummary(
       title: row.title,
       detail: row.detail,
       occurredAt: row.occurred_at,
-      href: row.entity_type === "permit" ? `/admin/sites/${row.site_id}/permits` : row.entity_type === "attendance" ? `/admin/sites/${row.site_id}/attendance` : undefined,
+      href:
+        row.entity_type === "permit"
+          ? `/admin/sites/${row.site_id}/permits`
+          : row.entity_type === "attendance"
+            ? `/admin/sites/${row.site_id}/attendance`
+            : row.entity_type === "handover"
+              ? `/admin/sites/${row.site_id}/handover`
+              : undefined,
     })),
     ...inductionRows.map((row) => ({
       id: `induction-${row.id}`,

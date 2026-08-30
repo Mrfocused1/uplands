@@ -1,7 +1,6 @@
 import { notFound } from "next/navigation";
 
 import { SiteWorkspace } from "@/components/admin/SiteWorkspace";
-import { runSiteOperationsAgents } from "@/lib/agents/siteOperationsAgents";
 import { getSite, getSiteWorkspaceSummary } from "@/lib/db/sites";
 
 export default async function AdminSitePage({ params }: { params: Promise<{ siteId: string }> }) {
@@ -12,7 +11,7 @@ export default async function AdminSitePage({ params }: { params: Promise<{ site
     notFound();
   }
 
-  const [summary, agents] = await Promise.all([getSiteWorkspaceSummary(site.id), runSiteOperationsAgents(site.id)]);
+  const summary = await getSiteWorkspaceSummary(site.id);
 
-  return <SiteWorkspace site={site} summary={summary} agents={agents} />;
+  return <SiteWorkspace site={site} summary={summary} />;
 }
