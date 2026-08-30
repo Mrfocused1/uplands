@@ -193,10 +193,19 @@ function deliveryNotice(result: InvitationEmailDelivery | null | undefined) {
   return result?.message ?? "";
 }
 
-export function ContractorsWorkspace({ site, initialContractors }: { site: Site; initialContractors: Contractor[] }) {
+export function ContractorsWorkspace({
+  site,
+  initialContractors,
+  initialSelectedContractorId,
+}: {
+  site: Site;
+  initialContractors: Contractor[];
+  initialSelectedContractorId?: string;
+}) {
   const [contractors, setContractors] = useState(initialContractors);
-  const [selectedId, setSelectedId] = useState(initialContractors[0]?.contractorId ?? "");
-  const [form, setForm] = useState<ContractorFormState>(initialContractors[0] ? contractorToForm(initialContractors[0]) : emptyForm);
+  const initialSelectedContractor = initialContractors.find((contractor) => contractor.contractorId === initialSelectedContractorId) ?? initialContractors[0] ?? null;
+  const [selectedId, setSelectedId] = useState(initialSelectedContractor?.contractorId ?? "");
+  const [form, setForm] = useState<ContractorFormState>(initialSelectedContractor ? contractorToForm(initialSelectedContractor) : emptyForm);
   const [query, setQuery] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -233,6 +242,7 @@ export function ContractorsWorkspace({ site, initialContractors }: { site: Site;
   const contractorActions = selectedContractor
     ? [
         { title: "Contractor Details", summary: "Update contact, trade and site status.", href: "#contractor-details", metric: selectedContractor.siteStatus },
+        { title: "Open Profile", summary: "View this contractor as its own workspace.", href: `/admin/sites/${site.id}/contractors/${selectedContractor.contractorId}`, metric: "Profile" },
         { title: "Operatives", summary: "Manage the workforce linked to this contractor.", href: "#operatives", metric: String(selectedContractor.operativeCount) },
         { title: "Induction Invites", summary: "Create secure pre-arrival induction links.", href: "#induction-invite", metric: String(invitations.filter((invite) => invite.status === "INVITED").length) },
         { title: "Permits", summary: "Open permits connected to this site.", href: `/admin/sites/${site.id}/permits`, metric: String(selectedContractor.permitCount) },
@@ -757,7 +767,7 @@ export function ContractorsWorkspace({ site, initialContractors }: { site: Site;
             <span className="w-fit border border-zinc-300 px-2.5 py-1 text-xs font-bold uppercase text-zinc-700">{formatStatus(selectedContractor.siteStatus)}</span>
           </div>
 
-          <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+          <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-6">
             {contractorActions.map((action) => (
               <Link key={action.title} href={action.href} className="flex min-h-40 flex-col justify-between border border-zinc-200 bg-white p-4 transition hover:border-uplands-magenta hover:shadow-soft">
                 <span>

@@ -8,8 +8,15 @@ export const metadata = {
   title: "Site Contractors | Uplands Admin",
 };
 
-export default async function SiteContractorsPage({ params }: { params: Promise<{ siteId: string }> }) {
+export default async function SiteContractorsPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ siteId: string }>;
+  searchParams: Promise<{ contractorId?: string }>;
+}) {
   const { siteId } = await params;
+  const { contractorId } = await searchParams;
   const site = await getSite(siteId);
   if (!site) notFound();
 
@@ -32,6 +39,7 @@ export default async function SiteContractorsPage({ params }: { params: Promise<
   return (
     <ContractorsWorkspace
       site={{ id: site.id, location: site.location, project_id: site.project_id, project_name: site.project_name }}
+      initialSelectedContractorId={contractorId}
       initialContractors={contractors.map((contractor) => ({
         siteContractorId: contractor.site_contractor_id,
         siteId: contractor.site_id,
