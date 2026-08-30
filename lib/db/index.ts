@@ -1,4 +1,5 @@
 import Database from "better-sqlite3";
+import { randomUUID } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -90,6 +91,29 @@ function migrate(db: Db) {
       metadata_json TEXT
     );
 
+    CREATE TABLE IF NOT EXISTS contractors (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL UNIQUE,
+      status TEXT NOT NULL DEFAULT 'ACTIVE',
+      primary_contact_name TEXT,
+      primary_contact_email TEXT,
+      primary_contact_phone TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS site_contractors (
+      id TEXT PRIMARY KEY,
+      site_id TEXT NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
+      project_id TEXT REFERENCES projects(id) ON DELETE SET NULL,
+      contractor_id TEXT NOT NULL REFERENCES contractors(id) ON DELETE CASCADE,
+      trade TEXT,
+      status TEXT NOT NULL DEFAULT 'ACTIVE',
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      UNIQUE(site_id, contractor_id)
+    );
+
     CREATE TABLE IF NOT EXISTS permit_templates (
       id TEXT PRIMARY KEY,
       code TEXT NOT NULL UNIQUE,
@@ -147,6 +171,7 @@ function migrate(db: Db) {
       template_id TEXT NOT NULL REFERENCES permit_templates(id),
       site_id TEXT NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
       project_id TEXT REFERENCES projects(id) ON DELETE SET NULL,
+      contractor_id TEXT REFERENCES contractors(id) ON DELETE SET NULL,
       contractor TEXT NOT NULL,
       location_of_work TEXT NOT NULL,
       description_of_work TEXT NOT NULL,
@@ -195,6 +220,9 @@ function migrate(db: Db) {
     );
 
     CREATE INDEX IF NOT EXISTS idx_permits_site ON permits(site_id, status, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_contractors_name ON contractors(name);
+    CREATE INDEX IF NOT EXISTS idx_site_contractors_site ON site_contractors(site_id, status);
+    CREATE INDEX IF NOT EXISTS idx_site_contractors_contractor ON site_contractors(contractor_id);
     CREATE INDEX IF NOT EXISTS idx_permit_template_fields_template ON permit_template_fields(template_id, sort_order);
     CREATE INDEX IF NOT EXISTS idx_permit_answers_permit ON permit_answers(permit_id);
     CREATE INDEX IF NOT EXISTS idx_permit_field_values_permit ON permit_field_values(permit_id);
@@ -350,6 +378,7 @@ function migrate(db: Db) {
   ensureColumn(db, "submissions", "pinned", "INTEGER NOT NULL DEFAULT 0");
   ensureColumn(db, "submissions", "is_sample", "INTEGER NOT NULL DEFAULT 0");
   ensureColumn(db, "rams_documents", "site_id", "TEXT REFERENCES sites(id) ON DELETE SET NULL");
+  ensureColumn(db, "permits", "contractor_id", "TEXT REFERENCES contractors(id) ON DELETE SET NULL");
   ensureColumn(db, "rams_chunk_boxes", "page_width", "REAL");
   ensureColumn(db, "rams_chunk_boxes", "page_height", "REAL");
 
@@ -540,6 +569,51 @@ function seedSites(db: Db) {
   run();
 }
 
+function seedContractorsFromExistingRecords(db: Db) {
+  const now = new Date().toISOString();
+  const rows = db
+    .prepare(
+      `SELECT site_id, project_id, contractor AS name FROM permits WHERE trim(COALESCE(contractor, '')) <> ''
+       UNION
+       SELECT site_id, NULL AS project_id, contractor AS name FROM rams_documents WHERE trim(COALESCE(contractor, '')) <> ''
+       UNION
+       SELECT site_id, NULL AS project_id, company_name AS name FROM submissions WHERE trim(COALESCE(company_name, '')) <> ''`,
+    )
+    .all() as Array<{ site_id: string | null; project_id: string | null; name: string }>;
+
+  const findContractor = db.prepare("SELECT id, name FROM contractors WHERE name = ?");
+  const insertContractor = db.prepare("INSERT INTO contractors (id, name, status, created_at, updated_at) VALUES (?, ?, 'ACTIVE', ?, ?)");
+  const insertSiteContractor = db.prepare(
+    `INSERT INTO site_contractors (id, site_id, project_id, contractor_id, status, created_at, updated_at)
+     VALUES (?, ?, ?, ?, 'ACTIVE', ?, ?)
+     ON CONFLICT(site_id, contractor_id) DO UPDATE SET
+       project_id = COALESCE(excluded.project_id, site_contractors.project_id),
+       status = 'ACTIVE',
+       updated_at = excluded.updated_at`,
+  );
+  const updatePermits = db.prepare("UPDATE permits SET contractor_id = ? WHERE contractor_id IS NULL AND contractor = ?");
+
+  const run = db.transaction(() => {
+    for (const row of rows) {
+      const name = row.name.trim();
+      if (!name) continue;
+
+      let contractor = findContractor.get(name) as { id: string; name: string } | undefined;
+      if (!contractor) {
+        contractor = { id: randomUUID(), name };
+        insertContractor.run(contractor.id, name, now, now);
+      }
+
+      if (row.site_id) {
+        insertSiteContractor.run(randomUUID(), row.site_id, row.project_id, contractor.id, now, now);
+      }
+      updatePermits.run(contractor.id, name);
+    }
+  });
+
+  run();
+}
+
 export function getDb(): Db {
   if (!globalForDb.__uplandsDb) {
     fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -554,9 +628,11 @@ export function getDb(): Db {
     seedAdmin(db);
     seedSites(db);
     seedPermitTemplates(db);
+    seedContractorsFromExistingRecords(db);
     seedSampleSubmissions(db, UPLOADS_DIR);
     seedSites(db);
     seedPermitTemplates(db);
+    seedContractorsFromExistingRecords(db);
 
     globalForDb.__uplandsDb = db;
   }

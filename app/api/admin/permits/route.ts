@@ -20,6 +20,7 @@ function serializePermit(row: Awaited<ReturnType<typeof listPermitsBySite>>[numb
     siteId: row.site_id,
     projectId: row.project_id,
     projectName: row.project_name,
+    contractorId: row.contractor_id,
     contractor: row.contractor,
     locationOfWork: row.location_of_work,
     descriptionOfWork: row.description_of_work,
@@ -66,10 +67,11 @@ export async function POST(request: Request) {
   const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
   if (!body) return NextResponse.json({ error: "Invalid permit payload." }, { status: 400 });
 
-  const required = ["siteId", "templateId", "contractor", "locationOfWork", "descriptionOfWork", "validFromDate", "validToDate", "validFromTime", "validToTime"];
+  const required = ["siteId", "templateId", "locationOfWork", "descriptionOfWork", "validFromDate", "validToDate", "validFromTime", "validToTime"];
   for (const key of required) {
     if (!value(body, key)) return NextResponse.json({ error: `${key} is required.` }, { status: 400 });
   }
+  if (!value(body, "contractorId") && !value(body, "contractor")) return NextResponse.json({ error: "contractor is required." }, { status: 400 });
 
   let id;
   try {
@@ -77,6 +79,7 @@ export async function POST(request: Request) {
       siteId: value(body, "siteId"),
       projectId: value(body, "projectId") || null,
       templateId: value(body, "templateId"),
+      contractorId: value(body, "contractorId") || null,
       contractor: value(body, "contractor"),
       locationOfWork: value(body, "locationOfWork"),
       descriptionOfWork: value(body, "descriptionOfWork"),

@@ -8,9 +8,11 @@ import type { PermitAnswer, PermitSignatureKey, PermitStatus, PermitTemplateFiel
 
 type Site = { id: string; location: string; project_id: string | null; project_name: string | null };
 type Template = { id: string; code: string; title: string; description: string };
+type Contractor = { contractorId: string; name: string; siteStatus: string; trade: string | null };
 type PermitListItem = {
   id: string;
   permitNumber: string;
+  contractorId: string | null;
   templateCode?: string;
   templateTitle?: string;
   contractor: string;
@@ -32,6 +34,7 @@ type PermitDetail = {
     validFromTime: string;
     validToTime: string;
     status: PermitStatus;
+    contractorId: string | null;
   };
   template: {
     code: string;
@@ -134,6 +137,7 @@ function blankSignature(signature: PermitDetail["template"]["signatures"][number
 }
 
 function permitValidationError(current: PermitDetail) {
+  if (!current.permit.contractor.trim()) return "Contractor is required.";
   const fieldValues = new Map(current.fieldValues.map((fieldValue) => [fieldValue.fieldKey, fieldValue.value?.trim() ?? ""]));
   const questionKeys = current.template.sections.flatMap((section) => section.questions.map((question) => question.key));
   const answered = new Set(current.answers.map((answer) => answer.questionKey));
@@ -150,11 +154,23 @@ function permitValidationError(current: PermitDetail) {
   return "";
 }
 
-export function PermitsWorkspace({ site, templates, initialPermits }: { site: Site; templates: Template[]; initialPermits: PermitListItem[] }) {
+export function PermitsWorkspace({
+  site,
+  templates,
+  contractors: initialContractors,
+  initialPermits,
+}: {
+  site: Site;
+  templates: Template[];
+  contractors: Contractor[];
+  initialPermits: PermitListItem[];
+}) {
   const [permits, setPermits] = useState(initialPermits);
+  const [contractors, setContractors] = useState(initialContractors);
   const [selectedId, setSelectedId] = useState(initialPermits[0]?.id ?? "");
   const [detail, setDetail] = useState<PermitDetail | null>(null);
   const [selectedTemplateId, setSelectedTemplateId] = useState(templates[0]?.id ?? "");
+  const [newPermitContractorId, setNewPermitContractorId] = useState("__new__");
   const [creating, setCreating] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -199,12 +215,21 @@ export function PermitsWorkspace({ site, templates, initialPermits }: { site: Si
     if (nextSelectedId) setSelectedId(nextSelectedId);
   }
 
+  async function refreshContractors() {
+    const response = await fetch(`/api/admin/sites/${site.id}/contractors`);
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "Unable to refresh contractors.");
+    setContractors(data.contractors ?? []);
+  }
+
   async function createPermit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setCreating(true);
     setError("");
     setDetail(null);
     const form = new FormData(event.currentTarget);
+    const selectedContractor = contractors.find((contractor) => contractor.contractorId === newPermitContractorId);
+    const contractor = selectedContractor?.name ?? String(form.get("contractor") ?? "");
     try {
       const response = await fetch("/api/admin/permits", {
         method: "POST",
@@ -213,7 +238,8 @@ export function PermitsWorkspace({ site, templates, initialPermits }: { site: Si
           siteId: site.id,
           projectId: site.project_id,
           templateId: String(form.get("templateId") ?? ""),
-          contractor: String(form.get("contractor") ?? ""),
+          contractorId: selectedContractor?.contractorId ?? "",
+          contractor,
           locationOfWork: String(form.get("locationOfWork") ?? ""),
           descriptionOfWork: String(form.get("descriptionOfWork") ?? ""),
           validFromDate: String(form.get("validFromDate") ?? ""),
@@ -224,9 +250,11 @@ export function PermitsWorkspace({ site, templates, initialPermits }: { site: Si
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Unable to create permit.");
+      await refreshContractors();
       await refreshPermits(data.id);
       event.currentTarget.reset();
       setSelectedTemplateId(templates[0]?.id ?? "");
+      setNewPermitContractorId("__new__");
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Unable to create permit.");
     } finally {
@@ -286,6 +314,7 @@ export function PermitsWorkspace({ site, templates, initialPermits }: { site: Si
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           contractor: detailToSave.permit.contractor,
+          contractorId: detailToSave.permit.contractorId ?? "",
           locationOfWork: detailToSave.permit.locationOfWork,
           descriptionOfWork: detailToSave.permit.descriptionOfWork,
           validFromDate: detailToSave.permit.validFromDate,
@@ -300,6 +329,7 @@ export function PermitsWorkspace({ site, templates, initialPermits }: { site: Si
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Unable to save permit.");
+      await refreshContractors();
       await refreshPermits(detail.permit.id);
       setDetail(await fetchPermitDetail(detail.permit.id));
     } catch (caught) {
@@ -357,7 +387,18 @@ export function PermitsWorkspace({ site, templates, initialPermits }: { site: Si
                   })}
                 </div>
               </fieldset>
-              <input name="contractor" required placeholder="Contractor" className="min-h-11 w-full border border-zinc-300 px-3 text-sm" />
+              <label>
+                <span className="text-xs font-bold uppercase text-zinc-700">Contractor</span>
+                <select value={newPermitContractorId} onChange={(event) => setNewPermitContractorId(event.target.value)} className="mt-1 min-h-11 w-full border border-zinc-300 px-3 text-sm">
+                  <option value="__new__">Add new contractor</option>
+                  {contractors.map((contractor) => (
+                    <option key={contractor.contractorId} value={contractor.contractorId}>
+                      {contractor.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {newPermitContractorId === "__new__" && <input name="contractor" required placeholder="New contractor name" className="min-h-11 w-full border border-zinc-300 px-3 text-sm" />}
               <input name="locationOfWork" required placeholder="Location of work" className="min-h-11 w-full border border-zinc-300 px-3 text-sm" />
               <textarea name="descriptionOfWork" required placeholder="Description of work" className="min-h-24 w-full border border-zinc-300 px-3 py-2 text-sm" />
               <div className="grid grid-cols-2 gap-3">
@@ -396,6 +437,7 @@ export function PermitsWorkspace({ site, templates, initialPermits }: { site: Si
           {detail && (
             <PermitEditor
               detail={detail}
+              contractors={contractors}
               answersByKey={answersByKey}
               fieldValuesByKey={fieldValuesByKey}
               signaturesByKey={signaturesByKey}
@@ -471,6 +513,7 @@ function PermitFieldInput({
 
 function PermitEditor({
   detail,
+  contractors,
   answersByKey,
   fieldValuesByKey,
   signaturesByKey,
@@ -484,6 +527,7 @@ function PermitEditor({
   onLifecycle,
 }: {
   detail: PermitDetail;
+  contractors: Contractor[];
   answersByKey: Map<string, PermitDetail["answers"][number]>;
   fieldValuesByKey: Map<string, string>;
   signaturesByKey: Map<PermitSignatureKey, PermitDetail["signatures"][number]>;
@@ -498,6 +542,7 @@ function PermitEditor({
 }) {
   const actions = lifecycleActions(detail.permit.status);
   const actionValidation = (status: PermitStatus) => permitValidationError({ ...detail, permit: { ...detail.permit, status } });
+  const selectedContractorId = contractors.some((contractor) => contractor.contractorId === detail.permit.contractorId) ? detail.permit.contractorId : "__new__";
 
   return (
     <div className="space-y-5" data-testid="permit-editor">
@@ -556,8 +601,35 @@ function PermitEditor({
           </label>
           <label>
             <span className="text-xs font-bold uppercase text-zinc-700">Contractor</span>
-            <input value={detail.permit.contractor} onChange={(event) => onDetailChange((current) => ({ ...current, permit: { ...current.permit, contractor: event.target.value } }))} className="mt-1 min-h-11 w-full border border-zinc-300 px-3" />
+            <select
+              value={selectedContractorId ?? "__new__"}
+              onChange={(event) => {
+                const contractor = contractors.find((item) => item.contractorId === event.target.value);
+                onDetailChange((current) => ({
+                  ...current,
+                  permit: {
+                    ...current.permit,
+                    contractorId: contractor?.contractorId ?? null,
+                    contractor: contractor?.name ?? "",
+                  },
+                }));
+              }}
+              className="mt-1 min-h-11 w-full border border-zinc-300 px-3"
+            >
+              <option value="__new__">Add new contractor</option>
+              {contractors.map((contractor) => (
+                <option key={contractor.contractorId} value={contractor.contractorId}>
+                  {contractor.name}
+                </option>
+              ))}
+            </select>
           </label>
+          {selectedContractorId === "__new__" && (
+            <label>
+              <span className="text-xs font-bold uppercase text-zinc-700">New Contractor Name</span>
+              <input value={detail.permit.contractor} onChange={(event) => onDetailChange((current) => ({ ...current, permit: { ...current.permit, contractor: event.target.value, contractorId: null } }))} className="mt-1 min-h-11 w-full border border-zinc-300 px-3" />
+            </label>
+          )}
           <label>
             <span className="text-xs font-bold uppercase text-zinc-700">Location of Work</span>
             <input value={detail.permit.locationOfWork} onChange={(event) => onDetailChange((current) => ({ ...current, permit: { ...current.permit, locationOfWork: event.target.value } }))} className="mt-1 min-h-11 w-full border border-zinc-300 px-3" />

@@ -44,7 +44,8 @@ async function selectQuestionAnswer(page: Page, questionText: string, answer: "Y
 }
 
 async function createPermit(page: Page, contractor: string, locationOfWork: string, descriptionOfWork: string) {
-  await page.getByPlaceholder("Contractor").fill(contractor);
+  await page.locator("form").getByLabel("Contractor").selectOption("__new__");
+  await page.getByPlaceholder("New contractor name").fill(contractor);
   await page.getByPlaceholder("Location of work").fill(locationOfWork);
   await page.getByPlaceholder("Description of work").fill(descriptionOfWork);
 
@@ -53,7 +54,9 @@ async function createPermit(page: Page, contractor: string, locationOfWork: stri
     page.getByRole("button", { name: "Create Permit" }).click(),
   ]);
   expect(response.ok()).toBe(true);
-  await expect(page.getByTestId("permit-editor").getByLabel("Contractor")).toHaveValue(contractor);
+  const contractorSelect = page.getByTestId("permit-editor").getByRole("combobox", { name: "Contractor" });
+  await expect(contractorSelect).toBeVisible();
+  await expect(contractorSelect.locator("option:checked")).toHaveText(contractor);
 }
 
 test("admin can create, edit and download a step ladders permit", async ({ page }) => {

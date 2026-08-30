@@ -48,6 +48,7 @@ function serializeDetail(detail: NonNullable<Awaited<ReturnType<typeof getPermit
       siteLocation: detail.permit.site_location,
       projectId: detail.permit.project_id,
       projectName: detail.permit.project_name,
+      contractorId: detail.permit.contractor_id,
       contractor: detail.permit.contractor,
       locationOfWork: detail.permit.location_of_work,
       descriptionOfWork: detail.permit.description_of_work,
@@ -234,6 +235,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     throw error;
   }
   if (!detail) return NextResponse.json({ error: "Permit not found." }, { status: 404 });
+  if (!text(body.contractorId) && !text(body.contractor)) return NextResponse.json({ error: "contractor is required." }, { status: 400 });
 
   const validation = validatePermitUpdate(detail, status, parsedFieldValues, parsedAnswers, parsedSignatures);
   if (validation) return NextResponse.json({ error: validation }, { status: 400 });
@@ -241,6 +243,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   try {
     await updatePermit(id, {
       contractor: text(body.contractor),
+      contractorId: text(body.contractorId) || null,
       locationOfWork: text(body.locationOfWork),
       descriptionOfWork: text(body.descriptionOfWork),
       validFromDate: text(body.validFromDate),

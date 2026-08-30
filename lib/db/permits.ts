@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import { PERMIT_TEMPLATES, type PermitAnswer, type PermitStatus } from "@/config/permitTemplates";
 import { listEntityActivityEvents, recordSiteActivity, type SiteActivityEventRow, type SiteActivityEventType } from "@/lib/db/activity";
+import { resolvePermitContractor } from "@/lib/db/contractors";
 import { getDb } from "@/lib/db";
 import { env, isSupabaseAdminConfigured } from "@/lib/env";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -74,6 +75,7 @@ export type PermitRow = {
   template_id: string;
   site_id: string;
   project_id: string | null;
+  contractor_id: string | null;
   contractor: string;
   location_of_work: string;
   description_of_work: string;
@@ -138,6 +140,7 @@ export type PermitDetail = {
 
 export type UpsertPermitInput = {
   contractor: string;
+  contractorId?: string | null;
   locationOfWork: string;
   descriptionOfWork: string;
   validFromDate: string;
@@ -371,6 +374,7 @@ export async function createPermit(input: {
   siteId: string;
   projectId?: string | null;
   templateId: string;
+  contractorId?: string | null;
   contractor: string;
   locationOfWork: string;
   descriptionOfWork: string;
@@ -383,6 +387,12 @@ export async function createPermit(input: {
   const id = randomUUID();
   const now = new Date().toISOString();
   const template = await getPermitTemplate(input.templateId);
+  const contractor = await resolvePermitContractor({
+    siteId: input.siteId,
+    projectId: input.projectId ?? null,
+    contractorId: input.contractorId ?? null,
+    contractorName: input.contractor,
+  });
   const permitNumber = await nextPermitNumber(input.templateId, input.siteId);
 
   if (shouldUseSupabasePermitsDb()) {
@@ -393,7 +403,8 @@ export async function createPermit(input: {
       template_id: input.templateId,
       site_id: input.siteId,
       project_id: input.projectId ?? null,
-      contractor: input.contractor,
+      contractor_id: contractor.contractorId,
+      contractor: contractor.contractorName,
       location_of_work: input.locationOfWork,
       description_of_work: input.descriptionOfWork,
       valid_from_date: input.validFromDate,
@@ -412,7 +423,7 @@ export async function createPermit(input: {
       projectId: input.projectId ?? null,
       eventType: "permit_created",
       title: "Permit created",
-      detail: `${template?.title ?? input.templateId} · ${input.contractor} · ${permitNumber}`,
+      detail: `${template?.title ?? input.templateId} · ${contractor.contractorName} · ${permitNumber}`,
       actor: input.createdBy ?? null,
       metadata: { permitNumber, templateId: input.templateId, status: "DRAFT" },
     });
@@ -422,9 +433,9 @@ export async function createPermit(input: {
   getDb()
     .prepare(
       `INSERT INTO permits
-       (id, permit_number, template_id, site_id, project_id, contractor, location_of_work, description_of_work,
+       (id, permit_number, template_id, site_id, project_id, contractor_id, contractor, location_of_work, description_of_work,
         valid_from_date, valid_to_date, valid_from_time, valid_to_time, status, created_by, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'DRAFT', ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'DRAFT', ?, ?, ?)`,
     )
     .run(
       id,
@@ -432,7 +443,8 @@ export async function createPermit(input: {
       input.templateId,
       input.siteId,
       input.projectId ?? null,
-      input.contractor,
+      contractor.contractorId,
+      contractor.contractorName,
       input.locationOfWork,
       input.descriptionOfWork,
       input.validFromDate,
@@ -450,7 +462,7 @@ export async function createPermit(input: {
     projectId: input.projectId ?? null,
     eventType: "permit_created",
     title: "Permit created",
-    detail: `${template?.title ?? input.templateId} · ${input.contractor} · ${permitNumber}`,
+    detail: `${template?.title ?? input.templateId} · ${contractor.contractorName} · ${permitNumber}`,
     actor: input.createdBy ?? null,
     metadata: { permitNumber, templateId: input.templateId, status: "DRAFT" },
   });
@@ -534,6 +546,14 @@ export async function updatePermit(permitId: string, input: UpsertPermitInput) {
   const now = new Date().toISOString();
   const existingPermit = await getPermit(permitId);
   const existingSignatureKeys = await listPermitSignatureKeys(permitId);
+  const contractor = existingPermit
+    ? await resolvePermitContractor({
+        siteId: existingPermit.site_id,
+        projectId: existingPermit.project_id,
+        contractorId: input.contractorId ?? null,
+        contractorName: input.contractor,
+      })
+    : { contractorId: input.contractorId ?? null, contractorName: input.contractor };
   if (shouldUseSupabasePermitsDb()) {
     const supabase = createSupabaseAdminClient();
     assertNoError(
@@ -541,7 +561,8 @@ export async function updatePermit(permitId: string, input: UpsertPermitInput) {
         await supabase
           .from("permits")
           .update({
-            contractor: input.contractor,
+            contractor_id: contractor.contractorId,
+            contractor: contractor.contractorName,
             location_of_work: input.locationOfWork,
             description_of_work: input.descriptionOfWork,
             valid_from_date: input.validFromDate,
@@ -566,11 +587,11 @@ export async function updatePermit(permitId: string, input: UpsertPermitInput) {
     getDb()
       .prepare(
         `UPDATE permits
-         SET contractor = ?, location_of_work = ?, description_of_work = ?, valid_from_date = ?, valid_to_date = ?,
+         SET contractor_id = ?, contractor = ?, location_of_work = ?, description_of_work = ?, valid_from_date = ?, valid_to_date = ?,
              valid_from_time = ?, valid_to_time = ?, status = ?, updated_at = ?
          WHERE id = ?`,
       )
-      .run(input.contractor, input.locationOfWork, input.descriptionOfWork, input.validFromDate, input.validToDate, input.validFromTime, input.validToTime, input.status, now, permitId);
+      .run(contractor.contractorId, contractor.contractorName, input.locationOfWork, input.descriptionOfWork, input.validFromDate, input.validToDate, input.validFromTime, input.validToTime, input.status, now, permitId);
 
     const answerStmt = getDb().prepare(
       `INSERT INTO permit_answers (id, permit_id, question_key, answer, comment, updated_at)
