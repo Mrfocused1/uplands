@@ -339,14 +339,16 @@ export async function countPermitsBySite(siteId: string) {
     rows = await listPermitsBySite(siteId);
   } catch (error) {
     if (isPermitDatabaseSetupError(error)) {
-      return { active: 0, expiringSoon: 0, awaitingClosure: 0 };
+      return { active: 0, expiringSoon: 0, awaitingClosure: 0, missingLinkedRams: 0 };
     }
     throw error;
   }
+  const openStatuses = new Set<PermitStatus>(["DRAFT", "AWAITING_REVIEW", "AUTHORISED", "ACTIVE", "WORK_COMPLETED"]);
   return {
     active: rows.filter((row) => row.status === "ACTIVE" || row.status === "AUTHORISED").length,
     expiringSoon: rows.filter((row) => (row.status === "ACTIVE" || row.status === "AUTHORISED") && expiresToday(row)).length,
     awaitingClosure: rows.filter((row) => row.status === "WORK_COMPLETED").length,
+    missingLinkedRams: rows.filter((row) => openStatuses.has(row.status) && !row.rams_document_id).length,
   };
 }
 

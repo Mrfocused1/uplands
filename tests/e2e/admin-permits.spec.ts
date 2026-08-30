@@ -58,6 +58,7 @@ async function createPermit(page: Page, contractor: string, locationOfWork: stri
   await expect(contractorSelect).toBeVisible();
   await expect(contractorSelect.locator("option:checked")).toHaveText(contractor);
   await expect(page.getByTestId("permit-editor").getByRole("combobox", { name: "Linked RAMS" })).toBeVisible();
+  await expect(page.getByTestId("permit-editor").getByText("Missing linked RAMS")).toBeVisible();
 }
 
 test("admin can create, edit and download a step ladders permit", async ({ page }) => {

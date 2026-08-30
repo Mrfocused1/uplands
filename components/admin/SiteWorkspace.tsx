@@ -59,11 +59,14 @@ export function SiteWorkspace({ site, summary }: { site: SiteRow; summary: SiteW
 
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {summary.activePermits.map((permit) => (
-              <Link key={permit.id} href={permit.href} className="border border-zinc-200 bg-uplands-paper p-4 transition hover:border-uplands-magenta hover:shadow-soft">
+              <Link key={permit.id} href={permit.href} className={`border p-4 transition hover:border-uplands-magenta hover:shadow-soft ${permit.missingLinkedRams ? "border-amber-300 bg-amber-50" : "border-zinc-200 bg-uplands-paper"}`}>
                 <span className="block text-xs font-bold uppercase text-uplands-muted">{permit.permitNumber}</span>
                 <span className="mt-2 block font-slab text-2xl text-uplands-charcoal">{permit.title}</span>
                 <span className="mt-2 block text-sm text-zinc-700">{permit.contractor}</span>
                 <span className="mt-3 inline-flex border border-zinc-300 bg-white px-2.5 py-1 text-xs font-bold uppercase text-zinc-700">{permit.status.replaceAll("_", " ")}</span>
+                <span className={`mt-2 block text-xs font-bold uppercase ${permit.missingLinkedRams ? "text-amber-800" : "text-uplands-muted"}`}>
+                  {permit.linkedRams ?? "Missing linked RAMS"}
+                </span>
                 <span className="mt-2 block text-sm font-bold text-uplands-magenta">{formatPermitExpiry(permit.validToDate, permit.validToTime)}</span>
               </Link>
             ))}
@@ -100,6 +103,7 @@ export function SiteWorkspace({ site, summary }: { site: SiteRow; summary: SiteW
             <p className="text-xs font-bold uppercase text-uplands-muted">Permits</p>
             <p className="mt-2 font-slab text-4xl text-uplands-charcoal">{summary.permits.active}</p>
             <p className="mt-1 text-sm text-uplands-muted">{summary.permits.expiringSoon} expiring soon, {summary.permits.awaitingClosure} awaiting closure</p>
+            {summary.permits.missingLinkedRams > 0 && <p className="mt-2 text-xs font-bold uppercase text-amber-800">{summary.permits.missingLinkedRams} missing linked RAMS</p>}
           </article>
         </div>
       </section>

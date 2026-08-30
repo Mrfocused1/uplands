@@ -507,6 +507,7 @@ export function PermitsWorkspace({
                   <span className="block font-din text-sm text-uplands-charcoal">{permit.permitNumber}</span>
                   <span className="mt-1 block text-sm text-zinc-700">{permit.contractor}</span>
                   <span className="mt-1 block text-xs uppercase text-uplands-muted">{statusLabel(permit.status)} - expires {permit.validToTime}</span>
+                  {!permit.ramsDocumentId && <span className="mt-2 inline-flex border border-amber-300 bg-amber-50 px-2 py-1 text-[11px] font-bold uppercase text-amber-800">Missing linked RAMS</span>}
                 </button>
               ))}
               {visiblePermits.length === 0 && <p className="p-4 text-sm text-uplands-muted">{contractorFilter ? "No permits recorded for this contractor yet." : "No permits created for this site yet."}</p>}
@@ -645,6 +646,7 @@ function PermitEditor({
             <h2 className="mt-1 font-slab text-3xl text-uplands-charcoal">{detail.template.title}</h2>
             <p className="mt-1 text-sm font-bold text-zinc-700">{detail.permit.permitNumber}</p>
             <p className="mt-3 inline-flex border border-zinc-300 px-2.5 py-1 text-xs font-bold uppercase text-zinc-700">{statusLabel(detail.permit.status)}</p>
+            {!detail.permit.ramsDocumentId && <p className="mt-2 inline-flex border border-amber-300 bg-amber-50 px-2.5 py-1 text-xs font-bold uppercase text-amber-800">Missing linked RAMS</p>}
           </div>
           <div className="flex flex-wrap gap-3">
             <button type="button" onClick={onSave} disabled={saving} className="min-h-11 bg-uplands-magenta px-4 text-sm font-bold uppercase text-white disabled:opacity-60">

@@ -37,6 +37,8 @@ export type SitePermitSummaryItem = {
   status: string;
   validToDate: string;
   validToTime: string;
+  linkedRams: string | null;
+  missingLinkedRams: boolean;
   href: string;
 };
 
@@ -56,6 +58,7 @@ export type SiteWorkspaceSummary = {
     active: number;
     expiringSoon: number;
     awaitingClosure: number;
+    missingLinkedRams: number;
   };
   activePermits: SitePermitSummaryItem[];
   recentActivity: SiteActivityItem[];
@@ -257,7 +260,7 @@ type SummaryRamsRow = { id: string; title: string; contractor: string; site_name
 function buildSummary(
   inductionRows: SummaryInductionRow[],
   ramsRows: SummaryRamsRow[],
-  permits = { active: 0, expiringSoon: 0, awaitingClosure: 0 },
+  permits = { active: 0, expiringSoon: 0, awaitingClosure: 0, missingLinkedRams: 0 },
   priorityPermits: PermitRow[] = [],
   activityRows: SiteActivityEventRow[] = [],
 ): SiteWorkspaceSummary {
@@ -304,6 +307,7 @@ function buildSummary(
       active: permits.active,
       expiringSoon: permits.expiringSoon,
       awaitingClosure: permits.awaitingClosure,
+      missingLinkedRams: permits.missingLinkedRams,
     },
     activePermits: priorityPermits.map((permit) => ({
       id: permit.id,
@@ -313,7 +317,9 @@ function buildSummary(
       status: permit.status,
       validToDate: permit.valid_to_date,
       validToTime: permit.valid_to_time,
-      href: `/admin/sites/${permit.site_id}/permits`,
+      linkedRams: [permit.rams_document_title, permit.rams_document_reference, permit.rams_document_revision ? `Rev ${permit.rams_document_revision}` : ""].filter(Boolean).join(" - ") || null,
+      missingLinkedRams: !permit.rams_document_id,
+      href: `/admin/sites/${permit.site_id}/permits?permitId=${encodeURIComponent(permit.id)}`,
     })),
     recentActivity,
   };

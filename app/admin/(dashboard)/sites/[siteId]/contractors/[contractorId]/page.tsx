@@ -60,9 +60,12 @@ export default async function ContractorWorkspacePage({ params }: { params: Prom
     listRamsDocuments({ siteId: site.id }),
   ]);
   const permits = sitePermits.filter((permit) => permit.contractor_id === contractor.contractor_id || permit.contractor === contractor.name);
-  const rams = siteRams.filter((document) => document.contractor === contractor.name);
+  const rams = siteRams.filter((document) => document.contractor_id === contractor.contractor_id || document.contractor === contractor.name);
   const activeInvites = invitations.filter((invite) => invite.status === "INVITED").length;
   const activePermits = permits.filter((permit) => permit.status === "ACTIVE" || permit.status === "AUTHORISED").length;
+  const openPermitStatuses = new Set(["DRAFT", "AWAITING_REVIEW", "AUTHORISED", "ACTIVE", "WORK_COMPLETED"]);
+  const permitsMissingRams = permits.filter((permit) => openPermitStatuses.has(permit.status) && !permit.rams_document_id).length;
+  const permitsWithRams = permits.filter((permit) => permit.rams_document_id).length;
 
   const cards = [
     { title: "Profile", value: formatStatus(contractor.site_status), href: metricHref(site.id, contractor.contractor_id, "#contractor-details") },
@@ -70,6 +73,8 @@ export default async function ContractorWorkspacePage({ params }: { params: Prom
     { title: "Induction Invites", value: String(activeInvites), href: metricHref(site.id, contractor.contractor_id, "#induction-invite") },
     { title: "RAMS", value: String(rams.length), href: `/admin/sites/${site.id}/rams?contractorId=${encodeURIComponent(contractor.contractor_id)}` },
     { title: "Permits", value: String(permits.length), href: `/admin/sites/${site.id}/permits?contractorId=${encodeURIComponent(contractor.contractor_id)}` },
+    { title: "Linked RAMS", value: String(permitsWithRams), href: `/admin/sites/${site.id}/permits?contractorId=${encodeURIComponent(contractor.contractor_id)}` },
+    { title: "Missing RAMS", value: String(permitsMissingRams), href: `/admin/sites/${site.id}/permits?contractorId=${encodeURIComponent(contractor.contractor_id)}` },
     { title: "History", value: String(activity.length), href: "#history" },
   ];
 
@@ -99,11 +104,17 @@ export default async function ContractorWorkspacePage({ params }: { params: Prom
         </div>
       </section>
 
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {cards.map((card) => (
-          <a key={card.title} href={card.href} className="flex min-h-40 flex-col justify-between border border-zinc-200 bg-white p-4 shadow-soft transition hover:border-uplands-magenta">
+          <a
+            key={card.title}
+            href={card.href}
+            className={`flex min-h-40 flex-col justify-between border p-4 shadow-soft transition hover:border-uplands-magenta ${
+              card.title === "Missing RAMS" && permitsMissingRams > 0 ? "border-amber-300 bg-amber-50" : "border-zinc-200 bg-white"
+            }`}
+          >
             <span className="block text-xs font-bold uppercase tracking-[0.16em] text-uplands-muted">{card.title}</span>
-            <span className="font-slab text-4xl text-uplands-charcoal">{card.value}</span>
+            <span className={`font-slab text-4xl ${card.title === "Missing RAMS" && permitsMissingRams > 0 ? "text-amber-900" : "text-uplands-charcoal"}`}>{card.value}</span>
           </a>
         ))}
       </section>
@@ -136,6 +147,11 @@ export default async function ContractorWorkspacePage({ params }: { params: Prom
                 <span>
                   <span className="block font-din text-lg text-uplands-charcoal">{permit.template_title ?? permit.template_id}</span>
                   <span className="mt-1 block text-sm text-uplands-muted">{permit.permit_number} · {permit.location_of_work}</span>
+                  <span className={`mt-2 inline-flex border px-2 py-1 text-[11px] font-bold uppercase ${permit.rams_document_id ? "border-zinc-300 text-zinc-700" : "border-amber-300 bg-amber-50 text-amber-800"}`}>
+                    {permit.rams_document_id
+                      ? [permit.rams_document_title, permit.rams_document_reference, permit.rams_document_revision ? `Rev ${permit.rams_document_revision}` : ""].filter(Boolean).join(" - ") || "RAMS linked"
+                      : "Missing linked RAMS"}
+                  </span>
                 </span>
                 <span className="text-xs font-bold uppercase text-zinc-700">{formatStatus(permit.status)}</span>
                 <span className="text-sm text-uplands-muted">{permit.valid_to_time}</span>
