@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { projectConfig } from "@/config/projectConfig";
 import { uhsf1601Schema } from "@/config/uhsf1601Schema";
 import type { CompletionStatus, FieldAnswer, InductionField, InductionRecord, InductionValue } from "@/types/induction";
+import type { InductionInviteDefaults } from "@/types/inductionInvite";
 import { createInitialRecord, useInductionPersistence } from "./useInductionPersistence";
 
 const reviewStepId = "review";
@@ -141,6 +142,27 @@ function generateReference() {
   return `UHSF16-${year}-${serial}`;
 }
 
+function answerFromInvite(value: string | null | undefined): FieldAnswer | null {
+  const text = value?.trim();
+  return text ? { value: text, updatedAt: now() } : null;
+}
+
+function inviteAnswers(invite?: InductionInviteDefaults): Record<string, FieldAnswer> {
+  if (!invite) return {};
+  const answers: Record<string, FieldAnswer> = {};
+  const fields = {
+    fullName: answerFromInvite(invite.fullName),
+    contactNumber: answerFromInvite(invite.contactNumber),
+    companyName: answerFromInvite(invite.companyName),
+    occupation: answerFromInvite(invite.occupation),
+    siteName: answerFromInvite(invite.siteName),
+  };
+  Object.entries(fields).forEach(([field, answer]) => {
+    if (answer) answers[field] = answer;
+  });
+  return answers;
+}
+
 export function calculateCompletionStatus(answers: InductionRecord["answers"]): CompletionStatus {
   const reviewFields = ["ramsDeclaration", "siteRulesDeclaration", "ppeDeclaration"];
   const criticalDeclarationMissing = reviewFields.some((id) => answerValue(answers[id]) !== true);
@@ -172,9 +194,10 @@ export function displayAnswer(field: InductionField, answer?: FieldAnswer) {
   return answer.value ? String(answer.value) : "Not provided";
 }
 
-export function useInduction() {
+export function useInduction(invite?: InductionInviteDefaults) {
   const firstStepId = uhsf1601Schema[0].id;
-  const { record, updateRecord, resetRecord, hasLoaded } = useInductionPersistence(firstStepId);
+  const initialAnswers = useMemo(() => inviteAnswers(invite), [invite]);
+  const { record, updateRecord, resetRecord, hasLoaded } = useInductionPersistence(firstStepId, initialAnswers, invite?.token);
   const [screen, setScreen] = useState<"wizard" | "review" | "completion" | "record">("wizard");
   const [stepId, setStepId] = useState(firstStepId);
   const [editStep, setEditStep] = useState<WizardStep | null>(null);

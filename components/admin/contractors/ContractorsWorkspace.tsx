@@ -68,6 +68,34 @@ type OperativeFormState = {
   cscsExpiry: string;
 };
 
+type InductionInvitation = {
+  id: string;
+  siteId: string;
+  projectId: string | null;
+  contractorId: string;
+  operativeId: string | null;
+  submissionId: string | null;
+  invitedFullName: string | null;
+  invitedEmail: string | null;
+  invitedPhone: string | null;
+  role: string | null;
+  status: string;
+  expiresAt: string;
+  createdBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+  usedAt: string | null;
+  revokedAt: string | null;
+};
+
+type InvitationFormState = {
+  invitedFullName: string;
+  invitedEmail: string;
+  invitedPhone: string;
+  role: string;
+  expiresAt: string;
+};
+
 const emptyForm: ContractorFormState = {
   contractorId: null,
   name: "",
@@ -89,6 +117,18 @@ const emptyOperativeForm: OperativeFormState = {
   cscsCardNumber: "",
   cscsExpiry: "",
 };
+
+function defaultInvitationForm(): InvitationFormState {
+  const date = new Date();
+  date.setDate(date.getDate() + 14);
+  return {
+    invitedFullName: "",
+    invitedEmail: "",
+    invitedPhone: "",
+    role: "",
+    expiresAt: date.toISOString().slice(0, 10),
+  };
+}
 
 function contractorToForm(contractor: Contractor): ContractorFormState {
   return {
@@ -120,6 +160,11 @@ function formatStatus(status: string) {
   return status.replaceAll("_", " ");
 }
 
+function formatDate(value: string | null) {
+  if (!value) return "Not recorded";
+  return new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "short", year: "numeric" }).format(new Date(value));
+}
+
 export function ContractorsWorkspace({ site, initialContractors }: { site: Site; initialContractors: Contractor[] }) {
   const [contractors, setContractors] = useState(initialContractors);
   const [selectedId, setSelectedId] = useState(initialContractors[0]?.contractorId ?? "");
@@ -133,6 +178,12 @@ export function ContractorsWorkspace({ site, initialContractors }: { site: Site;
   const [operativesLoading, setOperativesLoading] = useState(false);
   const [operativeSaving, setOperativeSaving] = useState(false);
   const [operativeError, setOperativeError] = useState("");
+  const [invitations, setInvitations] = useState<InductionInvitation[]>([]);
+  const [invitationsLoading, setInvitationsLoading] = useState(false);
+  const [invitationSaving, setInvitationSaving] = useState(false);
+  const [invitationError, setInvitationError] = useState("");
+  const [invitationForm, setInvitationForm] = useState<InvitationFormState>(() => defaultInvitationForm());
+  const [createdInviteUrl, setCreatedInviteUrl] = useState("");
 
   const filteredContractors = useMemo(() => {
     const value = query.trim().toLowerCase();
@@ -152,6 +203,9 @@ export function ContractorsWorkspace({ site, initialContractors }: { site: Site;
       setOperatives([]);
       setSelectedOperativeId("");
       setOperativeForm(emptyOperativeForm);
+      setInvitations([]);
+      setInvitationForm(defaultInvitationForm());
+      setCreatedInviteUrl("");
       return;
     }
 
@@ -180,6 +234,30 @@ export function ContractorsWorkspace({ site, initialContractors }: { site: Site;
     };
   }, [selectedId, site.id]);
 
+  useEffect(() => {
+    if (!selectedId) return;
+
+    let cancelled = false;
+    setInvitationsLoading(true);
+    setInvitationError("");
+    fetch(`/api/admin/sites/${site.id}/contractors/${selectedId}/invitations`)
+      .then(async (response) => {
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "Unable to load invitations.");
+        if (!cancelled) setInvitations(data.invitations ?? []);
+      })
+      .catch((caught) => {
+        if (!cancelled) setInvitationError(caught instanceof Error ? caught.message : "Unable to load invitations.");
+      })
+      .finally(() => {
+        if (!cancelled) setInvitationsLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedId, site.id]);
+
   async function refreshContractors(nextSelectedId?: string) {
     const response = await fetch(`/api/admin/sites/${site.id}/contractors`);
     const data = await response.json();
@@ -197,6 +275,8 @@ export function ContractorsWorkspace({ site, initialContractors }: { site: Site;
     setForm(contractorToForm(contractor));
     setError("");
     setOperativeError("");
+    setInvitationError("");
+    setCreatedInviteUrl("");
   }
 
   function startNewContractor() {
@@ -204,6 +284,9 @@ export function ContractorsWorkspace({ site, initialContractors }: { site: Site;
     setForm(emptyForm);
     setError("");
     setOperativeError("");
+    setInvitationError("");
+    setInvitations([]);
+    setCreatedInviteUrl("");
   }
 
   function selectOperative(operative: Operative) {
@@ -263,6 +346,71 @@ export function ContractorsWorkspace({ site, initialContractors }: { site: Site;
       const next = nextOperatives.find((operative) => operative.operativeId === nextSelectedId);
       if (next) setOperativeForm(operativeToForm(next));
     }
+  }
+
+  async function refreshInvitations(contractorId: string) {
+    const response = await fetch(`/api/admin/sites/${site.id}/contractors/${contractorId}/invitations`);
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "Unable to refresh invitations.");
+    setInvitations(data.invitations ?? []);
+  }
+
+  async function createInvitation(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedContractor) {
+      setInvitationError("Select a contractor before creating an invite.");
+      return;
+    }
+
+    setInvitationSaving(true);
+    setInvitationError("");
+    setCreatedInviteUrl("");
+    try {
+      const response = await fetch(`/api/admin/sites/${site.id}/contractors/${selectedContractor.contractorId}/invitations`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          projectId: site.project_id,
+          invitedFullName: invitationForm.invitedFullName,
+          invitedEmail: invitationForm.invitedEmail,
+          invitedPhone: invitationForm.invitedPhone,
+          role: invitationForm.role,
+          expiresAt: invitationForm.expiresAt ? new Date(`${invitationForm.expiresAt}T23:59:59.000Z`).toISOString() : null,
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Unable to create invitation.");
+      setCreatedInviteUrl(data.inviteUrl);
+      setInvitationForm(defaultInvitationForm());
+      await refreshInvitations(selectedContractor.contractorId);
+      await refreshContractors(selectedContractor.contractorId);
+    } catch (caught) {
+      setInvitationError(caught instanceof Error ? caught.message : "Unable to create invitation.");
+    } finally {
+      setInvitationSaving(false);
+    }
+  }
+
+  async function revokeInvitation(invitationId: string) {
+    if (!selectedContractor) return;
+    setInvitationError("");
+    try {
+      const response = await fetch(`/api/admin/sites/${site.id}/contractors/${selectedContractor.contractorId}/invitations`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ invitationId, status: "REVOKED" }),
+      });
+      const data = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(data?.error || "Unable to revoke invitation.");
+      await refreshInvitations(selectedContractor.contractorId);
+    } catch (caught) {
+      setInvitationError(caught instanceof Error ? caught.message : "Unable to revoke invitation.");
+    }
+  }
+
+  async function copyInviteUrl() {
+    if (!createdInviteUrl) return;
+    await navigator.clipboard?.writeText(createdInviteUrl);
   }
 
   async function saveOperative(event: FormEvent<HTMLFormElement>) {
@@ -386,6 +534,54 @@ export function ContractorsWorkspace({ site, initialContractors }: { site: Site;
               </div>
             </div>
           )}
+
+          <form onSubmit={createInvitation} className="border border-zinc-200 bg-white p-5 shadow-soft">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.22em] text-uplands-magenta">Induction Invite</p>
+              <h2 className="mt-1 font-slab text-2xl text-uplands-charcoal">{selectedContractor ? "Create Invite Link" : "Select Contractor"}</h2>
+            </div>
+
+            {invitationError && <p className="mt-4 border-l-4 border-red-600 bg-red-50 p-3 text-sm font-bold text-red-700">{invitationError}</p>}
+
+            <div className="mt-4 space-y-3">
+              <label className="block">
+                <span className="text-xs font-bold uppercase text-zinc-700">Operative Name</span>
+                <input value={invitationForm.invitedFullName} onChange={(event) => setInvitationForm((current) => ({ ...current, invitedFullName: event.target.value }))} disabled={!selectedContractor} className="mt-1 min-h-11 w-full border border-zinc-300 px-3 text-sm disabled:bg-zinc-100" />
+              </label>
+              <label className="block">
+                <span className="text-xs font-bold uppercase text-zinc-700">Email</span>
+                <input value={invitationForm.invitedEmail} type="email" onChange={(event) => setInvitationForm((current) => ({ ...current, invitedEmail: event.target.value }))} disabled={!selectedContractor} className="mt-1 min-h-11 w-full border border-zinc-300 px-3 text-sm disabled:bg-zinc-100" />
+              </label>
+              <label className="block">
+                <span className="text-xs font-bold uppercase text-zinc-700">Phone</span>
+                <input value={invitationForm.invitedPhone} onChange={(event) => setInvitationForm((current) => ({ ...current, invitedPhone: event.target.value }))} disabled={!selectedContractor} className="mt-1 min-h-11 w-full border border-zinc-300 px-3 text-sm disabled:bg-zinc-100" />
+              </label>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="block">
+                  <span className="text-xs font-bold uppercase text-zinc-700">Role / Trade</span>
+                  <input value={invitationForm.role} onChange={(event) => setInvitationForm((current) => ({ ...current, role: event.target.value }))} disabled={!selectedContractor} className="mt-1 min-h-11 w-full border border-zinc-300 px-3 text-sm disabled:bg-zinc-100" />
+                </label>
+                <label className="block">
+                  <span className="text-xs font-bold uppercase text-zinc-700">Expires</span>
+                  <input value={invitationForm.expiresAt} type="date" onChange={(event) => setInvitationForm((current) => ({ ...current, expiresAt: event.target.value }))} disabled={!selectedContractor} className="mt-1 min-h-11 w-full border border-zinc-300 px-3 text-sm disabled:bg-zinc-100" />
+                </label>
+              </div>
+            </div>
+
+            <button type="submit" disabled={!selectedContractor || invitationSaving} className="mt-4 min-h-11 w-full bg-uplands-magenta px-4 text-sm font-bold uppercase text-white disabled:opacity-60">
+              {invitationSaving ? "Creating..." : "Create Invite"}
+            </button>
+
+            {createdInviteUrl && (
+              <div className="mt-4 border border-uplands-magenta bg-uplands-paper p-3">
+                <p className="text-xs font-bold uppercase text-uplands-magenta">Invite Link Created</p>
+                <input value={createdInviteUrl} readOnly className="mt-2 min-h-11 w-full border border-zinc-300 bg-white px-3 text-sm text-uplands-charcoal" />
+                <button type="button" onClick={copyInviteUrl} className="mt-2 min-h-10 border border-zinc-300 px-3 text-xs font-bold uppercase text-zinc-700 hover:border-uplands-magenta hover:text-uplands-magenta">
+                  Copy Link
+                </button>
+              </div>
+            )}
+          </form>
         </div>
 
         <div className="border border-zinc-200 bg-white p-5 shadow-soft">
@@ -541,6 +737,44 @@ export function ContractorsWorkspace({ site, initialContractors }: { site: Site;
             {selectedContractor && !operativesLoading && operatives.length === 0 && <p className="p-5 text-sm text-uplands-muted">No operatives recorded for this contractor yet.</p>}
             {!selectedContractor && <p className="p-5 text-sm text-uplands-muted">Select a contractor to manage operatives.</p>}
           </div>
+        </div>
+      </section>
+
+      <section className="border border-zinc-200 bg-white p-5 shadow-soft">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.22em] text-uplands-magenta">Induction Invitations</p>
+            <h2 className="mt-1 font-slab text-3xl text-uplands-charcoal">{selectedContractor?.name ?? "No Contractor Selected"}</h2>
+          </div>
+          {invitationsLoading && <p className="text-sm font-bold uppercase text-uplands-muted">Loading</p>}
+        </div>
+
+        <div className="mt-5 divide-y divide-zinc-200 border border-zinc-200">
+          {invitations.map((invitation) => (
+            <div key={invitation.id} className="grid gap-4 p-4 md:grid-cols-[1fr_130px_150px_120px] md:items-center">
+              <span>
+                <span className="block font-din text-lg text-uplands-charcoal">{invitation.invitedFullName || "Open invite"}</span>
+                <span className="mt-1 block text-sm text-uplands-muted">
+                  {[invitation.role, invitation.invitedPhone, invitation.invitedEmail].filter(Boolean).join(" · ") || "No operative details prefilled"}
+                </span>
+                {invitation.submissionId && <span className="mt-2 inline-flex text-xs font-bold uppercase text-uplands-magenta">Submitted induction linked</span>}
+              </span>
+              <StatusBlock label="Invite" value={invitation.status} />
+              <span className="text-sm text-uplands-muted">
+                <span className="block text-xs font-bold uppercase">Expires</span>
+                <span className="font-din text-base text-uplands-charcoal">{formatDate(invitation.expiresAt)}</span>
+              </span>
+              {invitation.status === "INVITED" ? (
+                <button type="button" onClick={() => void revokeInvitation(invitation.id)} className="min-h-10 border border-zinc-300 px-3 text-xs font-bold uppercase text-zinc-700 hover:border-uplands-magenta hover:text-uplands-magenta">
+                  Revoke
+                </button>
+              ) : (
+                <span className="text-xs font-bold uppercase text-uplands-muted">{invitation.usedAt ? `Used ${formatDate(invitation.usedAt)}` : formatStatus(invitation.status)}</span>
+              )}
+            </div>
+          ))}
+          {selectedContractor && !invitationsLoading && invitations.length === 0 && <p className="p-5 text-sm text-uplands-muted">No induction invitations recorded for this contractor.</p>}
+          {!selectedContractor && <p className="p-5 text-sm text-uplands-muted">Select a contractor to manage invitations.</p>}
         </div>
       </section>
     </div>

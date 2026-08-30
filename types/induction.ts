@@ -70,6 +70,7 @@ export type InductionRecord = {
   formVersion: string;
   currentStepId: string;
   answers: Record<string, FieldAnswer>;
+  invitationToken?: string;
   createdAt: string;
   updatedAt: string;
   submittedAt?: string;

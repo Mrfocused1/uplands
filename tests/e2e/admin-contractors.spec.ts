@@ -37,6 +37,37 @@ test("admin can manage contractors inside a site workspace", async ({ page }, te
   await expect(page.getByRole("button", { name: new RegExp(contractor) })).toBeVisible();
   await expect(page.getByText("Fire stopping")).toBeVisible();
 
+  const invitedName = `Invited Operative ${testInfo.project.name} ${Date.now()}`;
+  const invitationForm = page.locator("form").filter({ has: page.getByRole("button", { name: /Create Invite/i }) });
+  await invitationForm.getByLabel("Operative Name").fill(invitedName);
+  await invitationForm.getByLabel("Email").fill("invited@example.com");
+  await invitationForm.getByLabel("Phone").fill("07700 900555");
+  await invitationForm.getByLabel("Role / Trade").fill("Electrician");
+
+  const [inviteResponse] = await Promise.all([
+    page.waitForResponse((response) => response.url().includes(`/api/admin/sites/newport/contractors/`) && response.url().includes("/invitations") && response.request().method() === "POST"),
+    invitationForm.getByRole("button", { name: "Create Invite" }).click(),
+  ]);
+  expect(inviteResponse.ok()).toBe(true);
+  const invite = (await inviteResponse.json()) as { inviteUrl: string };
+  await expect(page.getByText("Invite Link Created")).toBeVisible();
+  await expect(page.getByText(invitedName)).toBeVisible();
+
+  await page.evaluate(() => window.localStorage.clear());
+  await page.goto(new URL(invite.inviteUrl).pathname);
+  await expect(page.getByText(/Invited induction/i)).toBeVisible();
+  await expect(page.getByLabel("Full name")).toHaveValue(invitedName);
+  await expect(page.getByLabel("Contact number")).toHaveValue("07700 900555");
+  await expect(page.getByLabel("Company name")).toHaveValue(contractor);
+  await expect(page.getByLabel("Occupation")).toHaveValue("Electrician");
+
+  await page.goto("/admin/sites/newport/contractors");
+  await page.getByPlaceholder("Search contractors").fill(contractor);
+  await page.getByRole("button", { name: new RegExp(contractor) }).click();
+  const inviteRow = page.locator(".grid").filter({ hasText: invitedName }).last();
+  await inviteRow.getByRole("button", { name: "Revoke" }).click();
+  await expect(inviteRow).toContainText("REVOKED");
+
   await contractorForm.getByLabel("Site Status").selectOption("INACTIVE");
   await contractorForm.getByLabel("Phone").fill("07700 900456");
 

@@ -142,6 +142,27 @@ function migrate(db: Db) {
       UNIQUE(site_id, operative_id)
     );
 
+    CREATE TABLE IF NOT EXISTS induction_invitations (
+      id TEXT PRIMARY KEY,
+      token_hash TEXT NOT NULL UNIQUE,
+      site_id TEXT NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
+      project_id TEXT REFERENCES projects(id) ON DELETE SET NULL,
+      contractor_id TEXT NOT NULL REFERENCES contractors(id) ON DELETE CASCADE,
+      operative_id TEXT REFERENCES operatives(id) ON DELETE SET NULL,
+      submission_id TEXT REFERENCES submissions(id) ON DELETE SET NULL,
+      invited_full_name TEXT,
+      invited_email TEXT,
+      invited_phone TEXT,
+      role TEXT,
+      status TEXT NOT NULL DEFAULT 'INVITED',
+      expires_at TEXT NOT NULL,
+      created_by TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      used_at TEXT,
+      revoked_at TEXT
+    );
+
     CREATE TABLE IF NOT EXISTS permit_templates (
       id TEXT PRIMARY KEY,
       code TEXT NOT NULL UNIQUE,
@@ -255,6 +276,9 @@ function migrate(db: Db) {
     CREATE INDEX IF NOT EXISTS idx_site_operatives_site ON site_operatives(site_id, status);
     CREATE INDEX IF NOT EXISTS idx_site_operatives_contractor ON site_operatives(site_id, contractor_id, status);
     CREATE INDEX IF NOT EXISTS idx_site_operatives_operative ON site_operatives(operative_id);
+    CREATE INDEX IF NOT EXISTS idx_induction_invitations_site ON induction_invitations(site_id, contractor_id, status);
+    CREATE INDEX IF NOT EXISTS idx_induction_invitations_submission ON induction_invitations(submission_id);
+    CREATE INDEX IF NOT EXISTS idx_induction_invitations_expires ON induction_invitations(expires_at);
     CREATE INDEX IF NOT EXISTS idx_permit_template_fields_template ON permit_template_fields(template_id, sort_order);
     CREATE INDEX IF NOT EXISTS idx_permit_answers_permit ON permit_answers(permit_id);
     CREATE INDEX IF NOT EXISTS idx_permit_field_values_permit ON permit_field_values(permit_id);

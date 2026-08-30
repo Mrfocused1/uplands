@@ -15,6 +15,7 @@ import { useInduction } from "@/hooks/useInduction";
 import { documentMetadata, sectionLabels } from "@/config/uhsf1601Schema";
 import { printDataFromRecord } from "@/lib/pdf/printDataFromRecord";
 import type { UHSF1601PrintData } from "@/types/UHSF1601PrintData";
+import type { InductionInviteDefaults } from "@/types/inductionInvite";
 
 type PdfAction = "view" | "download" | "print";
 
@@ -64,8 +65,8 @@ function AdminReturnLink({ href }: { href?: string }) {
   );
 }
 
-export function ProgressiveInduction({ returnHref }: { returnHref?: string }) {
-  const induction = useInduction();
+export function ProgressiveInduction({ returnHref, invite }: { returnHref?: string; invite?: InductionInviteDefaults }) {
+  const induction = useInduction(invite);
   const [pdfBusy, setPdfBusy] = useState(false);
   const [pdfError, setPdfError] = useState("");
   const [pdfAction, setPdfAction] = useState<PdfAction | null>(null);
@@ -129,7 +130,7 @@ export function ProgressiveInduction({ returnHref }: { returnHref?: string }) {
       const response = await fetch("/api/induction/submit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
+        body: JSON.stringify({ ...data, inviteToken: invite?.token }),
       });
 
       const result = (await response.json().catch(() => null)) as { reference?: string; error?: string } | null;
@@ -163,6 +164,7 @@ export function ProgressiveInduction({ returnHref }: { returnHref?: string }) {
     <div className="min-h-screen bg-uplands-paper">
       <InductionHeader />
       <AdminReturnLink href={returnHref} />
+      {invite && <InviteContext invite={invite} />}
 
       <main>
         {induction.screen === "wizard" && currentStep.kind === "group" && currentStep.groupId === "personal-details" && (
@@ -397,6 +399,17 @@ export function ProgressiveInduction({ returnHref }: { returnHref?: string }) {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function InviteContext({ invite }: { invite: InductionInviteDefaults }) {
+  return (
+    <div className="no-print border-b border-zinc-200 bg-white">
+      <div className="mx-auto w-full max-w-6xl px-5 py-3 text-sm text-uplands-muted sm:px-8">
+        <span className="font-bold uppercase text-uplands-magenta">Invited induction</span>
+        <span className="ml-2">{invite.companyName} · {invite.siteName}</span>
+      </div>
     </div>
   );
 }

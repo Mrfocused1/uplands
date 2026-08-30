@@ -2,39 +2,47 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { projectConfig } from "@/config/projectConfig";
-import type { InductionRecord } from "@/types/induction";
+import type { FieldAnswer, InductionRecord } from "@/types/induction";
 
 function createSessionId() {
   return `uhsf16-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
-export function createInitialRecord(firstStepId: string): InductionRecord {
+export function createInitialRecord(firstStepId: string, initialAnswers: Record<string, FieldAnswer> = {}, invitationToken?: string): InductionRecord {
   const now = new Date().toISOString();
   return {
     sessionId: createSessionId(),
     formVersion: projectConfig.formVersion,
     currentStepId: firstStepId,
-    answers: {},
+    answers: initialAnswers,
+    invitationToken,
     createdAt: now,
     updatedAt: now,
   };
 }
 
-export function useInductionPersistence(firstStepId: string) {
-  const [record, setRecord] = useState<InductionRecord>(() => createInitialRecord(firstStepId));
+export function useInductionPersistence(firstStepId: string, initialAnswers: Record<string, FieldAnswer> = {}, invitationToken?: string) {
+  const [record, setRecord] = useState<InductionRecord>(() => createInitialRecord(firstStepId, initialAnswers, invitationToken));
   const [hasLoaded, setHasLoaded] = useState(false);
 
   useEffect(() => {
     const saved = window.localStorage.getItem(projectConfig.storageKey);
     if (saved) {
       try {
-        setRecord(JSON.parse(saved) as InductionRecord);
+        const parsed = JSON.parse(saved) as InductionRecord;
+        if (invitationToken && parsed.invitationToken !== invitationToken) {
+          setRecord(createInitialRecord(firstStepId, initialAnswers, invitationToken));
+        } else {
+          setRecord(parsed);
+        }
       } catch {
-        setRecord(createInitialRecord(firstStepId));
+        setRecord(createInitialRecord(firstStepId, initialAnswers, invitationToken));
       }
+    } else {
+      setRecord(createInitialRecord(firstStepId, initialAnswers, invitationToken));
     }
     setHasLoaded(true);
-  }, [firstStepId]);
+  }, [firstStepId, initialAnswers, invitationToken]);
 
   useEffect(() => {
     if (hasLoaded) {
@@ -53,8 +61,8 @@ export function useInductionPersistence(firstStepId: string) {
   }, []);
 
   const resetRecord = useCallback(() => {
-    setRecord(createInitialRecord(firstStepId));
-  }, [firstStepId]);
+    setRecord(createInitialRecord(firstStepId, initialAnswers, invitationToken));
+  }, [firstStepId, initialAnswers, invitationToken]);
 
   return { record, updateRecord, resetRecord, hasLoaded };
 }
