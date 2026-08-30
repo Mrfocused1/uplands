@@ -4,6 +4,7 @@ import { listSiteActivityEvents, type SiteActivityEventRow } from "@/lib/db/acti
 import { getDb } from "@/lib/db";
 import { getHandoverDashboardSummary, isHandoverDatabaseSetupError, type HandoverDashboardSummary } from "@/lib/db/handovers";
 import { countPermitsBySite, listPriorityPermitsBySite, type PermitRow } from "@/lib/db/permits";
+import { getSiteActionsDashboardSummary, isSiteActionDatabaseSetupError, type SiteActionsDashboardSummary } from "@/lib/db/siteActions";
 import { env, isSupabaseAdminConfigured } from "@/lib/env";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
@@ -63,6 +64,7 @@ export type SiteWorkspaceSummary = {
     missingLinkedRams: number;
   };
   handover: HandoverDashboardSummary;
+  actions: SiteActionsDashboardSummary;
   activePermits: SitePermitSummaryItem[];
   recentActivity: SiteActivityItem[];
 };
@@ -177,16 +179,17 @@ export async function getSiteWorkspaceSummary(siteId: string): Promise<SiteWorks
   const site = await getSite(siteId);
   if (!site) return buildSummary([], []);
 
-  const [inductionRows, ramsRows, peopleOnSite, permits, priorityPermits, handover, activityRows] = await Promise.all([
+  const [inductionRows, ramsRows, peopleOnSite, permits, priorityPermits, handover, actions, activityRows] = await Promise.all([
     listSiteSummaryInductions(site),
     listSiteSummaryRams(site),
     countCurrentAttendanceSafe(site.id),
     countPermitsBySite(site.id),
     listPriorityPermitsBySite(site.id),
     getHandoverDashboardSummarySafe(site.id),
+    getSiteActionsDashboardSummarySafe(site.id),
     listSiteActivityEvents(site.id, 20),
   ]);
-  return buildSummary(inductionRows, ramsRows, peopleOnSite, permits, priorityPermits, handover, activityRows);
+  return buildSummary(inductionRows, ramsRows, peopleOnSite, permits, priorityPermits, handover, actions, activityRows);
 }
 
 async function countCurrentAttendanceSafe(siteId: string) {
@@ -203,6 +206,15 @@ async function getHandoverDashboardSummarySafe(siteId: string): Promise<Handover
     return await getHandoverDashboardSummary(siteId);
   } catch (error) {
     if (isHandoverDatabaseSetupError(error)) return { latest: null, unacknowledged: 0, outstandingActions: 0 };
+    throw error;
+  }
+}
+
+async function getSiteActionsDashboardSummarySafe(siteId: string): Promise<SiteActionsDashboardSummary> {
+  try {
+    return await getSiteActionsDashboardSummary(siteId);
+  } catch (error) {
+    if (isSiteActionDatabaseSetupError(error)) return { open: 0, overdue: 0, dueSoon: 0, blocked: 0, items: [] };
     throw error;
   }
 }
@@ -287,6 +299,7 @@ function buildSummary(
   permits = { active: 0, expiringSoon: 0, awaitingClosure: 0, missingLinkedRams: 0 },
   priorityPermits: PermitRow[] = [],
   handover: HandoverDashboardSummary = { latest: null, unacknowledged: 0, outstandingActions: 0 },
+  actions: SiteActionsDashboardSummary = { open: 0, overdue: 0, dueSoon: 0, blocked: 0, items: [] },
   activityRows: SiteActivityEventRow[] = [],
 ): SiteWorkspaceSummary {
   const recentActivity: SiteActivityItem[] = [
@@ -303,7 +316,9 @@ function buildSummary(
             ? `/admin/sites/${row.site_id}/attendance`
             : row.entity_type === "handover"
               ? `/admin/sites/${row.site_id}/handover`
-              : undefined,
+              : row.entity_type === "site_action"
+                ? `/admin/sites/${row.site_id}`
+                : undefined,
     })),
     ...inductionRows.map((row) => ({
       id: `induction-${row.id}`,
@@ -342,6 +357,7 @@ function buildSummary(
       missingLinkedRams: permits.missingLinkedRams,
     },
     handover,
+    actions,
     activePermits: priorityPermits.map((permit) => ({
       id: permit.id,
       permitNumber: permit.permit_number,

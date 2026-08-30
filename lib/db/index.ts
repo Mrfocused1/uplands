@@ -206,6 +206,28 @@ function migrate(db: Db) {
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
 
+    CREATE TABLE IF NOT EXISTS site_actions (
+      id TEXT PRIMARY KEY,
+      site_id TEXT NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
+      project_id TEXT REFERENCES projects(id) ON DELETE SET NULL,
+      source_type TEXT NOT NULL DEFAULT 'manager_note',
+      source_id TEXT,
+      source_label TEXT,
+      title TEXT NOT NULL,
+      description TEXT,
+      owner_name TEXT,
+      owner_company TEXT,
+      status TEXT NOT NULL DEFAULT 'OPEN',
+      priority TEXT NOT NULL DEFAULT 'MEDIUM',
+      due_date TEXT,
+      closed_at TEXT,
+      closed_by TEXT,
+      closed_notes TEXT,
+      created_by TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
     CREATE TABLE IF NOT EXISTS permit_templates (
       id TEXT PRIMARY KEY,
       code TEXT NOT NULL UNIQUE,
@@ -326,6 +348,9 @@ function migrate(db: Db) {
     CREATE UNIQUE INDEX IF NOT EXISTS idx_attendance_one_open_record ON attendance_records(site_id, operative_id) WHERE status = 'SIGNED_IN';
     CREATE INDEX IF NOT EXISTS idx_site_handovers_site_date ON site_handovers(site_id, handover_date DESC, shift);
     CREATE INDEX IF NOT EXISTS idx_site_handovers_status ON site_handovers(site_id, status, updated_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_site_actions_site_status ON site_actions(site_id, status, due_date ASC, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_site_actions_source ON site_actions(source_type, source_id);
+    CREATE INDEX IF NOT EXISTS idx_site_actions_owner ON site_actions(site_id, owner_name, status);
     CREATE INDEX IF NOT EXISTS idx_induction_invitations_site ON induction_invitations(site_id, contractor_id, status);
     CREATE INDEX IF NOT EXISTS idx_induction_invitations_submission ON induction_invitations(submission_id);
     CREATE INDEX IF NOT EXISTS idx_induction_invitations_expires ON induction_invitations(expires_at);

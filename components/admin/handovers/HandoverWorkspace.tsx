@@ -109,6 +109,8 @@ export function HandoverWorkspace({ site, initialHandovers, prefill }: { site: S
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [creatingActions, setCreatingActions] = useState(false);
+  const [actionsCreatedFor, setActionsCreatedFor] = useState<string | null>(null);
 
   const latestOppositeShift = useMemo(() => {
     const opposite = form.shift === "DAY" ? "NIGHT" : "DAY";
@@ -117,6 +119,7 @@ export function HandoverWorkspace({ site, initialHandovers, prefill }: { site: S
 
   function updateField<Key extends keyof FormState>(key: Key, value: FormState[Key]) {
     setForm((current) => ({ ...current, [key]: value }));
+    if (key === "outstandingActions") setActionsCreatedFor(null);
   }
 
   function useSiteSnapshot() {
@@ -153,6 +156,7 @@ export function HandoverWorkspace({ site, initialHandovers, prefill }: { site: S
       const savedId = form.handoverId ?? data.id;
       const savedRecord = handovers.find((record) => record.id === savedId);
       if (savedRecord) setForm(recordToForm(savedRecord));
+      if (savedId !== form.handoverId) setActionsCreatedFor(null);
       setMessage(status === "DRAFT" ? "Draft saved" : status === "ACKNOWLEDGED" ? "Handover acknowledged" : "Handover submitted");
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Unable to save handover.");
@@ -164,6 +168,54 @@ export function HandoverWorkspace({ site, initialHandovers, prefill }: { site: S
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     await save("DRAFT");
+  }
+
+  async function createStructuredActions() {
+    const actionLines = form.outstandingActions
+      .split(/\r?\n/)
+      .map((line) => line.trim().replace(/^[-*]\s*/, ""))
+      .filter(Boolean);
+
+    if (!form.handoverId) {
+      setError("Save the handover before creating tracked actions.");
+      return;
+    }
+
+    if (actionLines.length === 0) {
+      setError("Add at least one issue or action first.");
+      return;
+    }
+
+    setCreatingActions(true);
+    setError("");
+    setMessage("");
+    try {
+      await Promise.all(
+        actionLines.map(async (title) => {
+          const response = await fetch(`/api/admin/sites/${site.id}/actions`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              projectId: site.project_id,
+              sourceType: "handover",
+              sourceId: form.handoverId,
+              sourceLabel: `${form.shift.toLowerCase()} handover ${formatDate(form.handoverDate)}`,
+              title,
+              priority: "MEDIUM",
+              status: "OPEN",
+            }),
+          });
+          const data = await response.json();
+          if (!response.ok) throw new Error(data.error || "Unable to create tracked actions.");
+        }),
+      );
+      setActionsCreatedFor(form.handoverId);
+      setMessage(`${actionLines.length} tracked action${actionLines.length === 1 ? "" : "s"} ready on the site dashboard`);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Unable to create tracked actions.");
+    } finally {
+      setCreatingActions(false);
+    }
   }
 
   return (
@@ -238,6 +290,16 @@ export function HandoverWorkspace({ site, initialHandovers, prefill }: { site: S
               <span className="text-xs font-bold uppercase text-zinc-700">Issues / Actions</span>
               <textarea value={form.outstandingActions} onChange={(event) => updateField("outstandingActions", event.target.value)} className="mt-1 min-h-24 w-full border border-zinc-300 px-3 py-2 text-sm" />
             </label>
+            {form.handoverId && form.outstandingActions.trim() && (
+              <button
+                type="button"
+                onClick={createStructuredActions}
+                disabled={creatingActions || actionsCreatedFor === form.handoverId}
+                className="min-h-10 w-fit border border-zinc-300 px-3 text-xs font-bold uppercase text-zinc-700 hover:border-uplands-magenta hover:text-uplands-magenta disabled:opacity-60"
+              >
+                {creatingActions ? "Creating..." : actionsCreatedFor === form.handoverId ? "Actions Created" : "Create Tracked Actions"}
+              </button>
+            )}
             <label>
               <span className="text-xs font-bold uppercase text-zinc-700">Deliveries</span>
               <textarea value={form.deliveries} onChange={(event) => updateField("deliveries", event.target.value)} className="mt-1 min-h-20 w-full border border-zinc-300 px-3 py-2 text-sm" />
@@ -269,7 +331,14 @@ export function HandoverWorkspace({ site, initialHandovers, prefill }: { site: S
               <p className="text-xs font-bold uppercase tracking-[0.22em] text-uplands-magenta">Shift Records</p>
               <h2 className="mt-1 font-slab text-3xl text-uplands-charcoal">Handover History</h2>
             </div>
-            <button type="button" onClick={() => setForm(emptyForm)} className="min-h-10 w-fit border border-zinc-300 px-3 text-xs font-bold uppercase text-zinc-700 hover:border-uplands-magenta hover:text-uplands-magenta">
+            <button
+              type="button"
+              onClick={() => {
+                setForm(emptyForm);
+                setActionsCreatedFor(null);
+              }}
+              className="min-h-10 w-fit border border-zinc-300 px-3 text-xs font-bold uppercase text-zinc-700 hover:border-uplands-magenta hover:text-uplands-magenta"
+            >
               New Record
             </button>
           </div>
@@ -287,7 +356,14 @@ export function HandoverWorkspace({ site, initialHandovers, prefill }: { site: S
                 <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-zinc-700">{record.workCompleted || record.summary || "No work summary recorded."}</p>
                 {record.outstandingActions && <p className="mt-3 whitespace-pre-wrap border-l-4 border-amber-400 bg-white p-3 text-sm font-bold text-amber-900">{record.outstandingActions}</p>}
                 <div className="mt-4 flex flex-wrap gap-3">
-                  <button type="button" onClick={() => setForm(recordToForm(record))} className="min-h-10 border border-uplands-magenta px-3 text-xs font-bold uppercase text-uplands-magenta">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setForm(recordToForm(record));
+                      setActionsCreatedFor(null);
+                    }}
+                    className="min-h-10 border border-uplands-magenta px-3 text-xs font-bold uppercase text-uplands-magenta"
+                  >
                     Edit
                   </button>
                   <span className="self-center text-xs font-bold uppercase text-uplands-muted">Updated {formatDateTime(record.updatedAt)}</span>

@@ -34,6 +34,15 @@ test("admin can draft, submit and review a day handover", async ({ page }, testI
   expect(draftResponse.ok()).toBe(true);
   await expect(page.getByText("Draft saved").first()).toBeVisible();
   await expect(page.getByText("DRAFT").first()).toBeVisible();
+  await expect(page.getByRole("button", { name: "Create Tracked Actions" })).toBeVisible();
+
+  const [actionResponse] = await Promise.all([
+    page.waitForResponse((response) => response.url().endsWith("/api/admin/sites/newport/actions") && response.request().method() === "POST"),
+    page.getByRole("button", { name: "Create Tracked Actions" }).click(),
+  ]);
+  expect(actionResponse.ok()).toBe(true);
+  await expect(page.getByText("1 tracked action ready on the site dashboard")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Actions Created" })).toBeDisabled();
 
   const [submitResponse] = await Promise.all([
     page.waitForResponse((response) => response.url().endsWith("/api/admin/sites/newport/handovers") && response.request().method() === "PATCH"),
@@ -53,4 +62,6 @@ test("admin can draft, submit and review a day handover", async ({ page }, testI
   const handoverCard = page.getByRole("link", { name: /Handover/i }).filter({ hasText: "Handover" }).first();
   await expect(handoverCard).toHaveAttribute("href", "/admin/sites/newport/handover");
   await expect(handoverCard).toContainText("Handover");
+  await expect(page.getByRole("heading", { name: "Open Site Actions" })).toBeVisible();
+  await expect(page.getByText(outstandingAction).first()).toBeVisible();
 });

@@ -24,9 +24,20 @@ function formatShortDate(value: string) {
   return new Date(value).toLocaleDateString("en-GB", { day: "2-digit", month: "short" });
 }
 
+function formatActionDueDate(value: string | null) {
+  if (!value) return "No due date";
+  return `Due ${new Date(value).toLocaleDateString("en-GB", { day: "2-digit", month: "short" })}`;
+}
+
+function actionStatusClasses(status: string) {
+  if (status === "BLOCKED") return "border-red-300 bg-red-50 text-red-700";
+  if (status === "IN_PROGRESS") return "border-uplands-magenta bg-white text-uplands-magenta";
+  return "border-zinc-300 bg-white text-zinc-700";
+}
+
 export function SiteWorkspace({ site, summary }: { site: SiteRow; summary: SiteWorkspaceSummary }) {
   const portalSite = portalSiteFromRow(site);
-  const actions = portalActionsForSite(site.id);
+  const portalActions = portalActionsForSite(site.id);
 
   return (
     <div className="space-y-8">
@@ -87,7 +98,7 @@ export function SiteWorkspace({ site, summary }: { site: SiteRow; summary: SiteW
           <span className="w-fit border border-zinc-300 px-2.5 py-1 text-xs font-bold uppercase text-zinc-700">{portalSite.status}</span>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
           <article className="border border-zinc-200 bg-uplands-paper p-4">
             <p className="text-xs font-bold uppercase text-uplands-muted">Attendance</p>
             <p className="mt-2 font-slab text-4xl text-uplands-charcoal">{summary.peopleOnSite}</p>
@@ -119,8 +130,42 @@ export function SiteWorkspace({ site, summary }: { site: SiteRow; summary: SiteW
             </p>
             {summary.handover.outstandingActions > 0 && <p className="mt-2 text-xs font-bold uppercase text-amber-800">{summary.handover.outstandingActions} with actions</p>}
           </Link>
+          <article className="border border-zinc-200 bg-uplands-paper p-4">
+            <p className="text-xs font-bold uppercase text-uplands-muted">Actions</p>
+            <p className="mt-2 font-slab text-4xl text-uplands-charcoal">{summary.actions.open}</p>
+            <p className="mt-1 text-sm text-uplands-muted">{summary.actions.dueSoon} due soon, {summary.actions.blocked} blocked</p>
+            {summary.actions.overdue > 0 && <p className="mt-2 text-xs font-bold uppercase text-red-700">{summary.actions.overdue} overdue</p>}
+          </article>
         </div>
       </section>
+
+      {summary.actions.items.length > 0 && (
+        <section className="border border-zinc-200 bg-white p-5 shadow-soft sm:p-6">
+          <div className="mb-5">
+            <p className="text-xs font-bold uppercase tracking-[0.22em] text-uplands-magenta">Outstanding Actions</p>
+            <h2 className="mt-1 font-slab text-3xl text-uplands-charcoal">Open Site Actions</h2>
+          </div>
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {summary.actions.items.map((action) => (
+              <article key={action.id} className="border border-zinc-200 bg-uplands-paper p-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <span>
+                    <span className="block text-xs font-bold uppercase text-uplands-muted">{action.source_label || action.source_type.replaceAll("_", " ")}</span>
+                    <span className="mt-1 block font-din text-lg text-uplands-charcoal">{action.title}</span>
+                  </span>
+                  <span className={`w-fit border px-2.5 py-1 text-xs font-bold uppercase ${actionStatusClasses(action.status)}`}>{action.status.replaceAll("_", " ")}</span>
+                </div>
+                {action.description && <p className="mt-3 text-sm leading-6 text-zinc-700">{action.description}</p>}
+                <div className="mt-4 flex flex-wrap gap-2 text-xs font-bold uppercase text-uplands-muted">
+                  <span>{formatActionDueDate(action.due_date)}</span>
+                  {action.owner_name && <span>{action.owner_name}</span>}
+                  {action.owner_company && <span>{action.owner_company}</span>}
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+      )}
 
       <section className="border border-zinc-200 bg-white p-5 shadow-soft sm:p-6">
         <div className="mb-5">
@@ -132,7 +177,7 @@ export function SiteWorkspace({ site, summary }: { site: SiteRow; summary: SiteW
         </div>
 
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          {actions.map((action) => (
+          {portalActions.map((action) => (
             <Link
               key={action.title}
               href={action.href}
