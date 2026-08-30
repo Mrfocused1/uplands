@@ -206,4 +206,99 @@ export const PERMIT_TEMPLATES: PermitTemplate[] = [
       },
     ],
   },
+  {
+    id: "mobile-tower-scaffold",
+    code: "UHSF21.12",
+    title: "Mobile Tower Scaffold Permit",
+    description: "Structured digital permit for mobile tower scaffold erection, checking, use and closure.",
+    registerCode: "UHSF21.0",
+    version: "1",
+    sortOrder: 30,
+    sections: [
+      {
+        id: "planning-competence",
+        title: "Planning / Competence Checks",
+        description: "Confirm RAMS, briefing, PASMA competence and supervision are in place before tower use.",
+        sortOrder: 10,
+        questions: [
+          { key: "rams_prepared_approved", prompt: "Has a Risk Assessment and Method Statement been prepared and approved?" },
+          {
+            key: "rams_briefing_understood",
+            prompt: "Have all personnel been briefed on the contents of the RAMS and do they understand the task being carried out?",
+          },
+          { key: "pasma_card_produced", prompt: "Has the operative produced the relevant PASMA card for erecting or checking this mobile tower?" },
+          {
+            key: "competent_supervisor",
+            prompt: "Has a competent supervisor been appointed?",
+            helpText: "Use the comment field to record who has been appointed.",
+          },
+        ],
+      },
+      {
+        id: "tower-system",
+        title: "Tower System / Components",
+        description: "Confirm the tower system, components and warning arrangements meet Uplands requirements.",
+        sortOrder: 20,
+        questions: [
+          { key: "advanced_guard_rail_system", prompt: "Is the mobile tower an Advanced Guard Rail (AGR) system in line with Uplands policy?" },
+          {
+            key: "non_agr_reason_recorded",
+            prompt: "If the mobile tower is not an AGR system, has the reason been recorded?",
+            helpText: "Record if AGR is not required due to insufficient height, unavailable from hire centre, or another reason.",
+          },
+          {
+            key: "components_present_assembled",
+            prompt: "Are all components present and assembled, including guard rails, toe boards, bracing, rakers and wheels?",
+          },
+          { key: "signs_barriers_below", prompt: "Have signs and barriers been erected to warn persons below?" },
+        ],
+      },
+      {
+        id: "site-conditions",
+        title: "Site Conditions",
+        description: "Confirm weather, ground and lighting conditions are suitable for mobile tower work.",
+        sortOrder: 30,
+        questions: [
+          { key: "adverse_weather_absent", prompt: "Are adverse weather conditions absent and not forecast during the permit period?" },
+          { key: "ground_conditions_suitable", prompt: "Are ground conditions suitable?" },
+          { key: "lighting_conditions_suitable", prompt: "Are lighting conditions suitable?" },
+          {
+            key: "shift_or_scafftag_control",
+            prompt: "Is this permit limited to one shift unless a daily updated scaff tag system is in place?",
+            helpText: "Close the permit when the mobile tower is taken out of use.",
+          },
+        ],
+      },
+    ],
+    signatures: [
+      {
+        key: "manager_authorisation",
+        title: "Uplands Site Manager Authorisation",
+        role: "Uplands Site Manager",
+        action: "Authorised mobile tower scaffold permit issue",
+        sortOrder: 10,
+      },
+      {
+        key: "contractor_acceptance",
+        title: "Contractor / Operative Acceptance",
+        role: "Contractor / Operative",
+        action: "Accepted mobile tower scaffold permit controls",
+        sortOrder: 20,
+      },
+      {
+        key: "contractor_completion",
+        title: "Contractor / Operative Completion",
+        role: "Contractor / Operative",
+        action: "Confirmed mobile tower scaffold work completed",
+        sortOrder: 30,
+      },
+      {
+        key: "manager_completion_acceptance",
+        title: "Uplands Site Manager Acceptance of Completion",
+        role: "Uplands Site Manager",
+        action: "Accepted completion and closed mobile tower scaffold permit",
+        sortOrder: 40,
+      },
+    ],
+  },
 ];

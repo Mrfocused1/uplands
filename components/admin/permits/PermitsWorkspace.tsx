@@ -298,18 +298,21 @@ export function PermitsWorkspace({ site, templates, initialPermits }: { site: Si
             <p className="text-xs font-bold uppercase tracking-[0.22em] text-uplands-magenta">New Permit</p>
             <h2 className="mt-1 font-slab text-2xl text-uplands-charcoal">{selectedTemplate?.title ?? "Create Permit"}</h2>
             <div className="mt-4 space-y-3">
-              <select
-                name="templateId"
-                className="min-h-11 w-full border border-zinc-300 px-3 text-sm"
-                value={selectedTemplateId}
-                onChange={(event) => setSelectedTemplateId(event.target.value)}
-              >
-                {templates.map((template) => (
-                  <option key={template.id} value={template.id}>
-                    {template.code} - {template.title}
-                  </option>
-                ))}
-              </select>
+              <label>
+                <span className="text-xs font-bold uppercase text-zinc-700">Permit Type</span>
+                <select
+                  name="templateId"
+                  className="mt-1 min-h-11 w-full border border-zinc-300 px-3 text-sm"
+                  value={selectedTemplateId}
+                  onChange={(event) => setSelectedTemplateId(event.target.value)}
+                >
+                  {templates.map((template) => (
+                    <option key={template.id} value={template.id}>
+                      {template.code} - {template.title}
+                    </option>
+                  ))}
+                </select>
+              </label>
               <input name="contractor" required placeholder="Contractor" className="min-h-11 w-full border border-zinc-300 px-3 text-sm" />
               <input name="locationOfWork" required placeholder="Location of work" className="min-h-11 w-full border border-zinc-300 px-3 text-sm" />
               <textarea name="descriptionOfWork" required placeholder="Description of work" className="min-h-24 w-full border border-zinc-300 px-3 py-2 text-sm" />
@@ -393,7 +396,7 @@ function PermitEditor({
   const actionValidation = (status: PermitStatus) => permitValidationError({ ...detail, permit: { ...detail.permit, status } });
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-5" data-testid="permit-editor">
       <section className="border border-zinc-200 bg-white p-5 shadow-soft">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
           <div>
