@@ -1,5 +1,7 @@
 import { expect, test } from "@playwright/test";
 
+const signature = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAO+/p9sAAAAASUVORK5CYII=";
+
 test("admin can manage contractors inside a site workspace", async ({ page }, testInfo) => {
   test.setTimeout(45_000);
 
@@ -79,4 +81,49 @@ test("admin can manage contractors inside a site workspace", async ({ page }, te
   await expect(operativeForm.getByLabel("Induction")).toHaveValue("APPROVED");
   await expect(operativeForm.getByLabel("Phone")).toHaveValue("07700 900790");
   await expect(page.getByRole("button", { name: new RegExp(operativeName) })).toContainText("APPROVED");
+});
+
+test("submitted inductions appear as contractor operatives", async ({ page, request }, testInfo) => {
+  test.setTimeout(45_000);
+
+  const unique = `${testInfo.project.name} ${Date.now()}`;
+  const fullName = `Inducted Operative ${unique}`;
+  const companyName = `Induction Contractor ${unique}`;
+
+  const submitResponse = await request.post("/api/induction/submit", {
+    data: {
+      fullName,
+      contactNumber: "07700 900123",
+      companyName,
+      occupation: "Electrician",
+      cscsCardNumber: "CSCS-12345",
+      cscsExpiry: "2027-08-30",
+      confirmedRamsDeclaration: true,
+      confirmedSiteRulesDeclaration: true,
+      confirmedPpeDeclaration: true,
+      inducteeSignature: signature,
+      declarationDate: "2026-08-30",
+      siteName: "Newport - 81978",
+      uploadedDocuments: [],
+    },
+  });
+  expect(submitResponse.ok()).toBe(true);
+  const submission = (await submitResponse.json()) as { id: string; reference: string };
+
+  await page.goto("/admin/sites/newport/contractors");
+  await page.getByPlaceholder("Search contractors").fill(companyName);
+  await expect(page.getByRole("button", { name: new RegExp(companyName) })).toContainText(/Operatives\s*1/);
+  await page.getByRole("button", { name: new RegExp(companyName) }).click();
+  await expect(page.getByRole("button", { name: new RegExp(fullName) })).toContainText("PENDING REVIEW");
+  await expect(page.getByRole("button", { name: new RegExp(fullName) })).toContainText(submission.reference);
+
+  const reviewResponse = await request.patch(`/api/admin/submissions/${submission.id}`, {
+    data: { printReviewStatus: "ready" },
+  });
+  expect(reviewResponse.ok()).toBe(true);
+
+  await page.reload();
+  await page.getByPlaceholder("Search contractors").fill(companyName);
+  await page.getByRole("button", { name: new RegExp(companyName) }).click();
+  await expect(page.getByRole("button", { name: new RegExp(fullName) })).toContainText("APPROVED");
 });

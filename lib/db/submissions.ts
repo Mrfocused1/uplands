@@ -7,6 +7,7 @@ import { env, isSupabaseAdminConfigured } from "@/lib/env";
 import { getSubmissionStorageProvider } from "@/lib/storage";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { getSite, resolveSiteIdFromName } from "@/lib/db/sites";
+import { isOperativeDatabaseSetupError, syncInductionSubmissionOperative } from "@/lib/db/operatives";
 import type { UHSF1601PrintData } from "@/types/UHSF1601PrintData";
 import type { EvidencePrintTransform, EvidenceType } from "@/types/evidence";
 
@@ -30,6 +31,8 @@ export interface SubmissionRow {
   site_id: string | null;
   full_name: string | null;
   company_name: string | null;
+  contractor_id: string | null;
+  operative_id: string | null;
   site_name: string | null;
   declaration_date: string | null;
   print_review_status: string;
@@ -135,6 +138,60 @@ async function filterRowsByLegacySiteName<T extends { site_name: string | null; 
     .map((row) => ({ ...row, site_id: row.site_id ?? siteId }));
 }
 
+function inductionStatusFromReviewStatus(status: string) {
+  return status === "ready" ? "APPROVED" : "PENDING_REVIEW";
+}
+
+async function saveSubmissionRegistryLinks(submissionId: string, contractorId: string, operativeId: string) {
+  const now = new Date().toISOString();
+  if (shouldUseSupabaseSubmissionsDb()) {
+    const { error } = await createSupabaseAdminClient()
+      .from("submissions")
+      .update({ contractor_id: contractorId, operative_id: operativeId, updated_at: now })
+      .eq("id", submissionId);
+    assertNoError(error, "Unable to link submission to operative");
+    return;
+  }
+
+  getDb()
+    .prepare("UPDATE submissions SET contractor_id = ?, operative_id = ?, updated_at = ? WHERE id = ?")
+    .run(contractorId, operativeId, now, submissionId);
+}
+
+async function syncSubmissionRegistryLinks(input: {
+  submissionId: string;
+  siteId: string | null;
+  printData: UHSF1601PrintData;
+  reviewStatus: string;
+  actor?: string | null;
+}) {
+  try {
+    const site = input.siteId ? await getSite(input.siteId) : null;
+    const linked = await syncInductionSubmissionOperative({
+      submissionId: input.submissionId,
+      siteId: input.siteId,
+      projectId: site?.project_id ?? null,
+      companyName: input.printData.companyName,
+      fullName: input.printData.fullName,
+      phone: input.printData.contactNumber,
+      role: input.printData.occupation,
+      cscsCardNumber: input.printData.cscsCardNumber,
+      cscsExpiry: input.printData.cscsExpiry,
+      inductionStatus: inductionStatusFromReviewStatus(input.reviewStatus),
+      actor: input.actor,
+    });
+    if (linked) await saveSubmissionRegistryLinks(input.submissionId, linked.contractorId, linked.operativeId);
+    return linked;
+  } catch (error) {
+    if (isOperativeDatabaseSetupError(error)) {
+      console.warn(error.message);
+      return null;
+    }
+    console.warn(error);
+    return null;
+  }
+}
+
 export async function loadEvidenceDocument(document: EvidenceDocRow) {
   if (!document.storage_path) throw new Error("Evidence document has no stored object.");
 
@@ -223,6 +280,13 @@ export async function persistSubmission(printData: UHSF1601PrintData): Promise<{
       assertNoError((await supabase.from("evidence_documents").insert(evidenceRows)).error, "Unable to create evidence documents");
     }
 
+    await syncSubmissionRegistryLinks({
+      submissionId: id,
+      siteId,
+      printData,
+      reviewStatus: "not_reviewed",
+    });
+
     return { id, reference };
   }
 
@@ -267,6 +331,13 @@ export async function persistSubmission(printData: UHSF1601PrintData): Promise<{
   });
 
   run();
+  await syncSubmissionRegistryLinks({
+    submissionId: id,
+    siteId,
+    printData,
+    reviewStatus: "not_reviewed",
+  });
+
   return { id, reference };
 }
 
@@ -481,6 +552,13 @@ export async function updateSubmissionFormData(submissionId: string, patch: Part
     } else {
       assertNoError(error, "Unable to update submission form data");
     }
+    await syncSubmissionRegistryLinks({
+      submissionId,
+      siteId,
+      printData: next,
+      reviewStatus: result.row.print_review_status,
+      actor: "Admin Records",
+    });
     return true;
   }
 
@@ -501,6 +579,14 @@ export async function updateSubmissionFormData(submissionId: string, patch: Part
       submissionId,
     );
 
+  await syncSubmissionRegistryLinks({
+    submissionId,
+    siteId,
+    printData: next,
+    reviewStatus: result.row.print_review_status,
+    actor: "Admin Records",
+  });
+
   return true;
 }
 
@@ -512,12 +598,33 @@ export async function setPrintReviewStatus(submissionId: string, status: "not_re
       (await supabase.from("submissions").update({ print_review_status: status, updated_at: now }).eq("id", submissionId)).error,
       "Unable to update print review status",
     );
+    const result = await getSubmission(submissionId);
+    if (result) {
+      await syncSubmissionRegistryLinks({
+        submissionId,
+        siteId: result.row.site_id,
+        printData: JSON.parse(result.row.print_data) as UHSF1601PrintData,
+        reviewStatus: status,
+        actor: "Admin Records",
+      });
+    }
     return;
   }
 
   getDb()
     .prepare("UPDATE submissions SET print_review_status = ?, updated_at = ? WHERE id = ?")
     .run(status, now, submissionId);
+
+  const result = await getSubmission(submissionId);
+  if (result) {
+    await syncSubmissionRegistryLinks({
+      submissionId,
+      siteId: result.row.site_id,
+      printData: JSON.parse(result.row.print_data) as UHSF1601PrintData,
+      reviewStatus: status,
+      actor: "Admin Records",
+    });
+  }
 }
 
 export async function setPinned(submissionId: string, pinned: boolean) {

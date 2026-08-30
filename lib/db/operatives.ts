@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import { getDb } from "@/lib/db";
 import { recordSiteActivity } from "@/lib/db/activity";
+import { ensureContractorForSite } from "@/lib/db/contractors";
 import { env, isSupabaseAdminConfigured } from "@/lib/env";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
@@ -52,6 +53,7 @@ export type UpsertSiteOperativeInput = {
   cscsCardNumber?: string | null;
   cscsExpiry?: string | null;
   inductionStatus?: string | null;
+  inductionSubmissionId?: string | null;
   siteStatus?: string | null;
   actor?: string | null;
 };
@@ -71,7 +73,13 @@ type OperativeRow = {
 };
 
 function shouldUseSupabaseOperativesDb() {
-  const provider = env("OPERATIVES_DATABASE_PROVIDER", env("UPLANDS_DATABASE_PROVIDER", process.env.VERCEL && isSupabaseAdminConfigured() ? "supabase" : "sqlite"));
+  const provider = env(
+    "OPERATIVES_DATABASE_PROVIDER",
+    env(
+      "CONTRACTORS_DATABASE_PROVIDER",
+      env("UPLANDS_DATABASE_PROVIDER", env("SUBMISSIONS_DATABASE_PROVIDER", process.env.VERCEL && isSupabaseAdminConfigured() ? "supabase" : "sqlite")),
+    ),
+  );
   if (provider === "supabase" && !isSupabaseAdminConfigured()) {
     throw new Error("OPERATIVES_DATABASE_PROVIDER is set to supabase, but Supabase admin environment variables are missing.");
   }
@@ -155,19 +163,69 @@ export async function createSiteOperative(input: UpsertSiteOperativeInput) {
     now,
   });
 
+  const eventType = existing ? "operative_updated" : "operative_added";
   await recordSiteActivity({
     siteId: input.siteId,
     projectId: input.projectId ?? null,
     entityType: "operative",
     entityId: operative.id,
-    eventType: "operative_added",
-    title: "Operative added",
+    eventType,
+    title: existing ? "Operative updated" : "Operative added",
     detail: fullName,
     actor: input.actor ?? null,
-    metadata: { contractorId: input.contractorId, operativeId: operative.id },
+    metadata: { contractorId: input.contractorId, operativeId: operative.id, inductionSubmissionId: input.inductionSubmissionId ?? null },
   });
 
   return { operativeId: operative.id, operativeName: fullName };
+}
+
+export async function syncInductionSubmissionOperative(input: {
+  submissionId: string;
+  siteId: string | null;
+  projectId?: string | null;
+  companyName?: string | null;
+  fullName?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  role?: string | null;
+  cscsCardNumber?: string | null;
+  cscsExpiry?: string | null;
+  inductionStatus: string;
+  actor?: string | null;
+}) {
+  const siteId = input.siteId?.trim();
+  const contractorName = input.companyName?.trim();
+  const fullName = input.fullName?.trim();
+  if (!siteId || !contractorName || !fullName) return null;
+
+  const contractor = await ensureContractorForSite({
+    siteId,
+    projectId: input.projectId ?? null,
+    name: contractorName,
+  });
+
+  const operative = await createSiteOperative({
+    siteId,
+    projectId: input.projectId ?? null,
+    contractorId: contractor.contractorId,
+    fullName,
+    phone: input.phone,
+    email: input.email,
+    role: input.role,
+    cscsCardNumber: input.cscsCardNumber,
+    cscsExpiry: input.cscsExpiry,
+    inductionStatus: input.inductionStatus,
+    inductionSubmissionId: input.submissionId,
+    siteStatus: "ACTIVE",
+    actor: input.actor ?? "Induction",
+  });
+
+  return {
+    contractorId: contractor.contractorId,
+    contractorName: contractor.contractorName,
+    operativeId: operative.operativeId,
+    operativeName: operative.operativeName,
+  };
 }
 
 export async function updateSiteOperative(input: UpsertSiteOperativeInput & { operativeId: string }) {
@@ -314,15 +372,17 @@ async function ensureSiteOperativeLink(input: UpsertSiteOperativeInput & { opera
     assertNoError(existingError, "Unable to get site operative link");
 
     if (existing) {
+      const updatePayload = {
+        project_id: input.projectId ?? null,
+        contractor_id: input.contractorId,
+        induction_status: inductionStatus,
+        ...(input.inductionSubmissionId !== undefined ? { induction_submission_id: input.inductionSubmissionId } : {}),
+        status: siteStatus,
+        updated_at: input.now,
+      };
       const { error } = await supabase
         .from("site_operatives")
-        .update({
-          project_id: input.projectId ?? null,
-          contractor_id: input.contractorId,
-          induction_status: inductionStatus,
-          status: siteStatus,
-          updated_at: input.now,
-        })
+        .update(updatePayload)
         .eq("id", String(existing.id));
       assertNoError(error, "Unable to update site operative");
       return;
@@ -334,6 +394,7 @@ async function ensureSiteOperativeLink(input: UpsertSiteOperativeInput & { opera
       project_id: input.projectId ?? null,
       contractor_id: input.contractorId,
       operative_id: input.operativeId,
+      induction_submission_id: input.inductionSubmissionId ?? null,
       induction_status: inductionStatus,
       status: siteStatus,
       created_at: input.now,
@@ -351,18 +412,30 @@ async function ensureSiteOperativeLink(input: UpsertSiteOperativeInput & { opera
     getDb()
       .prepare(
         `UPDATE site_operatives
-         SET project_id = ?, contractor_id = ?, induction_status = ?, status = ?, updated_at = ?
+         SET project_id = ?, contractor_id = ?, induction_submission_id = COALESCE(?, induction_submission_id),
+             induction_status = ?, status = ?, updated_at = ?
          WHERE id = ?`,
       )
-      .run(input.projectId ?? null, input.contractorId, inductionStatus, siteStatus, input.now, existing.id);
+      .run(input.projectId ?? null, input.contractorId, input.inductionSubmissionId ?? null, inductionStatus, siteStatus, input.now, existing.id);
     return;
   }
 
   getDb()
     .prepare(
       `INSERT INTO site_operatives
-       (id, site_id, project_id, contractor_id, operative_id, induction_status, status, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       (id, site_id, project_id, contractor_id, operative_id, induction_submission_id, induction_status, status, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
-    .run(randomUUID(), input.siteId, input.projectId ?? null, input.contractorId, input.operativeId, inductionStatus, siteStatus, input.now, input.now);
+    .run(
+      randomUUID(),
+      input.siteId,
+      input.projectId ?? null,
+      input.contractorId,
+      input.operativeId,
+      input.inductionSubmissionId ?? null,
+      inductionStatus,
+      siteStatus,
+      input.now,
+      input.now,
+    );
 }

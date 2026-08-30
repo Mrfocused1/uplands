@@ -66,7 +66,10 @@ type ContractorRow = {
 };
 
 function shouldUseSupabaseContractorsDb() {
-  const provider = env("CONTRACTORS_DATABASE_PROVIDER", env("UPLANDS_DATABASE_PROVIDER", process.env.VERCEL && isSupabaseAdminConfigured() ? "supabase" : "sqlite"));
+  const provider = env(
+    "CONTRACTORS_DATABASE_PROVIDER",
+    env("UPLANDS_DATABASE_PROVIDER", env("SUBMISSIONS_DATABASE_PROVIDER", process.env.VERCEL && isSupabaseAdminConfigured() ? "supabase" : "sqlite")),
+  );
   if (provider === "supabase" && !isSupabaseAdminConfigured()) {
     throw new Error("CONTRACTORS_DATABASE_PROVIDER is set to supabase, but Supabase admin environment variables are missing.");
   }
@@ -143,7 +146,7 @@ function escapeFilterValue(value: string) {
 }
 
 export async function createSiteContractor(input: UpsertSiteContractorInput) {
-  const contractor = await ensureSiteContractor({
+  const contractor = await ensureContractorForSite({
     siteId: input.siteId,
     projectId: input.projectId ?? null,
     name: input.name,
@@ -248,14 +251,14 @@ export async function resolvePermitContractor(input: {
     }
   }
 
-  return ensureSiteContractor({
+  return ensureContractorForSite({
     siteId: input.siteId,
     projectId: input.projectId ?? null,
     name: input.contractorName,
   });
 }
 
-async function ensureSiteContractor(input: {
+export async function ensureContractorForSite(input: {
   siteId: string;
   projectId?: string | null;
   name: string;
