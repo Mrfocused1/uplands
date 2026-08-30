@@ -47,6 +47,7 @@ export function portalActionsForSite(siteId?: string): PortalAction[] {
   const formsHref = siteId ? `/admin/sites/${siteId}/forms` : "/admin/forms";
   const ramsHref = siteId ? `/admin/sites/${siteId}/rams` : "/admin/rams";
   const permitsHref = siteId ? `/admin/sites/${siteId}/permits` : "/admin";
+  const contractorsHref = siteId ? `/admin/sites/${siteId}/contractors` : "/admin";
   const editImagesHref = siteId ? `/admin/sites/${siteId}/edit-images` : "/edit-images";
   const formReturn = siteId ? encodeURIComponent(formsHref) : formsHref;
 
@@ -68,6 +69,12 @@ export function portalActionsForSite(siteId?: string): PortalAction[] {
       summary: "Create structured permits, manage authorisation, capture acceptance and close completed works.",
       href: permitsHref,
       label: "Open permits",
+    },
+    {
+      title: "Contractors",
+      summary: "Manage site contractor records, contacts, trade packages and linked permits, RAMS and induction records.",
+      href: contractorsHref,
+      label: "Open contractors",
     },
     {
       title: "Forms",

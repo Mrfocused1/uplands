@@ -5,6 +5,8 @@ import { env, isSupabaseAdminConfigured } from "@/lib/env";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 export type SiteActivityEventType =
+  | "contractor_added"
+  | "contractor_updated"
   | "permit_created"
   | "permit_updated"
   | "permit_submitted"

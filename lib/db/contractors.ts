@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 
 import { getDb } from "@/lib/db";
+import { recordSiteActivity } from "@/lib/db/activity";
 import { env, isSupabaseAdminConfigured } from "@/lib/env";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
@@ -33,6 +34,25 @@ export type SiteContractorRow = {
   updated_at: string;
 };
 
+export type SiteContractorSummaryRow = SiteContractorRow & {
+  permit_count: number;
+  rams_count: number;
+  induction_count: number;
+};
+
+export type UpsertSiteContractorInput = {
+  siteId: string;
+  projectId?: string | null;
+  contractorId?: string | null;
+  name: string;
+  trade?: string | null;
+  siteStatus?: string | null;
+  primaryContactName?: string | null;
+  primaryContactEmail?: string | null;
+  primaryContactPhone?: string | null;
+  actor?: string | null;
+};
+
 type ContractorRow = {
   id: string;
   name: string;
@@ -60,12 +80,13 @@ function assertNoError(error: { code?: string; message: string } | null, action:
   throw new Error(`${action}: ${error.message}`);
 }
 
-export async function listSiteContractors(siteId: string): Promise<SiteContractorRow[]> {
+export async function listSiteContractors(siteId: string): Promise<SiteContractorSummaryRow[]> {
   if (shouldUseSupabaseContractorsDb()) {
     const supabase = createSupabaseAdminClient();
     const { data, error } = await supabase.from("contractors_by_site").select("*").eq("site_id", siteId).order("name");
     assertNoError(error, "Unable to list site contractors");
-    return (data ?? []) as SiteContractorRow[];
+    const rows = (data ?? []) as SiteContractorRow[];
+    return Promise.all(rows.map((row) => withSupabaseCounts(supabase, row)));
   }
 
   return getDb()
@@ -83,13 +104,128 @@ export async function listSiteContractors(siteId: string): Promise<SiteContracto
          c.primary_contact_email,
          c.primary_contact_phone,
          sc.created_at,
-         sc.updated_at
+         sc.updated_at,
+         (SELECT COUNT(*) FROM permits p WHERE p.site_id = sc.site_id AND (p.contractor_id = c.id OR p.contractor = c.name)) AS permit_count,
+         (SELECT COUNT(*) FROM rams_documents r WHERE r.site_id = sc.site_id AND r.contractor = c.name) AS rams_count,
+         (SELECT COUNT(*) FROM submissions s WHERE s.site_id = sc.site_id AND s.company_name = c.name) AS induction_count
        FROM site_contractors sc
        JOIN contractors c ON c.id = sc.contractor_id
        WHERE sc.site_id = ?
        ORDER BY c.name COLLATE NOCASE`,
     )
-    .all(siteId) as SiteContractorRow[];
+    .all(siteId) as SiteContractorSummaryRow[];
+}
+
+async function withSupabaseCounts(supabase: ReturnType<typeof createSupabaseAdminClient>, row: SiteContractorRow): Promise<SiteContractorSummaryRow> {
+  const [permits, rams, inductions] = await Promise.all([
+    supabase.from("permits").select("id", { count: "exact", head: true }).eq("site_id", row.site_id).or(`contractor_id.eq.${row.contractor_id},contractor.eq.${escapeFilterValue(row.name)}`),
+    supabase.from("rams_documents").select("id", { count: "exact", head: true }).eq("site_id", row.site_id).eq("contractor", row.name),
+    supabase.from("submissions").select("id", { count: "exact", head: true }).eq("site_id", row.site_id).eq("company_name", row.name),
+  ]);
+  assertNoError(permits.error, "Unable to count contractor permits");
+  assertNoError(rams.error, "Unable to count contractor RAMS");
+  assertNoError(inductions.error, "Unable to count contractor inductions");
+  return {
+    ...row,
+    permit_count: permits.count ?? 0,
+    rams_count: rams.count ?? 0,
+    induction_count: inductions.count ?? 0,
+  };
+}
+
+function escapeFilterValue(value: string) {
+  return value.replaceAll("\\", "\\\\").replaceAll(",", "\\,").replaceAll(")", "\\)");
+}
+
+export async function createSiteContractor(input: UpsertSiteContractorInput) {
+  const contractor = await ensureSiteContractor({
+    siteId: input.siteId,
+    projectId: input.projectId ?? null,
+    name: input.name,
+    trade: input.trade,
+    siteStatus: input.siteStatus,
+    primaryContactName: input.primaryContactName,
+    primaryContactEmail: input.primaryContactEmail,
+    primaryContactPhone: input.primaryContactPhone,
+  });
+
+  await recordSiteActivity({
+    siteId: input.siteId,
+    projectId: input.projectId ?? null,
+    entityType: "contractor",
+    entityId: contractor.contractorId,
+    eventType: "contractor_added",
+    title: "Contractor added",
+    detail: contractor.contractorName,
+    actor: input.actor ?? null,
+    metadata: { contractorId: contractor.contractorId },
+  });
+
+  return contractor;
+}
+
+export async function updateSiteContractor(input: UpsertSiteContractorInput & { contractorId: string }) {
+  const name = input.name.trim();
+  if (!name) throw new Error("Contractor name is required.");
+  const now = new Date().toISOString();
+  const siteStatus = normaliseSiteStatus(input.siteStatus);
+
+  if (shouldUseSupabaseContractorsDb()) {
+    const supabase = createSupabaseAdminClient();
+    const { error: contractorError } = await supabase
+      .from("contractors")
+      .update({
+        name,
+        primary_contact_name: input.primaryContactName ?? null,
+        primary_contact_email: input.primaryContactEmail ?? null,
+        primary_contact_phone: input.primaryContactPhone ?? null,
+        updated_at: now,
+      })
+      .eq("id", input.contractorId);
+    assertNoError(contractorError, "Unable to update contractor");
+
+    const { error: siteError } = await supabase
+      .from("site_contractors")
+      .update({
+        project_id: input.projectId ?? null,
+        trade: input.trade ?? null,
+        status: siteStatus,
+        updated_at: now,
+      })
+      .eq("site_id", input.siteId)
+      .eq("contractor_id", input.contractorId);
+    assertNoError(siteError, "Unable to update site contractor");
+  } else {
+    getDb()
+      .prepare(
+        `UPDATE contractors
+         SET name = ?, primary_contact_name = ?, primary_contact_email = ?, primary_contact_phone = ?, updated_at = ?
+         WHERE id = ?`,
+      )
+      .run(name, input.primaryContactName ?? null, input.primaryContactEmail ?? null, input.primaryContactPhone ?? null, now, input.contractorId);
+
+    getDb()
+      .prepare(
+        `UPDATE site_contractors
+         SET project_id = ?, trade = ?, status = ?, updated_at = ?
+         WHERE site_id = ? AND contractor_id = ?`,
+      )
+      .run(input.projectId ?? null, input.trade ?? null, siteStatus, now, input.siteId, input.contractorId);
+  }
+
+  await recordSiteActivity({
+    siteId: input.siteId,
+    projectId: input.projectId ?? null,
+    entityType: "contractor",
+    entityId: input.contractorId,
+    eventType: "contractor_updated",
+    title: "Contractor updated",
+    detail: name,
+    actor: input.actor ?? null,
+    metadata: { contractorId: input.contractorId, siteStatus },
+  });
+
+  return { contractorId: input.contractorId, contractorName: name };
 }
 
 export async function resolvePermitContractor(input: {
@@ -114,13 +250,40 @@ export async function resolvePermitContractor(input: {
   });
 }
 
-async function ensureSiteContractor(input: { siteId: string; projectId?: string | null; name: string }) {
+async function ensureSiteContractor(input: {
+  siteId: string;
+  projectId?: string | null;
+  name: string;
+  trade?: string | null;
+  siteStatus?: string | null;
+  primaryContactName?: string | null;
+  primaryContactEmail?: string | null;
+  primaryContactPhone?: string | null;
+}) {
   const name = input.name.trim();
   if (!name) throw new Error("Contractor is required.");
 
   const existing = await getContractorByName(name);
-  const contractor = existing ?? (await createContractor(name));
-  await ensureSiteContractorLink(input.siteId, input.projectId ?? null, contractor.id);
+  const contractor = existing ?? (await createContractor({
+    name,
+    primaryContactName: input.primaryContactName ?? null,
+    primaryContactEmail: input.primaryContactEmail ?? null,
+    primaryContactPhone: input.primaryContactPhone ?? null,
+  }));
+  if (existing) {
+    await updateContractorContact(contractor.id, {
+      primaryContactName: input.primaryContactName,
+      primaryContactEmail: input.primaryContactEmail,
+      primaryContactPhone: input.primaryContactPhone,
+    });
+  }
+  await ensureSiteContractorLink(
+    input.siteId,
+    input.projectId ?? null,
+    contractor.id,
+    input.trade ?? null,
+    input.siteStatus === undefined ? undefined : normaliseSiteStatus(input.siteStatus),
+  );
   return { contractorId: contractor.id, contractorName: contractor.name };
 }
 
@@ -144,7 +307,12 @@ async function getContractorByName(name: string): Promise<ContractorRow | null> 
   return (getDb().prepare("SELECT * FROM contractors WHERE name = ?").get(name) as ContractorRow | undefined) ?? null;
 }
 
-async function createContractor(name: string): Promise<ContractorRow> {
+async function createContractor(input: {
+  name: string;
+  primaryContactName?: string | null;
+  primaryContactEmail?: string | null;
+  primaryContactPhone?: string | null;
+}): Promise<ContractorRow> {
   const id = randomUUID();
   const now = new Date().toISOString();
 
@@ -152,11 +320,20 @@ async function createContractor(name: string): Promise<ContractorRow> {
     const supabase = createSupabaseAdminClient();
     const { data, error } = await supabase
       .from("contractors")
-      .insert({ id, name, status: "ACTIVE", created_at: now, updated_at: now })
+      .insert({
+        id,
+        name: input.name,
+        status: "ACTIVE",
+        primary_contact_name: input.primaryContactName ?? null,
+        primary_contact_email: input.primaryContactEmail ?? null,
+        primary_contact_phone: input.primaryContactPhone ?? null,
+        created_at: now,
+        updated_at: now,
+      })
       .select("*")
       .single();
     if (error?.code === "23505") {
-      const existing = await getContractorByName(name);
+      const existing = await getContractorByName(input.name);
       if (existing) return existing;
     }
     assertNoError(error, "Unable to create contractor");
@@ -164,23 +341,62 @@ async function createContractor(name: string): Promise<ContractorRow> {
   }
 
   getDb()
-    .prepare("INSERT INTO contractors (id, name, status, created_at, updated_at) VALUES (?, ?, 'ACTIVE', ?, ?)")
-    .run(id, name, now, now);
+    .prepare(
+      `INSERT INTO contractors
+       (id, name, status, primary_contact_name, primary_contact_email, primary_contact_phone, created_at, updated_at)
+       VALUES (?, ?, 'ACTIVE', ?, ?, ?, ?, ?)`,
+    )
+    .run(id, input.name, input.primaryContactName ?? null, input.primaryContactEmail ?? null, input.primaryContactPhone ?? null, now, now);
   return {
     id,
-    name,
+    name: input.name,
     status: "ACTIVE",
-    primary_contact_name: null,
-    primary_contact_email: null,
-    primary_contact_phone: null,
+    primary_contact_name: input.primaryContactName ?? null,
+    primary_contact_email: input.primaryContactEmail ?? null,
+    primary_contact_phone: input.primaryContactPhone ?? null,
     created_at: now,
     updated_at: now,
   };
 }
 
-async function ensureSiteContractorLink(siteId: string, projectId: string | null, contractorId: string) {
+async function updateContractorContact(
+  contractorId: string,
+  input: { primaryContactName?: string | null; primaryContactEmail?: string | null; primaryContactPhone?: string | null },
+) {
+  if (input.primaryContactName === undefined && input.primaryContactEmail === undefined && input.primaryContactPhone === undefined) return;
+  const now = new Date().toISOString();
+
+  if (shouldUseSupabaseContractorsDb()) {
+    const { error } = await createSupabaseAdminClient()
+      .from("contractors")
+      .update({
+        primary_contact_name: input.primaryContactName ?? null,
+        primary_contact_email: input.primaryContactEmail ?? null,
+        primary_contact_phone: input.primaryContactPhone ?? null,
+        updated_at: now,
+      })
+      .eq("id", contractorId);
+    assertNoError(error, "Unable to update contractor contact");
+    return;
+  }
+
+  getDb()
+    .prepare(
+      `UPDATE contractors
+       SET primary_contact_name = ?, primary_contact_email = ?, primary_contact_phone = ?, updated_at = ?
+       WHERE id = ?`,
+    )
+    .run(input.primaryContactName ?? null, input.primaryContactEmail ?? null, input.primaryContactPhone ?? null, now, contractorId);
+}
+
+function normaliseSiteStatus(value: string | null | undefined) {
+  return value === "INACTIVE" || value === "ARCHIVED" ? value : "ACTIVE";
+}
+
+async function ensureSiteContractorLink(siteId: string, projectId: string | null, contractorId: string, trade?: string | null, siteStatus?: string | null) {
   const id = randomUUID();
   const now = new Date().toISOString();
+  const status = siteStatus ?? "ACTIVE";
 
   if (shouldUseSupabaseContractorsDb()) {
     const supabase = createSupabaseAdminClient();
@@ -195,7 +411,12 @@ async function ensureSiteContractorLink(siteId: string, projectId: string | null
     if (existing) {
       const { error } = await supabase
         .from("site_contractors")
-        .update({ project_id: projectId, status: "ACTIVE", updated_at: now })
+        .update({
+          project_id: projectId,
+          ...(trade !== undefined ? { trade } : {}),
+          ...(siteStatus ? { status } : {}),
+          updated_at: now,
+        })
         .eq("id", String(existing.id));
       assertNoError(error, "Unable to update contractor site link");
       return;
@@ -206,7 +427,8 @@ async function ensureSiteContractorLink(siteId: string, projectId: string | null
       site_id: siteId,
       project_id: projectId,
       contractor_id: contractorId,
-      status: "ACTIVE",
+      trade: trade ?? null,
+      status,
       created_at: now,
       updated_at: now,
     });
@@ -214,14 +436,27 @@ async function ensureSiteContractorLink(siteId: string, projectId: string | null
     return;
   }
 
+  const existing = getDb().prepare("SELECT id FROM site_contractors WHERE site_id = ? AND contractor_id = ?").get(siteId, contractorId) as { id: string } | undefined;
+
+  if (existing) {
+    getDb()
+      .prepare(
+        `UPDATE site_contractors
+         SET
+           project_id = COALESCE(?, project_id),
+           trade = COALESCE(?, trade),
+           status = COALESCE(?, status),
+           updated_at = ?
+         WHERE id = ?`,
+      )
+      .run(projectId, trade ?? null, siteStatus ?? null, now, existing.id);
+    return;
+  }
+
   getDb()
     .prepare(
-      `INSERT INTO site_contractors (id, site_id, project_id, contractor_id, status, created_at, updated_at)
-       VALUES (?, ?, ?, ?, 'ACTIVE', ?, ?)
-       ON CONFLICT(site_id, contractor_id) DO UPDATE SET
-         project_id = COALESCE(excluded.project_id, site_contractors.project_id),
-         status = 'ACTIVE',
-         updated_at = excluded.updated_at`,
+      `INSERT INTO site_contractors (id, site_id, project_id, contractor_id, trade, status, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     )
-    .run(id, siteId, projectId, contractorId, now, now);
+    .run(id, siteId, projectId, contractorId, trade ?? null, status, now, now);
 }

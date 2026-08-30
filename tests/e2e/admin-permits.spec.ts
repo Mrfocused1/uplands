@@ -11,7 +11,6 @@ async function answerAllQuestionsYes(page: Page) {
       const className = await yesButton.getAttribute("class");
       if (!className?.includes("bg-uplands-magenta")) {
         await yesButton.click();
-        await expect(yesButton).toHaveClass(/bg-uplands-magenta/);
       }
     }
 

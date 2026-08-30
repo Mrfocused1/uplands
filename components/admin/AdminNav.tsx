@@ -12,6 +12,7 @@ export function AdminNav({ adminName }: { adminName?: string }) {
   const formsHref = siteId ? `/admin/sites/${siteId}/forms` : "/admin/forms";
   const ramsHref = siteId ? `/admin/sites/${siteId}/rams` : "/admin/rams";
   const permitsHref = siteId ? `/admin/sites/${siteId}/permits` : "/admin";
+  const contractorsHref = siteId ? `/admin/sites/${siteId}/contractors` : "/admin";
   const editImagesHref = siteId ? `/admin/sites/${siteId}/edit-images` : "/edit-images";
 
   const linkClass = (href: string) =>
@@ -55,6 +56,9 @@ export function AdminNav({ adminName }: { adminName?: string }) {
                 </Link>
                 <Link href={permitsHref} className={linkClass(permitsHref)}>
                   Permits
+                </Link>
+                <Link href={contractorsHref} className={linkClass(contractorsHref)}>
+                  Contractors
                 </Link>
                 <Link href={editImagesHref} className={linkClass(editImagesHref)}>
                   Edit Images
@@ -104,6 +108,9 @@ export function AdminNav({ adminName }: { adminName?: string }) {
                   </Link>
                   <Link className={`${linkClass(permitsHref)} block py-3`} href={permitsHref}>
                     Permits
+                  </Link>
+                  <Link className={`${linkClass(contractorsHref)} block py-3`} href={contractorsHref}>
+                    Contractors
                   </Link>
                   <Link className={`${linkClass(editImagesHref)} block py-3`} href={editImagesHref}>
                     Edit Images
