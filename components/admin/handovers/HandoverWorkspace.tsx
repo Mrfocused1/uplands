@@ -32,6 +32,13 @@ type HandoverRecord = {
   updatedAt: string;
 };
 
+type HandoverPrefill = {
+  summary: string;
+  contractorsPresent: string;
+  permitsSummary: string;
+  outstandingActions: string;
+};
+
 type FormState = {
   handoverId: string | null;
   handoverDate: string;
@@ -96,7 +103,7 @@ function statusClasses(status: HandoverStatus) {
   return "border-zinc-300 bg-white text-zinc-700";
 }
 
-export function HandoverWorkspace({ site, initialHandovers }: { site: Site; initialHandovers: HandoverRecord[] }) {
+export function HandoverWorkspace({ site, initialHandovers, prefill }: { site: Site; initialHandovers: HandoverRecord[]; prefill: HandoverPrefill }) {
   const [records, setRecords] = useState(initialHandovers);
   const [form, setForm] = useState<FormState>(emptyForm);
   const [message, setMessage] = useState("");
@@ -110,6 +117,17 @@ export function HandoverWorkspace({ site, initialHandovers }: { site: Site; init
 
   function updateField<Key extends keyof FormState>(key: Key, value: FormState[Key]) {
     setForm((current) => ({ ...current, [key]: value }));
+  }
+
+  function useSiteSnapshot() {
+    setForm((current) => ({
+      ...current,
+      summary: current.summary || prefill.summary,
+      contractorsPresent: current.contractorsPresent || prefill.contractorsPresent,
+      permitsSummary: current.permitsSummary || prefill.permitsSummary,
+      outstandingActions: current.outstandingActions || prefill.outstandingActions,
+    }));
+    setMessage("Site snapshot added");
   }
 
   async function save(status: HandoverStatus) {
@@ -182,6 +200,9 @@ export function HandoverWorkspace({ site, initialHandovers }: { site: Site; init
           <p className="text-xs font-bold uppercase tracking-[0.22em] text-uplands-magenta">Shift Record</p>
           <h2 className="mt-1 font-slab text-2xl text-uplands-charcoal">{form.handoverId ? "Edit Handover" : "New Handover"}</h2>
           <div className="mt-4 grid gap-3">
+            <button type="button" onClick={useSiteSnapshot} className="min-h-10 w-fit border border-zinc-300 px-3 text-xs font-bold uppercase text-zinc-700 hover:border-uplands-magenta hover:text-uplands-magenta">
+              Use Site Snapshot
+            </button>
             <label>
               <span className="text-xs font-bold uppercase text-zinc-700">Date</span>
               <input type="date" value={form.handoverDate} onChange={(event) => updateField("handoverDate", event.target.value)} className="mt-1 min-h-11 w-full border border-zinc-300 px-3 text-sm" />

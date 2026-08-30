@@ -15,6 +15,8 @@ test("admin can draft, submit and review a day handover", async ({ page }, testI
   await expect(page.getByRole("heading", { name: "Waitrose Newport" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "New Handover" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Back to admin" })).toHaveAttribute("href", "/admin/sites/newport");
+  await page.getByRole("button", { name: "Use Site Snapshot" }).click();
+  await expect(page.getByText("Site snapshot added")).toBeVisible();
 
   await page.getByLabel("Shift").selectOption("DAY");
   await page.getByLabel("Site Manager").fill(managerName);
@@ -46,4 +48,9 @@ test("admin can draft, submit and review a day handover", async ({ page }, testI
   await expect(history).toContainText(managerName);
   await expect(history).toContainText(workCompleted);
   await expect(history).toContainText(outstandingAction);
+
+  await page.goto("/admin/sites/newport");
+  const handoverCard = page.getByRole("link", { name: /Handover/i }).filter({ hasText: "Handover" }).first();
+  await expect(handoverCard).toHaveAttribute("href", "/admin/sites/newport/handover");
+  await expect(handoverCard).toContainText("Handover");
 });

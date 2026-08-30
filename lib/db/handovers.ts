@@ -2,6 +2,8 @@ import { randomUUID } from "node:crypto";
 
 import { getDb } from "@/lib/db";
 import { recordSiteActivity, type SiteActivityEventType } from "@/lib/db/activity";
+import { isAttendanceDatabaseSetupError, listAttendanceBySite } from "@/lib/db/attendance";
+import { isPermitDatabaseSetupError, listPriorityPermitsBySite } from "@/lib/db/permits";
 import { env, isSupabaseAdminConfigured } from "@/lib/env";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
@@ -61,6 +63,27 @@ export type UpsertHandoverInput = {
   outstandingActions?: string | null;
   nextShiftNotes?: string | null;
   actor?: string | null;
+};
+
+export type HandoverDashboardSummary = {
+  latest: {
+    id: string;
+    handoverDate: string;
+    shift: HandoverShift;
+    status: HandoverStatus;
+    managerName: string | null;
+    updatedAt: string;
+    href: string;
+  } | null;
+  unacknowledged: number;
+  outstandingActions: number;
+};
+
+export type HandoverPrefill = {
+  summary: string;
+  contractorsPresent: string;
+  permitsSummary: string;
+  outstandingActions: string;
 };
 
 function shouldUseSupabaseHandoverDb() {
@@ -141,6 +164,54 @@ export async function listHandoversBySite(siteId: string, limit = 50): Promise<S
        LIMIT ?`,
     )
     .all(siteId, limit) as SiteHandoverRow[];
+}
+
+export async function getHandoverDashboardSummary(siteId: string): Promise<HandoverDashboardSummary> {
+  const rows = await listHandoversBySite(siteId, 20);
+  const latest = rows[0] ?? null;
+  return {
+    latest: latest
+      ? {
+          id: latest.id,
+          handoverDate: latest.handover_date,
+          shift: latest.shift,
+          status: latest.status,
+          managerName: latest.manager_name,
+          updatedAt: latest.updated_at,
+          href: `/admin/sites/${encodeURIComponent(siteId)}/handover`,
+        }
+      : null,
+    unacknowledged: rows.filter((row) => row.status === "SUBMITTED").length,
+    outstandingActions: rows.filter((row) => row.status !== "ACKNOWLEDGED" && Boolean(row.outstanding_actions?.trim())).length,
+  };
+}
+
+export async function buildHandoverPrefill(siteId: string): Promise<HandoverPrefill> {
+  const [attendance, permits] = await Promise.all([
+    listAttendanceBySite(siteId, 120).catch((error) => {
+      if (isAttendanceDatabaseSetupError(error)) return [];
+      throw error;
+    }),
+    listPriorityPermitsBySite(siteId, 12).catch((error) => {
+      if (isPermitDatabaseSetupError(error)) return [];
+      throw error;
+    }),
+  ]);
+  const signedIn = attendance.filter((record) => record.status === "SIGNED_IN");
+  const contractors = Array.from(new Set(signedIn.map((record) => record.contractor_name ?? record.contractor_id).filter(Boolean))).sort();
+  const activePermits = permits.filter((permit) => permit.status === "ACTIVE" || permit.status === "AUTHORISED" || permit.status === "WORK_COMPLETED");
+
+  return {
+    summary: `${signedIn.length} people currently signed in. ${activePermits.length} open permits in the permit watch list.`,
+    contractorsPresent: contractors.join("\n"),
+    permitsSummary: activePermits
+      .map((permit) => `${permit.permit_number} - ${permit.template_title ?? permit.template_code ?? "Permit"} - ${permit.contractor} - ${permit.status} until ${permit.valid_to_time}`)
+      .join("\n"),
+    outstandingActions: activePermits
+      .filter((permit) => permit.status === "WORK_COMPLETED" || !permit.rams_document_id)
+      .map((permit) => `${permit.permit_number} - ${permit.status === "WORK_COMPLETED" ? "awaiting final closure" : "missing linked RAMS"}`)
+      .join("\n"),
+  };
 }
 
 export async function createHandover(siteId: string, input: UpsertHandoverInput) {

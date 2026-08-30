@@ -20,6 +20,10 @@ function formatPermitExpiry(date: string, time: string) {
   return `Expires ${expiry.toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit" })} ${time}`;
 }
 
+function formatShortDate(value: string) {
+  return new Date(value).toLocaleDateString("en-GB", { day: "2-digit", month: "short" });
+}
+
 export function SiteWorkspace({ site, summary }: { site: SiteRow; summary: SiteWorkspaceSummary }) {
   const portalSite = portalSiteFromRow(site);
   const actions = portalActionsForSite(site.id);
@@ -83,7 +87,7 @@ export function SiteWorkspace({ site, summary }: { site: SiteRow; summary: SiteW
           <span className="w-fit border border-zinc-300 px-2.5 py-1 text-xs font-bold uppercase text-zinc-700">{portalSite.status}</span>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
           <article className="border border-zinc-200 bg-uplands-paper p-4">
             <p className="text-xs font-bold uppercase text-uplands-muted">Attendance</p>
             <p className="mt-2 font-slab text-4xl text-uplands-charcoal">{summary.peopleOnSite}</p>
@@ -105,6 +109,16 @@ export function SiteWorkspace({ site, summary }: { site: SiteRow; summary: SiteW
             <p className="mt-1 text-sm text-uplands-muted">{summary.permits.expiringSoon} expiring soon, {summary.permits.awaitingClosure} awaiting closure</p>
             {summary.permits.missingLinkedRams > 0 && <p className="mt-2 text-xs font-bold uppercase text-amber-800">{summary.permits.missingLinkedRams} missing linked RAMS</p>}
           </article>
+          <Link href={`/admin/sites/${site.id}/handover`} className="border border-zinc-200 bg-uplands-paper p-4 transition hover:border-uplands-magenta hover:shadow-soft">
+            <p className="text-xs font-bold uppercase text-uplands-muted">Handover</p>
+            <p className="mt-2 font-slab text-4xl text-uplands-charcoal">{summary.handover.unacknowledged}</p>
+            <p className="mt-1 text-sm text-uplands-muted">
+              {summary.handover.latest
+                ? `${summary.handover.latest.shift.toLowerCase()} ${summary.handover.latest.status.toLowerCase()} · ${formatShortDate(summary.handover.latest.handoverDate)}`
+                : "no handover yet"}
+            </p>
+            {summary.handover.outstandingActions > 0 && <p className="mt-2 text-xs font-bold uppercase text-amber-800">{summary.handover.outstandingActions} with actions</p>}
+          </Link>
         </div>
       </section>
 

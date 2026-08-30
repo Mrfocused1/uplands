@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 
 import { HandoverWorkspace } from "@/components/admin/handovers/HandoverWorkspace";
-import { isHandoverDatabaseSetupError, listHandoversBySite } from "@/lib/db/handovers";
+import { buildHandoverPrefill, isHandoverDatabaseSetupError, listHandoversBySite } from "@/lib/db/handovers";
 import { getSite } from "@/lib/db/sites";
 
 export const metadata = {
@@ -14,8 +14,9 @@ export default async function SiteHandoverPage({ params }: { params: Promise<{ s
   if (!site) notFound();
 
   let handovers;
+  let prefill;
   try {
-    handovers = await listHandoversBySite(site.id);
+    [handovers, prefill] = await Promise.all([listHandoversBySite(site.id), buildHandoverPrefill(site.id)]);
   } catch (error) {
     if (!isHandoverDatabaseSetupError(error)) throw error;
     return (
@@ -53,7 +54,8 @@ export default async function SiteHandoverPage({ params }: { params: Promise<{ s
         createdBy: handover.created_by,
         createdAt: handover.created_at,
         updatedAt: handover.updated_at,
-      }))}
-    />
+        }))}
+        prefill={prefill}
+      />
   );
 }
