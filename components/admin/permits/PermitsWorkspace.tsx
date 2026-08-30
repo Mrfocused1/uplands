@@ -208,7 +208,6 @@ export function PermitsWorkspace({ site, templates, initialPermits }: { site: Si
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Unable to create permit.");
       await refreshPermits(data.id);
-      setDetail(await fetchPermitDetail(data.id));
       event.currentTarget.reset();
       setSelectedTemplateId(templates[0]?.id ?? "");
     } catch (caught) {

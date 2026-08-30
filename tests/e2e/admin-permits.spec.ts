@@ -231,3 +231,55 @@ test("admin can create and authorise a cherry picker permit", async ({ page }) =
   expect(response.ok()).toBe(true);
   expect(response.headers()["content-type"]).toContain("application/pdf");
 });
+
+test("admin can create and authorise an excavation permit", async ({ page }) => {
+  test.setTimeout(60_000);
+
+  const contractor = `Excavation Permit Test ${Date.now()}`;
+
+  await page.goto("/admin/sites/newport/permits");
+  await expect(page.getByRole("heading", { name: "Waitrose Newport" })).toBeVisible();
+
+  await choosePermitType(page, "Excavation Permit");
+  await expect(page.locator("form").getByRole("heading", { name: "Excavation Permit" })).toBeVisible();
+
+  await page.getByPlaceholder("Contractor").fill(contractor);
+  await page.getByPlaceholder("Location of work").fill("Rear service trench");
+  await page.getByPlaceholder("Description of work").fill("Excavate shallow trench for service investigation.");
+  await page.getByRole("button", { name: "Create Permit" }).click();
+
+  await expect(page.getByText(contractor).first()).toBeVisible();
+  await expect(page.getByTestId("permit-editor").getByRole("heading", { name: "Excavation Permit" })).toBeVisible();
+  await expect(page.getByText("Services / Drawings / Materials")).toBeVisible();
+  await expect(page.getByText("Atmosphere / Rescue Arrangements")).toBeVisible();
+  await expect(page.getByText("Have all services been located and their positions verified?")).toBeVisible();
+  await expect(page.getByLabel("Contractor")).toHaveValue(contractor);
+
+  const supervisorQuestion = page.locator(".p-4").filter({ hasText: "Has a competent supervisor been appointed?" });
+  await supervisorQuestion.getByPlaceholder("Comment").fill("Excavation supervisor: Matty");
+
+  const servicesQuestion = page.locator(".p-4").filter({ hasText: "Have all services been located and their positions verified?" });
+  await servicesQuestion.getByPlaceholder("Comment").fill("Drawing UCB-EX-01 checked and CAT scan completed.");
+
+  await answerAllQuestionsYes(page);
+
+  const submitForReview = page.getByRole("button", { name: "Submit for Review" });
+  await expect(submitForReview).toBeEnabled();
+  await submitForReview.click();
+  await expect(page.getByText("Permit submitted for review").first()).toBeVisible();
+
+  const managerSignature = page.locator("article").filter({ has: page.getByRole("heading", { name: "Uplands Site Manager Authorisation" }) });
+  await managerSignature.getByPlaceholder("Name").fill("Matty");
+  await managerSignature.getByPlaceholder("Company").fill("Uplands");
+  await managerSignature.getByPlaceholder("Position").fill("Site Manager");
+
+  await page.getByRole("button", { name: "Authorise Permit" }).click();
+  await expect(page.getByText("AUTHORISED").first()).toBeVisible();
+  await expect(page.getByText("Permit authorised").first()).toBeVisible();
+
+  const pdfHref = await page.getByRole("link", { name: "Download PDF" }).getAttribute("href");
+  expect(pdfHref).toBeTruthy();
+  const response = await page.request.get(pdfHref!);
+  expect(response.ok()).toBe(true);
+  expect(response.headers()["content-type"]).toContain("application/pdf");
+});
