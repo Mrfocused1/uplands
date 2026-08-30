@@ -46,6 +46,7 @@ export function portalSiteFromRow(site: SiteRow): PortalSite {
 export function portalActionsForSite(siteId?: string): PortalAction[] {
   const formsHref = siteId ? `/admin/sites/${siteId}/forms` : "/admin/forms";
   const ramsHref = siteId ? `/admin/sites/${siteId}/rams` : "/admin/rams";
+  const permitsHref = siteId ? `/admin/sites/${siteId}/permits` : "/admin";
   const editImagesHref = siteId ? `/admin/sites/${siteId}/edit-images` : "/edit-images";
   const formReturn = siteId ? encodeURIComponent(formsHref) : formsHref;
 
@@ -61,6 +62,12 @@ export function portalActionsForSite(siteId?: string): PortalAction[] {
       summary: "Open contractor RAMS, review completed UHSF16.01 forms, search document intelligence and use the RAMS copilot.",
       href: ramsHref,
       label: "Open RAMS",
+    },
+    {
+      title: "Permits",
+      summary: "Create structured permits, manage authorisation, capture acceptance and close completed works.",
+      href: permitsHref,
+      label: "Open permits",
     },
     {
       title: "Forms",

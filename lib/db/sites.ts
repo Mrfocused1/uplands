@@ -1,5 +1,6 @@
 import { DEFAULT_SITE_SEEDS } from "@/config/siteSeeds";
 import { getDb } from "@/lib/db";
+import { countPermitsBySite } from "@/lib/db/permits";
 import { env, isSupabaseAdminConfigured } from "@/lib/env";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
@@ -156,8 +157,8 @@ export async function getSiteWorkspaceSummary(siteId: string): Promise<SiteWorks
   const site = await getSite(siteId);
   if (!site) return buildSummary([], []);
 
-  const [inductionRows, ramsRows] = await Promise.all([listSiteSummaryInductions(site), listSiteSummaryRams(site)]);
-  return buildSummary(inductionRows, ramsRows);
+  const [inductionRows, ramsRows, permits] = await Promise.all([listSiteSummaryInductions(site), listSiteSummaryRams(site), countPermitsBySite(site.id)]);
+  return buildSummary(inductionRows, ramsRows, permits);
 }
 
 async function listSiteSummaryInductions(site: SiteRow) {
@@ -236,6 +237,7 @@ type SummaryRamsRow = { id: string; title: string; contractor: string; site_name
 function buildSummary(
   inductionRows: SummaryInductionRow[],
   ramsRows: SummaryRamsRow[],
+  permits = { active: 0, expiringSoon: 0, awaitingClosure: 0 },
 ): SiteWorkspaceSummary {
   const recentActivity: SiteActivityItem[] = [
     ...inductionRows.map((row) => ({
@@ -269,9 +271,9 @@ function buildSummary(
       processing: ramsRows.filter((row) => row.processing_status === "PROCESSING" || row.processing_status === "UPLOADED").length,
     },
     permits: {
-      active: 0,
-      expiringSoon: 0,
-      awaitingClosure: 0,
+      active: permits.active,
+      expiringSoon: permits.expiringSoon,
+      awaitingClosure: permits.awaitingClosure,
     },
     recentActivity,
   };

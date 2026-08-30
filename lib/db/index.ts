@@ -3,6 +3,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { hashPassword } from "@/lib/auth/password";
+import { PERMIT_TEMPLATES } from "@/config/permitTemplates";
 import { DEFAULT_SITE_SEEDS } from "@/config/siteSeeds";
 import { seedSampleSubmissions } from "@/lib/db/sampleSubmissions";
 
@@ -74,6 +75,90 @@ function migrate(db: Db) {
       updated_at TEXT NOT NULL DEFAULT (datetime('now')),
       UNIQUE(site_id, admin_id, role)
     );
+
+    CREATE TABLE IF NOT EXISTS permit_templates (
+      id TEXT PRIMARY KEY,
+      code TEXT NOT NULL UNIQUE,
+      title TEXT NOT NULL,
+      description TEXT NOT NULL,
+      register_code TEXT NOT NULL,
+      version TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'ACTIVE',
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS permit_template_sections (
+      id TEXT PRIMARY KEY,
+      template_id TEXT NOT NULL REFERENCES permit_templates(id) ON DELETE CASCADE,
+      title TEXT NOT NULL,
+      description TEXT,
+      sort_order INTEGER NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS permit_template_questions (
+      id TEXT PRIMARY KEY,
+      template_id TEXT NOT NULL REFERENCES permit_templates(id) ON DELETE CASCADE,
+      section_id TEXT NOT NULL REFERENCES permit_template_sections(id) ON DELETE CASCADE,
+      question_key TEXT NOT NULL,
+      prompt TEXT NOT NULL,
+      help_text TEXT,
+      answer_type TEXT NOT NULL DEFAULT 'YES_NO_NA',
+      requires_comment_on TEXT,
+      sort_order INTEGER NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      UNIQUE(template_id, question_key)
+    );
+
+    CREATE TABLE IF NOT EXISTS permits (
+      id TEXT PRIMARY KEY,
+      permit_number TEXT NOT NULL UNIQUE,
+      template_id TEXT NOT NULL REFERENCES permit_templates(id),
+      site_id TEXT NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
+      project_id TEXT REFERENCES projects(id) ON DELETE SET NULL,
+      contractor TEXT NOT NULL,
+      location_of_work TEXT NOT NULL,
+      description_of_work TEXT NOT NULL,
+      valid_from_date TEXT NOT NULL,
+      valid_to_date TEXT NOT NULL,
+      valid_from_time TEXT NOT NULL,
+      valid_to_time TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'DRAFT',
+      created_by TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS permit_answers (
+      id TEXT PRIMARY KEY,
+      permit_id TEXT NOT NULL REFERENCES permits(id) ON DELETE CASCADE,
+      question_key TEXT NOT NULL,
+      answer TEXT NOT NULL,
+      comment TEXT,
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      UNIQUE(permit_id, question_key)
+    );
+
+    CREATE TABLE IF NOT EXISTS permit_signatures (
+      id TEXT PRIMARY KEY,
+      permit_id TEXT NOT NULL REFERENCES permits(id) ON DELETE CASCADE,
+      signature_key TEXT NOT NULL,
+      role TEXT NOT NULL,
+      name TEXT NOT NULL,
+      company TEXT,
+      position TEXT,
+      signed_at TEXT NOT NULL,
+      signature_data_url TEXT,
+      action TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      UNIQUE(permit_id, signature_key)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_permits_site ON permits(site_id, status, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_permit_answers_permit ON permit_answers(permit_id);
+    CREATE INDEX IF NOT EXISTS idx_permit_signatures_permit ON permit_signatures(permit_id);
 
     CREATE TABLE IF NOT EXISTS submissions (
       id TEXT PRIMARY KEY,
@@ -252,6 +337,68 @@ function seedAdmin(db: Db) {
   );
 }
 
+function seedPermitTemplates(db: Db) {
+  const now = new Date().toISOString();
+  const insertTemplate = db.prepare(
+    `INSERT INTO permit_templates (id, code, title, description, register_code, version, status, sort_order, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, 'ACTIVE', ?, ?, ?)
+     ON CONFLICT(id) DO UPDATE SET
+       code = excluded.code,
+       title = excluded.title,
+       description = excluded.description,
+       register_code = excluded.register_code,
+       version = excluded.version,
+       status = excluded.status,
+       sort_order = excluded.sort_order,
+       updated_at = excluded.updated_at`,
+  );
+  const insertSection = db.prepare(
+    `INSERT INTO permit_template_sections (id, template_id, title, description, sort_order, created_at)
+     VALUES (?, ?, ?, ?, ?, ?)
+     ON CONFLICT(id) DO UPDATE SET
+       title = excluded.title,
+       description = excluded.description,
+       sort_order = excluded.sort_order`,
+  );
+  const insertQuestion = db.prepare(
+    `INSERT INTO permit_template_questions
+       (id, template_id, section_id, question_key, prompt, help_text, answer_type, requires_comment_on, sort_order, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, 'YES_NO_NA', ?, ?, ?)
+     ON CONFLICT(template_id, question_key) DO UPDATE SET
+       section_id = excluded.section_id,
+       prompt = excluded.prompt,
+       help_text = excluded.help_text,
+       answer_type = excluded.answer_type,
+       requires_comment_on = excluded.requires_comment_on,
+       sort_order = excluded.sort_order`,
+  );
+
+  const run = db.transaction(() => {
+    for (const template of PERMIT_TEMPLATES) {
+      insertTemplate.run(template.id, template.code, template.title, template.description, template.registerCode, template.version, template.sortOrder, now, now);
+      for (const section of template.sections) {
+        const sectionId = `${template.id}:${section.id}`;
+        insertSection.run(sectionId, template.id, section.title, section.description ?? null, section.sortOrder, now);
+        section.questions.forEach((question, index) => {
+          insertQuestion.run(
+            `${template.id}:${question.key}`,
+            template.id,
+            sectionId,
+            question.key,
+            question.prompt,
+            question.helpText ?? null,
+            question.requiresCommentOn?.join(",") ?? "NO",
+            index + 1,
+            now,
+          );
+        });
+      }
+    }
+  });
+
+  run();
+}
+
 function seedSites(db: Db) {
   const now = new Date().toISOString();
   const insertSite = db.prepare(
@@ -330,8 +477,10 @@ export function getDb(): Db {
     migrate(db);
     seedAdmin(db);
     seedSites(db);
+    seedPermitTemplates(db);
     seedSampleSubmissions(db, UPLOADS_DIR);
     seedSites(db);
+    seedPermitTemplates(db);
 
     globalForDb.__uplandsDb = db;
   }
