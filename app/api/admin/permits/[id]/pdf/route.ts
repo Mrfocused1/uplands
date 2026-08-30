@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { requireAdmin, UnauthorizedError } from "@/lib/auth/admin";
-import { getPermitDetail } from "@/lib/db/permits";
+import { getPermitDetail, isPermitDatabaseSetupError } from "@/lib/db/permits";
 import { generatePermitPdf } from "@/lib/pdf/generatePermitPdf";
 
 export const runtime = "nodejs";
@@ -19,7 +19,13 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
   }
 
   const { id } = await context.params;
-  const detail = await getPermitDetail(id);
+  let detail;
+  try {
+    detail = await getPermitDetail(id);
+  } catch (error) {
+    if (isPermitDatabaseSetupError(error)) return NextResponse.json({ error: "Permit database setup required." }, { status: 503 });
+    throw error;
+  }
   if (!detail) return NextResponse.json({ error: "Permit not found." }, { status: 404 });
 
   const url = new URL(request.url);

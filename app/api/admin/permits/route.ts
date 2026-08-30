@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { requireAdmin, UnauthorizedError } from "@/lib/auth/admin";
-import { createPermit, listPermitsBySite } from "@/lib/db/permits";
+import { createPermit, isPermitDatabaseSetupError, listPermitsBySite } from "@/lib/db/permits";
 
 export const runtime = "nodejs";
 
@@ -45,8 +45,13 @@ export async function GET(request: Request) {
   const siteId = new URL(request.url).searchParams.get("siteId");
   if (!siteId) return NextResponse.json({ error: "siteId is required." }, { status: 400 });
 
-  const permits = await listPermitsBySite(siteId);
-  return NextResponse.json({ permits: permits.map(serializePermit) });
+  try {
+    const permits = await listPermitsBySite(siteId);
+    return NextResponse.json({ permits: permits.map(serializePermit) });
+  } catch (error) {
+    if (isPermitDatabaseSetupError(error)) return NextResponse.json({ error: "Permit database setup required." }, { status: 503 });
+    throw error;
+  }
 }
 
 export async function POST(request: Request) {
@@ -66,19 +71,25 @@ export async function POST(request: Request) {
     if (!value(body, key)) return NextResponse.json({ error: `${key} is required.` }, { status: 400 });
   }
 
-  const id = await createPermit({
-    siteId: value(body, "siteId"),
-    projectId: value(body, "projectId") || null,
-    templateId: value(body, "templateId"),
-    contractor: value(body, "contractor"),
-    locationOfWork: value(body, "locationOfWork"),
-    descriptionOfWork: value(body, "descriptionOfWork"),
-    validFromDate: value(body, "validFromDate"),
-    validToDate: value(body, "validToDate"),
-    validFromTime: value(body, "validFromTime"),
-    validToTime: value(body, "validToTime"),
-    createdBy: admin.displayName,
-  });
+  let id;
+  try {
+    id = await createPermit({
+      siteId: value(body, "siteId"),
+      projectId: value(body, "projectId") || null,
+      templateId: value(body, "templateId"),
+      contractor: value(body, "contractor"),
+      locationOfWork: value(body, "locationOfWork"),
+      descriptionOfWork: value(body, "descriptionOfWork"),
+      validFromDate: value(body, "validFromDate"),
+      validToDate: value(body, "validToDate"),
+      validFromTime: value(body, "validFromTime"),
+      validToTime: value(body, "validToTime"),
+      createdBy: admin.displayName,
+    });
+  } catch (error) {
+    if (isPermitDatabaseSetupError(error)) return NextResponse.json({ error: "Permit database setup required." }, { status: 503 });
+    throw error;
+  }
 
   return NextResponse.json({ id }, { status: 201 });
 }

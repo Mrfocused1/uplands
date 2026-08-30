@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 import { PERMIT_TEMPLATES, type PermitAnswer, type PermitStatus } from "@/config/permitTemplates";
 import { requireAdmin, UnauthorizedError } from "@/lib/auth/admin";
-import { getPermitDetail, updatePermit } from "@/lib/db/permits";
+import { getPermitDetail, isPermitDatabaseSetupError, updatePermit } from "@/lib/db/permits";
 
 export const runtime = "nodejs";
 
@@ -85,7 +85,13 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   }
 
   const { id } = await context.params;
-  const detail = await getPermitDetail(id);
+  let detail;
+  try {
+    detail = await getPermitDetail(id);
+  } catch (error) {
+    if (isPermitDatabaseSetupError(error)) return NextResponse.json({ error: "Permit database setup required." }, { status: 503 });
+    throw error;
+  }
   if (!detail) return NextResponse.json({ error: "Permit not found." }, { status: 404 });
   return NextResponse.json(serializeDetail(detail));
 }
@@ -134,18 +140,23 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     })
     .filter((item) => item.signatureKey && item.role && item.name && item.signedAt && item.action);
 
-  await updatePermit(id, {
-    contractor: text(body.contractor),
-    locationOfWork: text(body.locationOfWork),
-    descriptionOfWork: text(body.descriptionOfWork),
-    validFromDate: text(body.validFromDate),
-    validToDate: text(body.validToDate),
-    validFromTime: text(body.validFromTime),
-    validToTime: text(body.validToTime),
-    status,
-    answers: parsedAnswers,
-    signatures: parsedSignatures,
-  });
+  try {
+    await updatePermit(id, {
+      contractor: text(body.contractor),
+      locationOfWork: text(body.locationOfWork),
+      descriptionOfWork: text(body.descriptionOfWork),
+      validFromDate: text(body.validFromDate),
+      validToDate: text(body.validToDate),
+      validFromTime: text(body.validFromTime),
+      validToTime: text(body.validToTime),
+      status,
+      answers: parsedAnswers,
+      signatures: parsedSignatures,
+    });
+  } catch (error) {
+    if (isPermitDatabaseSetupError(error)) return NextResponse.json({ error: "Permit database setup required." }, { status: 503 });
+    throw error;
+  }
 
   return NextResponse.json({ ok: true });
 }

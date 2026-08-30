@@ -5,6 +5,19 @@ import { getDb } from "@/lib/db";
 import { env, isSupabaseAdminConfigured } from "@/lib/env";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
+const MISSING_PERMIT_SCHEMA_CODES = new Set(["42P01", "PGRST205"]);
+
+export class PermitDatabaseSetupError extends Error {
+  constructor(action: string, message: string) {
+    super(`${action}: ${message}`);
+    this.name = "PermitDatabaseSetupError";
+  }
+}
+
+export function isPermitDatabaseSetupError(error: unknown): error is PermitDatabaseSetupError {
+  return error instanceof PermitDatabaseSetupError;
+}
+
 export type PermitTemplateRow = {
   id: string;
   code: string;
@@ -120,15 +133,19 @@ export type UpsertPermitInput = {
 };
 
 function shouldUseSupabasePermitsDb() {
-  const provider = env("PERMITS_DATABASE_PROVIDER", env("UPLANDS_DATABASE_PROVIDER", "sqlite"));
+  const provider = env("PERMITS_DATABASE_PROVIDER", env("UPLANDS_DATABASE_PROVIDER", process.env.VERCEL && isSupabaseAdminConfigured() ? "supabase" : "sqlite"));
   if (provider === "supabase" && !isSupabaseAdminConfigured()) {
     throw new Error("PERMITS_DATABASE_PROVIDER is set to supabase, but Supabase admin environment variables are missing.");
   }
   return provider === "supabase";
 }
 
-function assertNoError(error: { message: string } | null, action: string) {
-  if (error) throw new Error(`${action}: ${error.message}`);
+function assertNoError(error: { code?: string; message: string } | null, action: string) {
+  if (!error) return;
+  if (error.code && MISSING_PERMIT_SCHEMA_CODES.has(error.code)) {
+    throw new PermitDatabaseSetupError(action, "Permit database tables are not installed in Supabase. Apply supabase/migrations/202608300002_permit_engine_step_ladders.sql.");
+  }
+  throw new Error(`${action}: ${error.message}`);
 }
 
 function rowFromTemplate(templateId: string): PermitTemplateWithSections | null {
@@ -251,7 +268,15 @@ export async function listPermitsBySite(siteId: string): Promise<PermitRow[]> {
 }
 
 export async function countPermitsBySite(siteId: string) {
-  const rows = await listPermitsBySite(siteId);
+  let rows: PermitRow[];
+  try {
+    rows = await listPermitsBySite(siteId);
+  } catch (error) {
+    if (isPermitDatabaseSetupError(error)) {
+      return { active: 0, expiringSoon: 0, awaitingClosure: 0 };
+    }
+    throw error;
+  }
   return {
     active: rows.filter((row) => row.status === "ACTIVE" || row.status === "AUTHORISED").length,
     expiringSoon: rows.filter((row) => (row.status === "ACTIVE" || row.status === "AUTHORISED") && expiresToday(row)).length,

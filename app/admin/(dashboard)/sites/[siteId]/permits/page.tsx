@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 
 import { PermitsWorkspace } from "@/components/admin/permits/PermitsWorkspace";
-import { listPermitTemplates, listPermitsBySite } from "@/lib/db/permits";
+import { isPermitDatabaseSetupError, listPermitTemplates, listPermitsBySite } from "@/lib/db/permits";
 import { getSite } from "@/lib/db/sites";
 
 export const metadata = {
@@ -13,7 +13,23 @@ export default async function SitePermitsPage({ params }: { params: Promise<{ si
   const site = await getSite(siteId);
   if (!site) notFound();
 
-  const [templates, permits] = await Promise.all([listPermitTemplates(), listPermitsBySite(site.id)]);
+  let templates;
+  let permits;
+  try {
+    [templates, permits] = await Promise.all([listPermitTemplates(), listPermitsBySite(site.id)]);
+  } catch (error) {
+    if (!isPermitDatabaseSetupError(error)) throw error;
+    return (
+      <section className="border border-amber-300 bg-amber-50 p-6 shadow-sm">
+        <p className="text-xs font-bold uppercase tracking-[0.2em] text-amber-700">Permit Setup Required</p>
+        <h1 className="mt-3 font-slab text-4xl text-uplands-charcoal">Permits Need The Supabase Migration</h1>
+        <p className="mt-3 max-w-3xl text-base leading-7 text-uplands-muted">
+          The permit workspace is deployed, but the production Supabase database does not yet have the permit engine tables. Apply{" "}
+          <span className="font-mono text-sm text-uplands-charcoal">supabase/migrations/202608300002_permit_engine_step_ladders.sql</span> to enable editable permits.
+        </p>
+      </section>
+    );
+  }
 
   return (
     <PermitsWorkspace
