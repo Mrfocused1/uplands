@@ -54,6 +54,20 @@ export type PermitTemplateQuestionRow = {
   created_at: string;
 };
 
+export type PermitTemplateFieldRow = {
+  id: string;
+  template_id: string;
+  field_key: string;
+  label: string;
+  help_text: string | null;
+  field_type: string;
+  required: boolean | number;
+  options_json: string[] | string | null;
+  placeholder: string | null;
+  sort_order: number;
+  created_at: string;
+};
+
 export type PermitRow = {
   id: string;
   permit_number: string;
@@ -86,6 +100,14 @@ export type PermitAnswerRow = {
   updated_at: string;
 };
 
+export type PermitFieldValueRow = {
+  id: string;
+  permit_id: string;
+  field_key: string;
+  value: string | null;
+  updated_at: string;
+};
+
 export type PermitSignatureRow = {
   id: string;
   permit_id: string;
@@ -101,12 +123,14 @@ export type PermitSignatureRow = {
 };
 
 export type PermitTemplateWithSections = PermitTemplateRow & {
+  fields: PermitTemplateFieldRow[];
   sections: Array<PermitTemplateSectionRow & { questions: PermitTemplateQuestionRow[] }>;
 };
 
 export type PermitDetail = {
   permit: PermitRow;
   template: PermitTemplateWithSections;
+  fieldValues: PermitFieldValueRow[];
   answers: PermitAnswerRow[];
   signatures: PermitSignatureRow[];
   activity: SiteActivityEventRow[];
@@ -121,6 +145,7 @@ export type UpsertPermitInput = {
   validFromTime: string;
   validToTime: string;
   status: PermitStatus;
+  fieldValues: Array<{ fieldKey: string; value?: string | null }>;
   answers: Array<{ questionKey: string; answer: PermitAnswer; comment?: string | null }>;
   signatures: Array<{
     signatureKey: string;
@@ -166,6 +191,19 @@ function rowFromTemplate(templateId: string): PermitTemplateWithSections | null 
     sort_order: template.sortOrder,
     created_at: now,
     updated_at: now,
+    fields: (template.fields ?? []).map((field) => ({
+      id: `${template.id}:${field.key}`,
+      template_id: template.id,
+      field_key: field.key,
+      label: field.label,
+      help_text: field.helpText ?? null,
+      field_type: field.type,
+      required: field.required ? 1 : 0,
+      options_json: field.options ? JSON.stringify(field.options) : null,
+      placeholder: field.placeholder ?? null,
+      sort_order: field.sortOrder,
+      created_at: now,
+    })),
     sections: template.sections.map((section) => ({
       id: `${template.id}:${section.id}`,
       template_id: template.id,
@@ -221,9 +259,17 @@ export async function getPermitTemplate(templateId: string): Promise<PermitTempl
       .order("sort_order");
     assertNoError(questionsError, "Unable to get permit template questions");
 
+    const { data: fields, error: fieldsError } = await supabase
+      .from("permit_template_fields")
+      .select("*")
+      .eq("template_id", templateId)
+      .order("sort_order");
+    assertNoError(fieldsError, "Unable to get permit template fields");
+
     const questionRows = (questions ?? []) as PermitTemplateQuestionRow[];
     return {
       ...(template as PermitTemplateRow),
+      fields: (fields ?? []) as PermitTemplateFieldRow[],
       sections: ((sections ?? []) as PermitTemplateSectionRow[]).map((section) => ({
         ...section,
         questions: questionRows.filter((question) => question.section_id === section.id),
@@ -239,9 +285,13 @@ export async function getPermitTemplate(templateId: string): Promise<PermitTempl
   const questions = getDb()
     .prepare("SELECT * FROM permit_template_questions WHERE template_id = ? ORDER BY sort_order")
     .all(templateId) as PermitTemplateQuestionRow[];
+  const fields = getDb()
+    .prepare("SELECT * FROM permit_template_fields WHERE template_id = ? ORDER BY sort_order")
+    .all(templateId) as PermitTemplateFieldRow[];
 
   return {
     ...template,
+    fields,
     sections: sections.map((section) => ({
       ...section,
       questions: questions.filter((question) => question.section_id === section.id),
@@ -433,20 +483,30 @@ export async function getPermitDetail(permitId: string): Promise<PermitDetail | 
 
   if (shouldUseSupabasePermitsDb()) {
     const supabase = createSupabaseAdminClient();
-    const [{ data: answers, error: answersError }, { data: signatures, error: signaturesError }, activity] = await Promise.all([
+    const [{ data: fieldValues, error: fieldValuesError }, { data: answers, error: answersError }, { data: signatures, error: signaturesError }, activity] = await Promise.all([
+      supabase.from("permit_field_values").select("*").eq("permit_id", permitId).order("field_key"),
       supabase.from("permit_answers").select("*").eq("permit_id", permitId).order("question_key"),
       supabase.from("permit_signatures").select("*").eq("permit_id", permitId).order("signed_at"),
       listEntityActivityEvents("permit", permitId),
     ]);
+    assertNoError(fieldValuesError, "Unable to get permit field values");
     assertNoError(answersError, "Unable to get permit answers");
     assertNoError(signaturesError, "Unable to get permit signatures");
-    return { permit, template, answers: (answers ?? []) as PermitAnswerRow[], signatures: (signatures ?? []) as PermitSignatureRow[], activity };
+    return {
+      permit,
+      template,
+      fieldValues: (fieldValues ?? []) as PermitFieldValueRow[],
+      answers: (answers ?? []) as PermitAnswerRow[],
+      signatures: (signatures ?? []) as PermitSignatureRow[],
+      activity,
+    };
   }
 
+  const fieldValues = getDb().prepare("SELECT * FROM permit_field_values WHERE permit_id = ? ORDER BY field_key").all(permitId) as PermitFieldValueRow[];
   const answers = getDb().prepare("SELECT * FROM permit_answers WHERE permit_id = ? ORDER BY question_key").all(permitId) as PermitAnswerRow[];
   const signatures = getDb().prepare("SELECT * FROM permit_signatures WHERE permit_id = ? ORDER BY signed_at").all(permitId) as PermitSignatureRow[];
   const activity = await listEntityActivityEvents("permit", permitId);
-  return { permit, template, answers, signatures, activity };
+  return { permit, template, fieldValues, answers, signatures, activity };
 }
 
 async function getPermit(permitId: string): Promise<PermitRow | null> {
@@ -495,6 +555,7 @@ export async function updatePermit(permitId: string, input: UpsertPermitInput) {
       ).error,
       "Unable to update permit",
     );
+    await replacePermitFieldValuesSupabase(supabase, permitId, input.fieldValues, now);
     await replacePermitAnswersSupabase(supabase, permitId, input.answers, now);
     await replacePermitSignaturesSupabase(supabase, permitId, input.signatures, now);
     await recordPermitUpdateActivity(permitId, existingPermit, existingSignatureKeys, input);
@@ -518,6 +579,15 @@ export async function updatePermit(permitId: string, input: UpsertPermitInput) {
     );
     for (const answer of input.answers) {
       answerStmt.run(randomUUID(), permitId, answer.questionKey, answer.answer, answer.comment ?? null, now);
+    }
+
+    const fieldValueStmt = getDb().prepare(
+      `INSERT INTO permit_field_values (id, permit_id, field_key, value, updated_at)
+       VALUES (?, ?, ?, ?, ?)
+       ON CONFLICT(permit_id, field_key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
+    );
+    for (const fieldValue of input.fieldValues) {
+      fieldValueStmt.run(randomUUID(), permitId, fieldValue.fieldKey, fieldValue.value ?? null, now);
     }
 
     const signatureStmt = getDb().prepare(
@@ -665,6 +735,26 @@ async function replacePermitAnswersSupabase(
     { onConflict: "permit_id,question_key" },
   );
   assertNoError(error, "Unable to save permit answers");
+}
+
+async function replacePermitFieldValuesSupabase(
+  supabase: ReturnType<typeof createSupabaseAdminClient>,
+  permitId: string,
+  fieldValues: UpsertPermitInput["fieldValues"],
+  now: string,
+) {
+  if (fieldValues.length === 0) return;
+  const { error } = await supabase.from("permit_field_values").upsert(
+    fieldValues.map((fieldValue) => ({
+      id: randomUUID(),
+      permit_id: permitId,
+      field_key: fieldValue.fieldKey,
+      value: fieldValue.value ?? null,
+      updated_at: now,
+    })),
+    { onConflict: "permit_id,field_key" },
+  );
+  assertNoError(error, "Unable to save permit field values");
 }
 
 async function replacePermitSignaturesSupabase(

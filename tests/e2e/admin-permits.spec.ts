@@ -473,15 +473,13 @@ test("admin can create and authorise a PFS clearance certificate", async ({ page
 
   await createPermit(page, contractor, "Petrol filling station forecourt", "Low-risk inspection task at the PFS forecourt with controlled access.");
   await expect(page.getByTestId("permit-editor").getByRole("heading", { name: "PFS Clearance Certificate" })).toBeVisible();
-  await expect(page.getByText("Task Scope / Risk Level")).toBeVisible();
+  await expect(page.getByText("Task Scope / Clearance Control")).toBeVisible();
+  await expect(page.getByText("Permit Specific Details")).toBeVisible();
+  await page.getByTestId("permit-editor").getByLabel("Task Risk Level *").selectOption("Low");
+  await page.getByTestId("permit-editor").getByLabel("Number of Workers *").fill("2");
+  await page.getByTestId("permit-editor").getByLabel("Clearance For *").fill("Forecourt inspection area");
   await expect(page.getByText("Additional Hazards / Precautions")).toBeVisible();
-  await expect(page.getByText("Has the task risk level been recorded?")).toBeVisible();
-
-  const riskLevelQuestion = page.locator(".p-4").filter({ hasText: "Has the task risk level been recorded?" });
-  await riskLevelQuestion.getByPlaceholder("Comment").fill("Risk level: Low");
-
-  const workersQuestion = page.locator(".p-4").filter({ hasText: "Has the number of workers involved been recorded?" });
-  await workersQuestion.getByPlaceholder("Comment").fill("Number of workers: 2");
+  await expect(page.getByText("Is this clearance certificate limited to today's work")).toBeVisible();
 
   const hazardsQuestion = page.locator(".p-4").filter({ hasText: "Have any additional hazards beyond those in the RAMS been identified today?" });
   await hazardsQuestion.getByPlaceholder("Comment").fill("No additional hazards identified at start of task.");

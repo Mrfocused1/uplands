@@ -116,6 +116,10 @@ function answerFor(detail: PermitDetail, questionKey: string) {
   return detail.answers.find((answer) => answer.question_key === questionKey);
 }
 
+function fieldValueFor(detail: PermitDetail, fieldKey: string) {
+  return detail.fieldValues.find((fieldValue) => fieldValue.field_key === fieldKey)?.value;
+}
+
 async function drawSignatureImage(pdfDoc: PDFDocument, page: PDFPage, fonts: Fonts, dataUrl: string | null, x: number, y: number, width: number, height: number) {
   if (!dataUrl?.startsWith("data:image/png;base64,")) return;
   try {
@@ -156,6 +160,18 @@ function drawDetails(page: PDFPage, fonts: Fonts, detail: PermitDetail, y: numbe
   y -= 39;
   drawLabelValue(page, fonts, "Description of Work", detail.permit.description_of_work, MARGIN, y, CONTENT_WIDTH, 50);
   return y - 66;
+}
+
+function drawCustomFields(page: PDFPage, fonts: Fonts, detail: PermitDetail, y: number) {
+  if (detail.template.fields.length === 0) return y;
+
+  y = drawSectionHeading(page, fonts, "Permit Specific Details", y);
+  const fields = [...detail.template.fields].sort((a, b) => a.sort_order - b.sort_order);
+  for (const field of fields) {
+    drawLabelValue(page, fonts, field.label, fieldValueFor(detail, field.field_key), MARGIN, y, CONTENT_WIDTH);
+    y -= 39;
+  }
+  return y - 10;
 }
 
 function drawSectionHeading(page: PDFPage, fonts: Fonts, title: string, y: number) {
@@ -208,6 +224,10 @@ export async function generatePermitPdf(detail: PermitDetail) {
 
   current.y = drawTitleBlock(current.page, fonts, detail, current.y);
   current.y = drawDetails(current.page, fonts, detail, current.y);
+  if (detail.template.fields.length > 0) {
+    current = ensureSpace(pdfDoc, fonts, detail, current, 44 + detail.template.fields.length * 39);
+    current.y = drawCustomFields(current.page, fonts, detail, current.y);
+  }
 
   for (const section of detail.template.sections) {
     current = ensureSpace(pdfDoc, fonts, detail, current, 70);

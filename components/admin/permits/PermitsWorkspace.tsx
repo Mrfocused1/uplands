@@ -4,7 +4,7 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 
 import { SignaturePad } from "@/components/induction/SignaturePad";
-import type { PermitAnswer, PermitSignatureKey, PermitStatus } from "@/config/permitTemplates";
+import type { PermitAnswer, PermitSignatureKey, PermitStatus, PermitTemplateFieldType } from "@/config/permitTemplates";
 
 type Site = { id: string; location: string; project_id: string | null; project_name: string | null };
 type Template = { id: string; code: string; title: string; description: string };
@@ -37,6 +37,16 @@ type PermitDetail = {
     code: string;
     title: string;
     signatures: Array<{ key: PermitSignatureKey; title: string; role: string; action: string }>;
+    fields: Array<{
+      key: string;
+      label: string;
+      helpText: string | null;
+      type: PermitTemplateFieldType;
+      required: boolean;
+      options: string[];
+      placeholder: string | null;
+      sortOrder: number;
+    }>;
     sections: Array<{
       id: string;
       title: string;
@@ -44,6 +54,7 @@ type PermitDetail = {
       questions: Array<{ key: string; prompt: string; helpText: string | null; requiresCommentOn: string[] }>;
     }>;
   };
+  fieldValues: Array<{ fieldKey: string; value: string | null }>;
   answers: Array<{ questionKey: string; answer: PermitAnswer; comment: string | null }>;
   signatures: Array<{
     signatureKey: PermitSignatureKey;
@@ -123,10 +134,15 @@ function blankSignature(signature: PermitDetail["template"]["signatures"][number
 }
 
 function permitValidationError(current: PermitDetail) {
+  const fieldValues = new Map(current.fieldValues.map((fieldValue) => [fieldValue.fieldKey, fieldValue.value?.trim() ?? ""]));
   const questionKeys = current.template.sections.flatMap((section) => section.questions.map((question) => question.key));
   const answered = new Set(current.answers.map((answer) => answer.questionKey));
   const requiresAnsweredQuestions = ["AWAITING_REVIEW", "AUTHORISED", "ACTIVE", "WORK_COMPLETED", "CLOSED"].includes(current.permit.status);
-  if (requiresAnsweredQuestions && questionKeys.some((key) => !answered.has(key))) return "All permit questions need an answer before review or authorisation.";
+  if (requiresAnsweredQuestions) {
+    const missingField = current.template.fields.find((field) => field.required && !fieldValues.get(field.key));
+    if (missingField) return `${missingField.label} is required before review or authorisation.`;
+    if (questionKeys.some((key) => !answered.has(key))) return "All permit questions need an answer before review or authorisation.";
+  }
   const signed = new Set(current.signatures.filter((signature) => signature.name.trim()).map((signature) => signature.signatureKey));
   if ((current.permit.status === "AUTHORISED" || current.permit.status === "ACTIVE") && !signed.has("manager_authorisation")) return "Manager authorisation is required before the permit can be authorised or active.";
   if (current.permit.status === "WORK_COMPLETED" && !signed.has("contractor_completion")) return "Contractor completion is required before marking work completed.";
@@ -172,6 +188,7 @@ export function PermitsWorkspace({ site, templates, initialPermits }: { site: Si
   }, [fetchPermitDetail, selectedId]);
 
   const answersByKey = useMemo(() => new Map(detail?.answers.map((answer) => [answer.questionKey, answer]) ?? []), [detail]);
+  const fieldValuesByKey = useMemo(() => new Map(detail?.fieldValues.map((fieldValue) => [fieldValue.fieldKey, fieldValue.value ?? ""]) ?? []), [detail]);
   const signaturesByKey = useMemo(() => new Map(detail?.signatures.map((signature) => [signature.signatureKey, signature]) ?? []), [detail]);
 
   async function refreshPermits(nextSelectedId?: string) {
@@ -236,6 +253,13 @@ export function PermitsWorkspace({ site, templates, initialPermits }: { site: Si
     });
   }
 
+  function setFieldValue(fieldKey: string, value: string) {
+    updateDetail((current) => {
+      const next = current.fieldValues.filter((item) => item.fieldKey !== fieldKey);
+      return { ...current, fieldValues: [...next, { fieldKey, value }] };
+    });
+  }
+
   function setSignature(signatureKey: PermitSignatureKey, patch: Partial<PermitDetail["signatures"][number]>) {
     updateDetail((current) => {
       const templateSignature = current.template.signatures.find((item) => item.key === signatureKey);
@@ -269,6 +293,7 @@ export function PermitsWorkspace({ site, templates, initialPermits }: { site: Si
           validFromTime: detailToSave.permit.validFromTime,
           validToTime: detailToSave.permit.validToTime,
           status: detailToSave.permit.status,
+          fieldValues: detailToSave.fieldValues,
           answers: detailToSave.answers,
           signatures: detailToSave.signatures,
         }),
@@ -372,9 +397,11 @@ export function PermitsWorkspace({ site, templates, initialPermits }: { site: Si
             <PermitEditor
               detail={detail}
               answersByKey={answersByKey}
+              fieldValuesByKey={fieldValuesByKey}
               signaturesByKey={signaturesByKey}
               saving={saving}
               onDetailChange={updateDetail}
+              onFieldValue={setFieldValue}
               onAnswer={setAnswer}
               onComment={setComment}
               onSignature={setSignature}
@@ -388,12 +415,68 @@ export function PermitsWorkspace({ site, templates, initialPermits }: { site: Si
   );
 }
 
+function PermitFieldInput({
+  field,
+  value,
+  onChange,
+}: {
+  field: PermitDetail["template"]["fields"][number];
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  const label = (
+    <span className="text-xs font-bold uppercase text-zinc-700">
+      {field.label}
+      {field.required ? " *" : ""}
+    </span>
+  );
+  const commonClass = "mt-1 min-h-11 w-full border border-zinc-300 px-3 text-sm";
+
+  if (field.type === "TEXTAREA") {
+    return (
+      <label className="sm:col-span-2">
+        {label}
+        <textarea value={value} required={field.required} onChange={(event) => onChange(event.target.value)} placeholder={field.placeholder ?? ""} className={`${commonClass} min-h-24 py-2`} />
+        {field.helpText && <span className="mt-1 block text-xs leading-5 text-uplands-muted">{field.helpText}</span>}
+      </label>
+    );
+  }
+
+  if (field.type === "SELECT") {
+    return (
+      <label>
+        {label}
+        <select value={value} required={field.required} onChange={(event) => onChange(event.target.value)} className={commonClass}>
+          <option value="">Select...</option>
+          {field.options.map((option) => (
+            <option key={option} value={option}>
+              {option}
+            </option>
+          ))}
+        </select>
+        {field.helpText && <span className="mt-1 block text-xs leading-5 text-uplands-muted">{field.helpText}</span>}
+      </label>
+    );
+  }
+
+  const inputType = field.type === "NUMBER" ? "number" : field.type === "DATE" ? "date" : field.type === "TIME" ? "time" : "text";
+  return (
+    <label>
+      {label}
+      <input value={value} type={inputType} required={field.required} onChange={(event) => onChange(event.target.value)} placeholder={field.placeholder ?? ""} className={commonClass} />
+      {field.helpText && <span className="mt-1 block text-xs leading-5 text-uplands-muted">{field.helpText}</span>}
+    </label>
+  );
+}
+
 function PermitEditor({
   detail,
   answersByKey,
+  fieldValuesByKey,
   signaturesByKey,
   saving,
   onDetailChange,
+  onFieldValue,
   onAnswer,
   onComment,
   onSignature,
@@ -402,9 +485,11 @@ function PermitEditor({
 }: {
   detail: PermitDetail;
   answersByKey: Map<string, PermitDetail["answers"][number]>;
+  fieldValuesByKey: Map<string, string>;
   signaturesByKey: Map<PermitSignatureKey, PermitDetail["signatures"][number]>;
   saving: boolean;
   onDetailChange: (updater: (current: PermitDetail) => PermitDetail) => void;
+  onFieldValue: (fieldKey: string, value: string) => void;
   onAnswer: (questionKey: string, answer: PermitAnswer) => void;
   onComment: (questionKey: string, comment: string) => void;
   onSignature: (signatureKey: PermitSignatureKey, patch: Partial<PermitDetail["signatures"][number]>) => void;
@@ -489,6 +574,17 @@ function PermitEditor({
           </label>
         </div>
       </section>
+
+      {detail.template.fields.length > 0 && (
+        <section className="border border-zinc-200 bg-white p-5 shadow-soft">
+          <h3 className="font-slab text-2xl text-uplands-charcoal">Permit Specific Details</h3>
+          <div className="mt-4 grid gap-4 sm:grid-cols-2">
+            {detail.template.fields.map((field) => (
+              <PermitFieldInput key={field.key} field={field} value={fieldValuesByKey.get(field.key) ?? ""} onChange={(value) => onFieldValue(field.key, value)} />
+            ))}
+          </div>
+        </section>
+      )}
 
       {detail.template.sections.map((section) => (
         <section key={section.id} className="border border-zinc-200 bg-white p-5 shadow-soft">

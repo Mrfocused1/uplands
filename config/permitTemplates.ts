@@ -1,6 +1,7 @@
 export type PermitAnswer = "YES" | "NO" | "NA";
 export type PermitStatus = "DRAFT" | "AWAITING_REVIEW" | "AUTHORISED" | "ACTIVE" | "WORK_COMPLETED" | "CLOSED" | "REJECTED" | "EXPIRED" | "CANCELLED";
 export type PermitSignatureKey = "manager_authorisation" | "contractor_acceptance" | "contractor_completion" | "manager_completion_acceptance";
+export type PermitTemplateFieldType = "TEXT" | "TEXTAREA" | "NUMBER" | "DATE" | "TIME" | "SELECT";
 
 export type PermitTemplateQuestion = {
   key: string;
@@ -25,6 +26,17 @@ export type PermitTemplateSignature = {
   sortOrder: number;
 };
 
+export type PermitTemplateField = {
+  key: string;
+  label: string;
+  type: PermitTemplateFieldType;
+  required?: boolean;
+  helpText?: string;
+  placeholder?: string;
+  options?: string[];
+  sortOrder: number;
+};
+
 export type PermitTemplate = {
   id: string;
   code: string;
@@ -33,6 +45,7 @@ export type PermitTemplate = {
   registerCode: string;
   version: string;
   sortOrder: number;
+  fields?: PermitTemplateField[];
   sections: PermitTemplateSection[];
   signatures: PermitTemplateSignature[];
 };
@@ -1030,29 +1043,47 @@ export const PERMIT_TEMPLATES: PermitTemplate[] = [
     registerCode: "UHSF21.0",
     version: "1",
     sortOrder: 100,
+    fields: [
+      {
+        key: "task_risk_level",
+        label: "Task Risk Level",
+        type: "SELECT",
+        required: true,
+        options: ["Low", "Medium", "High"],
+        sortOrder: 10,
+      },
+      {
+        key: "number_of_workers",
+        label: "Number of Workers",
+        type: "NUMBER",
+        required: true,
+        placeholder: "2",
+        sortOrder: 20,
+      },
+      {
+        key: "clearance_for",
+        label: "Clearance For",
+        type: "TEXT",
+        required: true,
+        placeholder: "Task, area or work package",
+        sortOrder: 30,
+      },
+    ],
     sections: [
       {
         id: "task-scope",
-        title: "Task Scope / Risk Level",
-        description: "Record the task risk level, description and number of workers involved before clearance is approved.",
+        title: "Task Scope / Clearance Control",
+        description: "Confirm the task description and daily clearance boundary before work starts.",
         sortOrder: 10,
         questions: [
-          {
-            key: "task_risk_level_recorded",
-            prompt: "Has the task risk level been recorded?",
-            helpText: "Record Low, Medium or High in the comment field.",
-            requiresCommentOn: ["YES"],
-          },
           {
             key: "task_description_sufficient",
             prompt: "Has the task description been recorded in enough detail for today's work?",
             helpText: "Use the permit description field for the task description.",
           },
           {
-            key: "number_workers_recorded",
-            prompt: "Has the number of workers involved been recorded?",
-            helpText: "Record the number of workers in the comment field.",
-            requiresCommentOn: ["YES"],
+            key: "daily_clearance_boundary_confirmed",
+            prompt: "Is this clearance certificate limited to today's work and the task area recorded above?",
           },
         ],
       },

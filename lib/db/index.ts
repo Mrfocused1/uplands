@@ -126,6 +126,21 @@ function migrate(db: Db) {
       UNIQUE(template_id, question_key)
     );
 
+    CREATE TABLE IF NOT EXISTS permit_template_fields (
+      id TEXT PRIMARY KEY,
+      template_id TEXT NOT NULL REFERENCES permit_templates(id) ON DELETE CASCADE,
+      field_key TEXT NOT NULL,
+      label TEXT NOT NULL,
+      help_text TEXT,
+      field_type TEXT NOT NULL,
+      required INTEGER NOT NULL DEFAULT 0,
+      options_json TEXT,
+      placeholder TEXT,
+      sort_order INTEGER NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      UNIQUE(template_id, field_key)
+    );
+
     CREATE TABLE IF NOT EXISTS permits (
       id TEXT PRIMARY KEY,
       permit_number TEXT NOT NULL UNIQUE,
@@ -155,6 +170,15 @@ function migrate(db: Db) {
       UNIQUE(permit_id, question_key)
     );
 
+    CREATE TABLE IF NOT EXISTS permit_field_values (
+      id TEXT PRIMARY KEY,
+      permit_id TEXT NOT NULL REFERENCES permits(id) ON DELETE CASCADE,
+      field_key TEXT NOT NULL,
+      value TEXT,
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      UNIQUE(permit_id, field_key)
+    );
+
     CREATE TABLE IF NOT EXISTS permit_signatures (
       id TEXT PRIMARY KEY,
       permit_id TEXT NOT NULL REFERENCES permits(id) ON DELETE CASCADE,
@@ -171,7 +195,9 @@ function migrate(db: Db) {
     );
 
     CREATE INDEX IF NOT EXISTS idx_permits_site ON permits(site_id, status, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_permit_template_fields_template ON permit_template_fields(template_id, sort_order);
     CREATE INDEX IF NOT EXISTS idx_permit_answers_permit ON permit_answers(permit_id);
+    CREATE INDEX IF NOT EXISTS idx_permit_field_values_permit ON permit_field_values(permit_id);
     CREATE INDEX IF NOT EXISTS idx_permit_signatures_permit ON permit_signatures(permit_id);
     CREATE INDEX IF NOT EXISTS idx_site_activity_site ON site_activity_events(site_id, occurred_at DESC);
     CREATE INDEX IF NOT EXISTS idx_site_activity_entity ON site_activity_events(entity_type, entity_id, occurred_at DESC);
@@ -388,10 +414,44 @@ function seedPermitTemplates(db: Db) {
        requires_comment_on = excluded.requires_comment_on,
        sort_order = excluded.sort_order`,
   );
+  const insertField = db.prepare(
+    `INSERT INTO permit_template_fields
+       (id, template_id, field_key, label, help_text, field_type, required, options_json, placeholder, sort_order, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(template_id, field_key) DO UPDATE SET
+       label = excluded.label,
+       help_text = excluded.help_text,
+       field_type = excluded.field_type,
+       required = excluded.required,
+       options_json = excluded.options_json,
+       placeholder = excluded.placeholder,
+       sort_order = excluded.sort_order`,
+  );
+  const deleteFields = db.prepare("DELETE FROM permit_template_fields WHERE template_id = ?");
+  const deleteQuestions = db.prepare("DELETE FROM permit_template_questions WHERE template_id = ?");
+  const deleteSections = db.prepare("DELETE FROM permit_template_sections WHERE template_id = ?");
 
   const run = db.transaction(() => {
     for (const template of PERMIT_TEMPLATES) {
       insertTemplate.run(template.id, template.code, template.title, template.description, template.registerCode, template.version, template.sortOrder, now, now);
+      deleteFields.run(template.id);
+      deleteQuestions.run(template.id);
+      deleteSections.run(template.id);
+      for (const field of template.fields ?? []) {
+        insertField.run(
+          `${template.id}:${field.key}`,
+          template.id,
+          field.key,
+          field.label,
+          field.helpText ?? null,
+          field.type,
+          field.required ? 1 : 0,
+          field.options ? JSON.stringify(field.options) : null,
+          field.placeholder ?? null,
+          field.sortOrder,
+          now,
+        );
+      }
       for (const section of template.sections) {
         const sectionId = `${template.id}:${section.id}`;
         insertSection.run(sectionId, template.id, section.title, section.description ?? null, section.sortOrder, now);

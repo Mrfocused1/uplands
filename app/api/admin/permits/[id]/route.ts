@@ -24,6 +24,17 @@ function text(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
 }
 
+function fieldOptions(value: string[] | string | null) {
+  if (Array.isArray(value)) return value;
+  if (!value) return [];
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
 function serializeDetail(detail: NonNullable<Awaited<ReturnType<typeof getPermitDetail>>>) {
   const templateConfig = PERMIT_TEMPLATES.find((template) => template.id === detail.template.id);
   return {
@@ -57,6 +68,16 @@ function serializeDetail(detail: NonNullable<Awaited<ReturnType<typeof getPermit
       registerCode: detail.template.register_code,
       version: detail.template.version,
       signatures: templateConfig?.signatures ?? [],
+      fields: detail.template.fields.map((field) => ({
+        key: field.field_key,
+        label: field.label,
+        helpText: field.help_text,
+        type: field.field_type,
+        required: Boolean(field.required),
+        options: fieldOptions(field.options_json),
+        placeholder: field.placeholder,
+        sortOrder: field.sort_order,
+      })),
       sections: detail.template.sections.map((section) => ({
         id: section.id,
         title: section.title,
@@ -69,6 +90,10 @@ function serializeDetail(detail: NonNullable<Awaited<ReturnType<typeof getPermit
         })),
       })),
     },
+    fieldValues: detail.fieldValues.map((fieldValue) => ({
+      fieldKey: fieldValue.field_key,
+      value: fieldValue.value,
+    })),
     answers: detail.answers.map((answer) => ({
       questionKey: answer.question_key,
       answer: answer.answer,
@@ -98,6 +123,7 @@ function serializeDetail(detail: NonNullable<Awaited<ReturnType<typeof getPermit
 function validatePermitUpdate(
   detail: NonNullable<Awaited<ReturnType<typeof getPermitDetail>>>,
   nextStatus: PermitStatus,
+  parsedFieldValues: Array<{ fieldKey: string; value: string | null }>,
   parsedAnswers: Array<{ questionKey: string; answer: PermitAnswer; comment: string | null }>,
   parsedSignatures: Array<{ signatureKey: string; role: string; name: string; company: string | null; position: string | null; signedAt: string; signatureDataUrl: string | null; action: string }>,
 ) {
@@ -107,6 +133,10 @@ function validatePermitUpdate(
 
   const requiresAnsweredQuestions = ["AWAITING_REVIEW", "AUTHORISED", "ACTIVE", "WORK_COMPLETED", "CLOSED"].includes(nextStatus);
   if (requiresAnsweredQuestions) {
+    const fieldsByKey = new Map(parsedFieldValues.map((fieldValue) => [fieldValue.fieldKey, fieldValue.value?.trim() ?? ""]));
+    const missingField = detail.template.fields.find((field) => Boolean(field.required) && !fieldsByKey.get(field.field_key));
+    if (missingField) return `${missingField.label} is required before review or authorisation.`;
+
     const questionKeys = detail.template.sections.flatMap((section) => section.questions.map((question) => question.question_key));
     const answered = new Set(parsedAnswers.map((answer) => answer.questionKey));
     if (questionKeys.some((key) => !answered.has(key))) return "All permit questions need an answer before review or authorisation.";
@@ -157,6 +187,17 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   if (!statuses.includes(status)) return NextResponse.json({ error: "Invalid permit status." }, { status: 400 });
 
   const rawAnswers = Array.isArray(body.answers) ? body.answers : [];
+  const rawFieldValues = Array.isArray(body.fieldValues) ? body.fieldValues : [];
+  const parsedFieldValues = rawFieldValues
+    .map((item) => {
+      const row = item as Record<string, unknown>;
+      return {
+        fieldKey: text(row.fieldKey),
+        value: text(row.value) || null,
+      };
+    })
+    .filter((item) => item.fieldKey);
+
   const parsedAnswers = rawAnswers.map((item) => {
     const row = item as Record<string, unknown>;
     const answer = text(row.answer) as PermitAnswer;
@@ -194,7 +235,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   }
   if (!detail) return NextResponse.json({ error: "Permit not found." }, { status: 404 });
 
-  const validation = validatePermitUpdate(detail, status, parsedAnswers, parsedSignatures);
+  const validation = validatePermitUpdate(detail, status, parsedFieldValues, parsedAnswers, parsedSignatures);
   if (validation) return NextResponse.json({ error: validation }, { status: 400 });
 
   try {
@@ -207,6 +248,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       validFromTime: text(body.validFromTime),
       validToTime: text(body.validToTime),
       status,
+      fieldValues: parsedFieldValues,
       answers: parsedAnswers,
       signatures: parsedSignatures,
       updatedBy: admin.displayName,
