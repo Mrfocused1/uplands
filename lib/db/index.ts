@@ -76,6 +76,20 @@ function migrate(db: Db) {
       UNIQUE(site_id, admin_id, role)
     );
 
+    CREATE TABLE IF NOT EXISTS site_activity_events (
+      id TEXT PRIMARY KEY,
+      site_id TEXT NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
+      project_id TEXT REFERENCES projects(id) ON DELETE SET NULL,
+      entity_type TEXT NOT NULL,
+      entity_id TEXT NOT NULL,
+      event_type TEXT NOT NULL,
+      title TEXT NOT NULL,
+      detail TEXT NOT NULL,
+      actor TEXT,
+      occurred_at TEXT NOT NULL DEFAULT (datetime('now')),
+      metadata_json TEXT
+    );
+
     CREATE TABLE IF NOT EXISTS permit_templates (
       id TEXT PRIMARY KEY,
       code TEXT NOT NULL UNIQUE,
@@ -159,6 +173,8 @@ function migrate(db: Db) {
     CREATE INDEX IF NOT EXISTS idx_permits_site ON permits(site_id, status, created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_permit_answers_permit ON permit_answers(permit_id);
     CREATE INDEX IF NOT EXISTS idx_permit_signatures_permit ON permit_signatures(permit_id);
+    CREATE INDEX IF NOT EXISTS idx_site_activity_site ON site_activity_events(site_id, occurred_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_site_activity_entity ON site_activity_events(entity_type, entity_id, occurred_at DESC);
 
     CREATE TABLE IF NOT EXISTS submissions (
       id TEXT PRIMARY KEY,

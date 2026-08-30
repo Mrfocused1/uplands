@@ -1,6 +1,7 @@
 import { DEFAULT_SITE_SEEDS } from "@/config/siteSeeds";
+import { listSiteActivityEvents, type SiteActivityEventRow } from "@/lib/db/activity";
 import { getDb } from "@/lib/db";
-import { countPermitsBySite } from "@/lib/db/permits";
+import { countPermitsBySite, listPriorityPermitsBySite, type PermitRow } from "@/lib/db/permits";
 import { env, isSupabaseAdminConfigured } from "@/lib/env";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
@@ -21,10 +22,22 @@ export type SiteRow = {
 
 export type SiteActivityItem = {
   id: string;
-  type: "induction_submitted" | "rams_uploaded";
+  type: "induction_submitted" | "rams_uploaded" | string;
   title: string;
   detail: string;
   occurredAt: string;
+  href?: string;
+};
+
+export type SitePermitSummaryItem = {
+  id: string;
+  permitNumber: string;
+  title: string;
+  contractor: string;
+  status: string;
+  validToDate: string;
+  validToTime: string;
+  href: string;
 };
 
 export type SiteWorkspaceSummary = {
@@ -44,6 +57,7 @@ export type SiteWorkspaceSummary = {
     expiringSoon: number;
     awaitingClosure: number;
   };
+  activePermits: SitePermitSummaryItem[];
   recentActivity: SiteActivityItem[];
 };
 
@@ -157,8 +171,14 @@ export async function getSiteWorkspaceSummary(siteId: string): Promise<SiteWorks
   const site = await getSite(siteId);
   if (!site) return buildSummary([], []);
 
-  const [inductionRows, ramsRows, permits] = await Promise.all([listSiteSummaryInductions(site), listSiteSummaryRams(site), countPermitsBySite(site.id)]);
-  return buildSummary(inductionRows, ramsRows, permits);
+  const [inductionRows, ramsRows, permits, priorityPermits, activityRows] = await Promise.all([
+    listSiteSummaryInductions(site),
+    listSiteSummaryRams(site),
+    countPermitsBySite(site.id),
+    listPriorityPermitsBySite(site.id),
+    listSiteActivityEvents(site.id, 20),
+  ]);
+  return buildSummary(inductionRows, ramsRows, permits, priorityPermits, activityRows);
 }
 
 async function listSiteSummaryInductions(site: SiteRow) {
@@ -238,8 +258,18 @@ function buildSummary(
   inductionRows: SummaryInductionRow[],
   ramsRows: SummaryRamsRow[],
   permits = { active: 0, expiringSoon: 0, awaitingClosure: 0 },
+  priorityPermits: PermitRow[] = [],
+  activityRows: SiteActivityEventRow[] = [],
 ): SiteWorkspaceSummary {
   const recentActivity: SiteActivityItem[] = [
+    ...activityRows.map((row) => ({
+      id: `activity-${row.id}`,
+      type: row.event_type,
+      title: row.title,
+      detail: row.detail,
+      occurredAt: row.occurred_at,
+      href: row.entity_type === "permit" ? `/admin/sites/${row.site_id}/permits` : undefined,
+    })),
     ...inductionRows.map((row) => ({
       id: `induction-${row.id}`,
       type: "induction_submitted" as const,
@@ -275,6 +305,16 @@ function buildSummary(
       expiringSoon: permits.expiringSoon,
       awaitingClosure: permits.awaitingClosure,
     },
+    activePermits: priorityPermits.map((permit) => ({
+      id: permit.id,
+      permitNumber: permit.permit_number,
+      title: permit.template_title ?? permit.template_code ?? "Permit",
+      contractor: permit.contractor,
+      status: permit.status,
+      validToDate: permit.valid_to_date,
+      validToTime: permit.valid_to_time,
+      href: `/admin/sites/${permit.site_id}/permits`,
+    })),
     recentActivity,
   };
 }

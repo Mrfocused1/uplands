@@ -8,6 +8,17 @@ export const runtime = "nodejs";
 
 const statuses: PermitStatus[] = ["DRAFT", "AWAITING_REVIEW", "AUTHORISED", "ACTIVE", "WORK_COMPLETED", "CLOSED", "REJECTED", "EXPIRED", "CANCELLED"];
 const answers: PermitAnswer[] = ["YES", "NO", "NA"];
+const allowedTransitions: Record<PermitStatus, PermitStatus[]> = {
+  DRAFT: ["DRAFT", "AWAITING_REVIEW", "CANCELLED"],
+  AWAITING_REVIEW: ["AWAITING_REVIEW", "AUTHORISED", "REJECTED", "CANCELLED", "DRAFT"],
+  AUTHORISED: ["AUTHORISED", "ACTIVE", "CANCELLED", "EXPIRED"],
+  ACTIVE: ["ACTIVE", "WORK_COMPLETED", "CANCELLED", "EXPIRED"],
+  WORK_COMPLETED: ["WORK_COMPLETED", "CLOSED"],
+  CLOSED: ["CLOSED"],
+  REJECTED: ["REJECTED", "DRAFT"],
+  EXPIRED: ["EXPIRED"],
+  CANCELLED: ["CANCELLED"],
+};
 
 function text(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
@@ -73,7 +84,40 @@ function serializeDetail(detail: NonNullable<Awaited<ReturnType<typeof getPermit
       signatureDataUrl: signature.signature_data_url,
       action: signature.action,
     })),
+    activity: detail.activity.map((event) => ({
+      id: event.id,
+      eventType: event.event_type,
+      title: event.title,
+      detail: event.detail,
+      actor: event.actor,
+      occurredAt: event.occurred_at,
+    })),
   };
+}
+
+function validatePermitUpdate(
+  detail: NonNullable<Awaited<ReturnType<typeof getPermitDetail>>>,
+  nextStatus: PermitStatus,
+  parsedAnswers: Array<{ questionKey: string; answer: PermitAnswer; comment: string | null }>,
+  parsedSignatures: Array<{ signatureKey: string; role: string; name: string; company: string | null; position: string | null; signedAt: string; signatureDataUrl: string | null; action: string }>,
+) {
+  if (!allowedTransitions[detail.permit.status].includes(nextStatus)) {
+    return `Permit cannot move from ${detail.permit.status.replaceAll("_", " ")} to ${nextStatus.replaceAll("_", " ")}.`;
+  }
+
+  const requiresAnsweredQuestions = ["AWAITING_REVIEW", "AUTHORISED", "ACTIVE", "WORK_COMPLETED", "CLOSED"].includes(nextStatus);
+  if (requiresAnsweredQuestions) {
+    const questionKeys = detail.template.sections.flatMap((section) => section.questions.map((question) => question.question_key));
+    const answered = new Set(parsedAnswers.map((answer) => answer.questionKey));
+    if (questionKeys.some((key) => !answered.has(key))) return "All permit questions need an answer before review or authorisation.";
+  }
+
+  const signed = new Set(parsedSignatures.filter((signature) => signature.name.trim()).map((signature) => signature.signatureKey));
+  if ((nextStatus === "AUTHORISED" || nextStatus === "ACTIVE") && !signed.has("manager_authorisation")) return "Manager authorisation is required before the permit can be authorised or active.";
+  if (nextStatus === "WORK_COMPLETED" && !signed.has("contractor_completion")) return "Contractor completion is required before marking work completed.";
+  if (nextStatus === "CLOSED" && (!signed.has("contractor_completion") || !signed.has("manager_completion_acceptance"))) return "Contractor completion and manager completion acceptance are required before closure.";
+
+  return "";
 }
 
 export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
@@ -97,8 +141,9 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
 }
 
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
+  let admin;
   try {
-    await requireAdmin();
+    admin = await requireAdmin();
   } catch (error) {
     if (error instanceof UnauthorizedError) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     throw error;
@@ -140,6 +185,18 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     })
     .filter((item) => item.signatureKey && item.role && item.name && item.signedAt && item.action);
 
+  let detail;
+  try {
+    detail = await getPermitDetail(id);
+  } catch (error) {
+    if (isPermitDatabaseSetupError(error)) return NextResponse.json({ error: "Permit database setup required." }, { status: 503 });
+    throw error;
+  }
+  if (!detail) return NextResponse.json({ error: "Permit not found." }, { status: 404 });
+
+  const validation = validatePermitUpdate(detail, status, parsedAnswers, parsedSignatures);
+  if (validation) return NextResponse.json({ error: validation }, { status: 400 });
+
   try {
     await updatePermit(id, {
       contractor: text(body.contractor),
@@ -152,6 +209,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       status,
       answers: parsedAnswers,
       signatures: parsedSignatures,
+      updatedBy: admin.displayName,
     });
   } catch (error) {
     if (isPermitDatabaseSetupError(error)) return NextResponse.json({ error: "Permit database setup required." }, { status: 503 });

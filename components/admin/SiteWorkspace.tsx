@@ -7,6 +7,19 @@ function formatTime(value: string) {
   return new Date(value).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
 }
 
+function formatPermitExpiry(date: string, time: string) {
+  const expiry = new Date(`${date}T${time || "00:00"}:00`);
+  const diff = expiry.getTime() - Date.now();
+  if (Number.isNaN(expiry.getTime())) return `Expires ${time}`;
+  if (diff <= 0) return "Expired";
+
+  const totalMinutes = Math.round(diff / 60000);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  if (hours < 24) return `${hours}h ${minutes}m remaining`;
+  return `Expires ${expiry.toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit" })} ${time}`;
+}
+
 export function SiteWorkspace({ site, summary }: { site: SiteRow; summary: SiteWorkspaceSummary }) {
   const portalSite = portalSiteFromRow(site);
   const actions = portalActionsForSite(site.id);
@@ -31,6 +44,32 @@ export function SiteWorkspace({ site, summary }: { site: SiteRow; summary: SiteW
           </Link>
         </div>
       </section>
+
+      {summary.activePermits.length > 0 && (
+        <section className="border border-zinc-200 bg-white p-5 shadow-soft sm:p-6">
+          <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.22em] text-uplands-magenta">Active Permits</p>
+              <h2 className="mt-1 font-slab text-3xl text-uplands-charcoal">Permit Watch</h2>
+            </div>
+            <Link href={`/admin/sites/${site.id}/permits`} className="w-fit border border-uplands-magenta px-3 py-2 text-xs font-bold uppercase text-uplands-magenta">
+              Open permits
+            </Link>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {summary.activePermits.map((permit) => (
+              <Link key={permit.id} href={permit.href} className="border border-zinc-200 bg-uplands-paper p-4 transition hover:border-uplands-magenta hover:shadow-soft">
+                <span className="block text-xs font-bold uppercase text-uplands-muted">{permit.permitNumber}</span>
+                <span className="mt-2 block font-slab text-2xl text-uplands-charcoal">{permit.title}</span>
+                <span className="mt-2 block text-sm text-zinc-700">{permit.contractor}</span>
+                <span className="mt-3 inline-flex border border-zinc-300 bg-white px-2.5 py-1 text-xs font-bold uppercase text-zinc-700">{permit.status.replaceAll("_", " ")}</span>
+                <span className="mt-2 block text-sm font-bold text-uplands-magenta">{formatPermitExpiry(permit.validToDate, permit.validToTime)}</span>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
 
       <section className="border border-zinc-200 bg-white p-5 shadow-soft sm:p-6">
         <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
@@ -102,13 +141,23 @@ export function SiteWorkspace({ site, summary }: { site: SiteRow; summary: SiteW
         </div>
         <div className="divide-y divide-zinc-200 border border-zinc-200">
           {summary.recentActivity.map((item) => (
-            <div key={item.id} className="grid gap-2 px-4 py-3 sm:grid-cols-[90px_1fr] sm:items-start">
-              <span className="text-xs font-bold uppercase text-uplands-muted">{formatTime(item.occurredAt)}</span>
-              <span>
-                <span className="block font-din text-base text-uplands-charcoal">{item.title}</span>
-                <span className="mt-1 block text-sm text-uplands-muted">{item.detail}</span>
-              </span>
-            </div>
+            item.href ? (
+              <Link key={item.id} href={item.href} className="grid gap-2 px-4 py-3 hover:bg-uplands-paper sm:grid-cols-[90px_1fr] sm:items-start">
+                <span className="text-xs font-bold uppercase text-uplands-muted">{formatTime(item.occurredAt)}</span>
+                <span>
+                  <span className="block font-din text-base text-uplands-charcoal">{item.title}</span>
+                  <span className="mt-1 block text-sm text-uplands-muted">{item.detail}</span>
+                </span>
+              </Link>
+            ) : (
+              <div key={item.id} className="grid gap-2 px-4 py-3 sm:grid-cols-[90px_1fr] sm:items-start">
+                <span className="text-xs font-bold uppercase text-uplands-muted">{formatTime(item.occurredAt)}</span>
+                <span>
+                  <span className="block font-din text-base text-uplands-charcoal">{item.title}</span>
+                  <span className="mt-1 block text-sm text-uplands-muted">{item.detail}</span>
+                </span>
+              </div>
+            )
           ))}
           {summary.recentActivity.length === 0 && <p className="p-4 text-sm text-uplands-muted">No linked site activity yet.</p>}
         </div>

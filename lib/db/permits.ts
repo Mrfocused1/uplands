@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 
 import { PERMIT_TEMPLATES, type PermitAnswer, type PermitStatus } from "@/config/permitTemplates";
+import { listEntityActivityEvents, recordSiteActivity, type SiteActivityEventRow, type SiteActivityEventType } from "@/lib/db/activity";
 import { getDb } from "@/lib/db";
 import { env, isSupabaseAdminConfigured } from "@/lib/env";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -108,6 +109,7 @@ export type PermitDetail = {
   template: PermitTemplateWithSections;
   answers: PermitAnswerRow[];
   signatures: PermitSignatureRow[];
+  activity: SiteActivityEventRow[];
 };
 
 export type UpsertPermitInput = {
@@ -130,6 +132,7 @@ export type UpsertPermitInput = {
     signatureDataUrl?: string | null;
     action: string;
   }>;
+  updatedBy?: string | null;
 };
 
 function shouldUseSupabasePermitsDb() {
@@ -284,6 +287,31 @@ export async function countPermitsBySite(siteId: string) {
   };
 }
 
+export async function listPriorityPermitsBySite(siteId: string, limit = 6): Promise<PermitRow[]> {
+  const rows = await listPermitsBySite(siteId);
+  const priority = new Map<PermitStatus, number>([
+    ["ACTIVE", 0],
+    ["AUTHORISED", 1],
+    ["WORK_COMPLETED", 2],
+    ["AWAITING_REVIEW", 3],
+    ["DRAFT", 4],
+    ["EXPIRED", 5],
+    ["REJECTED", 6],
+    ["CANCELLED", 7],
+    ["CLOSED", 8],
+  ]);
+  return rows
+    .filter((row) => row.status === "ACTIVE" || row.status === "AUTHORISED" || row.status === "WORK_COMPLETED" || row.status === "AWAITING_REVIEW")
+    .sort((a, b) => {
+      const statusSort = (priority.get(a.status) ?? 99) - (priority.get(b.status) ?? 99);
+      if (statusSort !== 0) return statusSort;
+      const dateSort = a.valid_to_date.localeCompare(b.valid_to_date);
+      if (dateSort !== 0) return dateSort;
+      return a.valid_to_time.localeCompare(b.valid_to_time);
+    })
+    .slice(0, limit);
+}
+
 function expiresToday(row: PermitRow) {
   const today = new Date().toISOString().slice(0, 10);
   return row.valid_to_date === today;
@@ -304,6 +332,7 @@ export async function createPermit(input: {
 }) {
   const id = randomUUID();
   const now = new Date().toISOString();
+  const template = await getPermitTemplate(input.templateId);
   const permitNumber = await nextPermitNumber(input.templateId, input.siteId);
 
   if (shouldUseSupabasePermitsDb()) {
@@ -327,6 +356,16 @@ export async function createPermit(input: {
       updated_at: now,
     });
     assertNoError(error, "Unable to create permit");
+    await recordPermitActivity({
+      permitId: id,
+      siteId: input.siteId,
+      projectId: input.projectId ?? null,
+      eventType: "permit_created",
+      title: "Permit created",
+      detail: `${template?.title ?? input.templateId} · ${input.contractor} · ${permitNumber}`,
+      actor: input.createdBy ?? null,
+      metadata: { permitNumber, templateId: input.templateId, status: "DRAFT" },
+    });
     return id;
   }
 
@@ -354,6 +393,17 @@ export async function createPermit(input: {
       now,
       now,
     );
+
+  await recordPermitActivity({
+    permitId: id,
+    siteId: input.siteId,
+    projectId: input.projectId ?? null,
+    eventType: "permit_created",
+    title: "Permit created",
+    detail: `${template?.title ?? input.templateId} · ${input.contractor} · ${permitNumber}`,
+    actor: input.createdBy ?? null,
+    metadata: { permitNumber, templateId: input.templateId, status: "DRAFT" },
+  });
 
   return id;
 }
@@ -383,18 +433,20 @@ export async function getPermitDetail(permitId: string): Promise<PermitDetail | 
 
   if (shouldUseSupabasePermitsDb()) {
     const supabase = createSupabaseAdminClient();
-    const [{ data: answers, error: answersError }, { data: signatures, error: signaturesError }] = await Promise.all([
+    const [{ data: answers, error: answersError }, { data: signatures, error: signaturesError }, activity] = await Promise.all([
       supabase.from("permit_answers").select("*").eq("permit_id", permitId).order("question_key"),
       supabase.from("permit_signatures").select("*").eq("permit_id", permitId).order("signed_at"),
+      listEntityActivityEvents("permit", permitId),
     ]);
     assertNoError(answersError, "Unable to get permit answers");
     assertNoError(signaturesError, "Unable to get permit signatures");
-    return { permit, template, answers: (answers ?? []) as PermitAnswerRow[], signatures: (signatures ?? []) as PermitSignatureRow[] };
+    return { permit, template, answers: (answers ?? []) as PermitAnswerRow[], signatures: (signatures ?? []) as PermitSignatureRow[], activity };
   }
 
   const answers = getDb().prepare("SELECT * FROM permit_answers WHERE permit_id = ? ORDER BY question_key").all(permitId) as PermitAnswerRow[];
   const signatures = getDb().prepare("SELECT * FROM permit_signatures WHERE permit_id = ? ORDER BY signed_at").all(permitId) as PermitSignatureRow[];
-  return { permit, template, answers, signatures };
+  const activity = await listEntityActivityEvents("permit", permitId);
+  return { permit, template, answers, signatures, activity };
 }
 
 async function getPermit(permitId: string): Promise<PermitRow | null> {
@@ -420,6 +472,8 @@ async function getPermit(permitId: string): Promise<PermitRow | null> {
 
 export async function updatePermit(permitId: string, input: UpsertPermitInput) {
   const now = new Date().toISOString();
+  const existingPermit = await getPermit(permitId);
+  const existingSignatureKeys = await listPermitSignatureKeys(permitId);
   if (shouldUseSupabasePermitsDb()) {
     const supabase = createSupabaseAdminClient();
     assertNoError(
@@ -443,6 +497,7 @@ export async function updatePermit(permitId: string, input: UpsertPermitInput) {
     );
     await replacePermitAnswersSupabase(supabase, permitId, input.answers, now);
     await replacePermitSignaturesSupabase(supabase, permitId, input.signatures, now);
+    await recordPermitUpdateActivity(permitId, existingPermit, existingSignatureKeys, input);
     return;
   }
 
@@ -495,6 +550,100 @@ export async function updatePermit(permitId: string, input: UpsertPermitInput) {
   });
 
   run();
+  await recordPermitUpdateActivity(permitId, existingPermit, existingSignatureKeys, input);
+}
+
+async function listPermitSignatureKeys(permitId: string) {
+  if (shouldUseSupabasePermitsDb()) {
+    const { data, error } = await createSupabaseAdminClient().from("permit_signatures").select("signature_key").eq("permit_id", permitId);
+    assertNoError(error, "Unable to list permit signatures");
+    return new Set((data ?? []).map((row) => String(row.signature_key)));
+  }
+
+  const rows = getDb().prepare("SELECT signature_key FROM permit_signatures WHERE permit_id = ?").all(permitId) as Array<{ signature_key: string }>;
+  return new Set(rows.map((row) => row.signature_key));
+}
+
+function statusActivity(status: PermitStatus): { eventType: SiteActivityEventType; title: string } | null {
+  switch (status) {
+    case "AWAITING_REVIEW":
+      return { eventType: "permit_submitted", title: "Permit submitted for review" };
+    case "AUTHORISED":
+      return { eventType: "permit_authorised", title: "Permit authorised" };
+    case "ACTIVE":
+      return { eventType: "permit_activated", title: "Permit activated" };
+    case "WORK_COMPLETED":
+      return { eventType: "permit_work_completed", title: "Permit work completed" };
+    case "CLOSED":
+      return { eventType: "permit_closed", title: "Permit closed" };
+    case "REJECTED":
+      return { eventType: "permit_rejected", title: "Permit rejected" };
+    case "EXPIRED":
+      return { eventType: "permit_expired", title: "Permit expired" };
+    case "CANCELLED":
+      return { eventType: "permit_cancelled", title: "Permit cancelled" };
+    default:
+      return null;
+  }
+}
+
+async function recordPermitUpdateActivity(permitId: string, existingPermit: PermitRow | null, existingSignatureKeys: Set<string>, input: UpsertPermitInput) {
+  if (!existingPermit) return;
+
+  const actor = input.updatedBy ?? null;
+  const baseDetail = `${existingPermit.permit_number} · ${input.contractor}`;
+  if (existingPermit.status !== input.status) {
+    const event = statusActivity(input.status);
+    if (event) {
+      await recordPermitActivity({
+        permitId,
+        siteId: existingPermit.site_id,
+        projectId: existingPermit.project_id,
+        eventType: event.eventType,
+        title: event.title,
+        detail: baseDetail,
+        actor,
+        metadata: { fromStatus: existingPermit.status, toStatus: input.status },
+      });
+    }
+  }
+
+  for (const signature of input.signatures) {
+    if (existingSignatureKeys.has(signature.signatureKey)) continue;
+    await recordPermitActivity({
+      permitId,
+      siteId: existingPermit.site_id,
+      projectId: existingPermit.project_id,
+      eventType: "permit_signature_recorded",
+      title: signature.action,
+      detail: `${baseDetail} · ${signature.name}${signature.company ? ` · ${signature.company}` : ""}`,
+      actor: actor ?? signature.name,
+      metadata: { signatureKey: signature.signatureKey, role: signature.role },
+    });
+  }
+}
+
+async function recordPermitActivity(input: {
+  permitId: string;
+  siteId: string;
+  projectId?: string | null;
+  eventType: SiteActivityEventType;
+  title: string;
+  detail: string;
+  actor?: string | null;
+  metadata?: Record<string, unknown> | null;
+}) {
+  await recordSiteActivity({
+    siteId: input.siteId,
+    projectId: input.projectId ?? null,
+    entityType: "permit",
+    entityId: input.permitId,
+    eventType: input.eventType,
+    title: input.title,
+    detail: input.detail,
+    actor: input.actor ?? null,
+    metadata: input.metadata ?? null,
+  });
 }
 
 async function replacePermitAnswersSupabase(

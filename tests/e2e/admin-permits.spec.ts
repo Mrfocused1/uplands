@@ -16,20 +16,27 @@ test("admin can create, edit and download a step ladders permit", async ({ page 
 
   await expect(page.getByText(contractor).first()).toBeVisible();
   await expect(page.getByRole("heading", { name: "Step Ladders / Ladders Permit" })).toBeVisible();
+  await expect(page.getByLabel("Contractor")).toHaveValue(contractor);
+  await expect(page.getByText("Permit created").first()).toBeVisible();
 
   const yesButtons = await page.getByRole("button", { name: "YES" }).all();
   for (const button of yesButtons) {
     await button.click();
   }
 
-  await page.getByLabel("Status").selectOption("AUTHORISED");
+  const submitForReview = page.getByRole("button", { name: "Submit for Review" });
+  await expect(submitForReview).toBeEnabled();
+  await submitForReview.click();
+  await expect(page.getByText("Permit submitted for review").first()).toBeVisible();
+
   const managerSignature = page.locator("article").filter({ has: page.getByRole("heading", { name: "Uplands Site Manager Authorisation" }) });
   await managerSignature.getByPlaceholder("Name").fill("Matty");
   await managerSignature.getByPlaceholder("Company").fill("Uplands");
   await managerSignature.getByPlaceholder("Position").fill("Site Manager");
 
-  await page.getByRole("button", { name: "Save Permit" }).first().click();
+  await page.getByRole("button", { name: "Authorise Permit" }).click();
   await expect(page.getByText("AUTHORISED").first()).toBeVisible();
+  await expect(page.getByText("Permit authorised").first()).toBeVisible();
 
   const pdfHref = await page.getByRole("link", { name: "Download PDF" }).getAttribute("href");
   expect(pdfHref).toBeTruthy();

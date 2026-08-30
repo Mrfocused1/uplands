@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 
 import { SignaturePad } from "@/components/induction/SignaturePad";
 import type { PermitAnswer, PermitSignatureKey, PermitStatus } from "@/config/permitTemplates";
@@ -54,6 +54,14 @@ type PermitDetail = {
     signatureDataUrl: string | null;
     action: string;
   }>;
+  activity: Array<{
+    id: string;
+    eventType: string;
+    title: string;
+    detail: string;
+    actor: string | null;
+    occurredAt: string;
+  }>;
 };
 
 const statuses: PermitStatus[] = ["DRAFT", "AWAITING_REVIEW", "AUTHORISED", "ACTIVE", "WORK_COMPLETED", "CLOSED", "REJECTED", "EXPIRED", "CANCELLED"];
@@ -70,6 +78,36 @@ function statusLabel(status: string) {
   return status.replaceAll("_", " ");
 }
 
+function formatDateTime(value: string) {
+  return new Date(value).toLocaleString("en-GB", { dateStyle: "short", timeStyle: "short" });
+}
+
+function lifecycleActions(status: PermitStatus) {
+  switch (status) {
+    case "DRAFT":
+      return [{ label: "Submit for Review", status: "AWAITING_REVIEW" as const }];
+    case "AWAITING_REVIEW":
+      return [
+        { label: "Authorise Permit", status: "AUTHORISED" as const },
+        { label: "Reject Permit", status: "REJECTED" as const },
+      ];
+    case "AUTHORISED":
+      return [
+        { label: "Mark Active", status: "ACTIVE" as const },
+        { label: "Cancel Permit", status: "CANCELLED" as const },
+      ];
+    case "ACTIVE":
+      return [
+        { label: "Mark Work Complete", status: "WORK_COMPLETED" as const },
+        { label: "Cancel Permit", status: "CANCELLED" as const },
+      ];
+    case "WORK_COMPLETED":
+      return [{ label: "Close Permit", status: "CLOSED" as const }];
+    default:
+      return [];
+  }
+}
+
 function blankSignature(signature: PermitDetail["template"]["signatures"][number]) {
   return {
     signatureKey: signature.key,
@@ -83,6 +121,18 @@ function blankSignature(signature: PermitDetail["template"]["signatures"][number
   };
 }
 
+function permitValidationError(current: PermitDetail) {
+  const questionKeys = current.template.sections.flatMap((section) => section.questions.map((question) => question.key));
+  const answered = new Set(current.answers.map((answer) => answer.questionKey));
+  const requiresAnsweredQuestions = ["AWAITING_REVIEW", "AUTHORISED", "ACTIVE", "WORK_COMPLETED", "CLOSED"].includes(current.permit.status);
+  if (requiresAnsweredQuestions && questionKeys.some((key) => !answered.has(key))) return "All permit questions need an answer before review or authorisation.";
+  const signed = new Set(current.signatures.filter((signature) => signature.name.trim()).map((signature) => signature.signatureKey));
+  if ((current.permit.status === "AUTHORISED" || current.permit.status === "ACTIVE") && !signed.has("manager_authorisation")) return "Manager authorisation is required before the permit can be authorised or active.";
+  if (current.permit.status === "WORK_COMPLETED" && !signed.has("contractor_completion")) return "Contractor completion is required before marking work completed.";
+  if (current.permit.status === "CLOSED" && (!signed.has("contractor_completion") || !signed.has("manager_completion_acceptance"))) return "Contractor completion and manager completion acceptance are required before closure.";
+  return "";
+}
+
 export function PermitsWorkspace({ site, templates, initialPermits }: { site: Site; templates: Template[]; initialPermits: PermitListItem[] }) {
   const [permits, setPermits] = useState(initialPermits);
   const [selectedId, setSelectedId] = useState(initialPermits[0]?.id ?? "");
@@ -91,6 +141,13 @@ export function PermitsWorkspace({ site, templates, initialPermits }: { site: Si
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
+  const fetchPermitDetail = useCallback(async (id: string): Promise<PermitDetail> => {
+    const response = await fetch(`/api/admin/permits/${id}`);
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "Unable to load permit.");
+    return data as PermitDetail;
+  }, []);
+
   useEffect(() => {
     if (!selectedId) {
       setDetail(null);
@@ -98,10 +155,9 @@ export function PermitsWorkspace({ site, templates, initialPermits }: { site: Si
     }
     let cancelled = false;
     setError("");
-    fetch(`/api/admin/permits/${selectedId}`)
-      .then((response) => response.json().then((data) => ({ response, data })))
-      .then(({ response, data }) => {
-        if (!response.ok) throw new Error(data.error || "Unable to load permit.");
+    setDetail(null);
+    fetchPermitDetail(selectedId)
+      .then((data) => {
         if (!cancelled) setDetail(data);
       })
       .catch((caught) => {
@@ -110,7 +166,7 @@ export function PermitsWorkspace({ site, templates, initialPermits }: { site: Si
     return () => {
       cancelled = true;
     };
-  }, [selectedId]);
+  }, [fetchPermitDetail, selectedId]);
 
   const answersByKey = useMemo(() => new Map(detail?.answers.map((answer) => [answer.questionKey, answer]) ?? []), [detail]);
   const signaturesByKey = useMemo(() => new Map(detail?.signatures.map((signature) => [signature.signatureKey, signature]) ?? []), [detail]);
@@ -127,6 +183,7 @@ export function PermitsWorkspace({ site, templates, initialPermits }: { site: Si
     event.preventDefault();
     setCreating(true);
     setError("");
+    setDetail(null);
     const form = new FormData(event.currentTarget);
     try {
       const response = await fetch("/api/admin/permits", {
@@ -148,6 +205,7 @@ export function PermitsWorkspace({ site, templates, initialPermits }: { site: Si
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Unable to create permit.");
       await refreshPermits(data.id);
+      setDetail(await fetchPermitDetail(data.id));
       event.currentTarget.reset();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Unable to create permit.");
@@ -185,20 +243,10 @@ export function PermitsWorkspace({ site, templates, initialPermits }: { site: Si
     });
   }
 
-  function validationError(current: PermitDetail) {
-    const questionKeys = current.template.sections.flatMap((section) => section.questions.map((question) => question.key));
-    const answered = new Set(current.answers.map((answer) => answer.questionKey));
-    if (current.permit.status !== "DRAFT" && questionKeys.some((key) => !answered.has(key))) return "All permit questions need an answer before review or authorisation.";
-    const signed = new Set(current.signatures.filter((signature) => signature.name.trim()).map((signature) => signature.signatureKey));
-    if ((current.permit.status === "AUTHORISED" || current.permit.status === "ACTIVE") && !signed.has("manager_authorisation")) return "Manager authorisation is required before the permit can be authorised or active.";
-    if (current.permit.status === "WORK_COMPLETED" && !signed.has("contractor_completion")) return "Contractor completion is required before marking work completed.";
-    if (current.permit.status === "CLOSED" && (!signed.has("contractor_completion") || !signed.has("manager_completion_acceptance"))) return "Contractor completion and manager completion acceptance are required before closure.";
-    return "";
-  }
-
-  async function savePermit() {
+  async function savePermit(nextStatus?: PermitStatus) {
     if (!detail) return;
-    const validation = validationError(detail);
+    const detailToSave = nextStatus ? { ...detail, permit: { ...detail.permit, status: nextStatus } } : detail;
+    const validation = permitValidationError(detailToSave);
     if (validation) {
       setError(validation);
       return;
@@ -210,21 +258,22 @@ export function PermitsWorkspace({ site, templates, initialPermits }: { site: Si
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          contractor: detail.permit.contractor,
-          locationOfWork: detail.permit.locationOfWork,
-          descriptionOfWork: detail.permit.descriptionOfWork,
-          validFromDate: detail.permit.validFromDate,
-          validToDate: detail.permit.validToDate,
-          validFromTime: detail.permit.validFromTime,
-          validToTime: detail.permit.validToTime,
-          status: detail.permit.status,
-          answers: detail.answers,
-          signatures: detail.signatures,
+          contractor: detailToSave.permit.contractor,
+          locationOfWork: detailToSave.permit.locationOfWork,
+          descriptionOfWork: detailToSave.permit.descriptionOfWork,
+          validFromDate: detailToSave.permit.validFromDate,
+          validToDate: detailToSave.permit.validToDate,
+          validFromTime: detailToSave.permit.validFromTime,
+          validToTime: detailToSave.permit.validToTime,
+          status: detailToSave.permit.status,
+          answers: detailToSave.answers,
+          signatures: detailToSave.signatures,
         }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Unable to save permit.");
       await refreshPermits(detail.permit.id);
+      setDetail(await fetchPermitDetail(detail.permit.id));
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Unable to save permit.");
     } finally {
@@ -300,6 +349,7 @@ export function PermitsWorkspace({ site, templates, initialPermits }: { site: Si
               onComment={setComment}
               onSignature={setSignature}
               onSave={savePermit}
+              onLifecycle={savePermit}
             />
           )}
         </div>
@@ -318,6 +368,7 @@ function PermitEditor({
   onComment,
   onSignature,
   onSave,
+  onLifecycle,
 }: {
   detail: PermitDetail;
   answersByKey: Map<string, PermitDetail["answers"][number]>;
@@ -328,7 +379,11 @@ function PermitEditor({
   onComment: (questionKey: string, comment: string) => void;
   onSignature: (signatureKey: PermitSignatureKey, patch: Partial<PermitDetail["signatures"][number]>) => void;
   onSave: () => void;
+  onLifecycle: (status: PermitStatus) => void;
 }) {
+  const actions = lifecycleActions(detail.permit.status);
+  const actionValidation = (status: PermitStatus) => permitValidationError({ ...detail, permit: { ...detail.permit, status } });
+
   return (
     <div className="space-y-5">
       <section className="border border-zinc-200 bg-white p-5 shadow-soft">
@@ -337,6 +392,7 @@ function PermitEditor({
             <p className="text-xs font-bold uppercase tracking-[0.22em] text-uplands-magenta">{detail.template.code}</p>
             <h2 className="mt-1 font-slab text-3xl text-uplands-charcoal">{detail.template.title}</h2>
             <p className="mt-1 text-sm font-bold text-zinc-700">{detail.permit.permitNumber}</p>
+            <p className="mt-3 inline-flex border border-zinc-300 px-2.5 py-1 text-xs font-bold uppercase text-zinc-700">{statusLabel(detail.permit.status)}</p>
           </div>
           <div className="flex flex-wrap gap-3">
             <button type="button" onClick={onSave} disabled={saving} className="min-h-11 bg-uplands-magenta px-4 text-sm font-bold uppercase text-white disabled:opacity-60">
@@ -351,9 +407,26 @@ function PermitEditor({
           </div>
         </div>
 
+        {actions.length > 0 && (
+          <div className="mt-5 flex flex-wrap gap-3 border-t border-zinc-200 pt-5">
+            {actions.map((action) => (
+              <button
+                key={action.status}
+                type="button"
+                onClick={() => onLifecycle(action.status)}
+                disabled={saving || Boolean(actionValidation(action.status))}
+                title={actionValidation(action.status) || action.label}
+                className="min-h-11 border border-uplands-magenta px-4 text-sm font-bold uppercase text-uplands-magenta disabled:opacity-60"
+              >
+                {action.label}
+              </button>
+            ))}
+          </div>
+        )}
+
         <div className="mt-5 grid gap-4 sm:grid-cols-2">
           <label>
-            <span className="text-xs font-bold uppercase text-zinc-700">Status</span>
+            <span className="text-xs font-bold uppercase text-zinc-700">Manual Status</span>
             <select
               value={detail.permit.status}
               onChange={(event) => onDetailChange((current) => ({ ...current, permit: { ...current.permit, status: event.target.value as PermitStatus } }))}
@@ -436,6 +509,22 @@ function PermitEditor({
               </article>
             );
           })}
+        </div>
+      </section>
+
+      <section className="border border-zinc-200 bg-white p-5 shadow-soft">
+        <h3 className="font-slab text-2xl text-uplands-charcoal">Audit Trail</h3>
+        <div className="mt-4 divide-y divide-zinc-200 border border-zinc-200">
+          {detail.activity.map((event) => (
+            <div key={event.id} className="grid gap-2 px-4 py-3 sm:grid-cols-[130px_1fr]">
+              <span className="text-xs font-bold uppercase text-uplands-muted">{formatDateTime(event.occurredAt)}</span>
+              <span>
+                <span className="block font-din text-base text-uplands-charcoal">{event.title}</span>
+                <span className="mt-1 block text-sm text-uplands-muted">{[event.detail, event.actor ? `By ${event.actor}` : ""].filter(Boolean).join(" · ")}</span>
+              </span>
+            </div>
+          ))}
+          {detail.activity.length === 0 && <p className="p-4 text-sm text-uplands-muted">No audit activity recorded yet.</p>}
         </div>
       </section>
 
