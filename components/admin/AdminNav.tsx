@@ -8,6 +8,10 @@ import { projectConfig } from "@/config/projectConfig";
 export function AdminNav({ adminName }: { adminName?: string }) {
   const pathname = usePathname();
   const isSiteSelector = pathname === "/admin";
+  const siteId = pathname.match(/^\/admin\/sites\/([^/]+)/)?.[1];
+  const formsHref = siteId ? `/admin/sites/${siteId}/forms` : "/admin/forms";
+  const ramsHref = siteId ? `/admin/sites/${siteId}/rams` : "/admin/rams";
+  const editImagesHref = siteId ? `/admin/sites/${siteId}/edit-images` : "/edit-images";
 
   const linkClass = (href: string) =>
     `whitespace-nowrap px-1 py-2 text-sm font-bold uppercase tracking-wide transition ${
@@ -42,13 +46,13 @@ export function AdminNav({ adminName }: { adminName?: string }) {
                 <Link href="/admin" className={linkClass("/admin")}>
                   Change Site
                 </Link>
-                <Link href="/admin/forms" className={linkClass("/admin/forms")}>
+                <Link href={formsHref} className={linkClass(formsHref)}>
                   Inductions
                 </Link>
-                <Link href="/admin/rams" className={linkClass("/admin/rams")}>
+                <Link href={ramsHref} className={linkClass(ramsHref)}>
                   RAMS
                 </Link>
-                <Link href="/edit-images" className={linkClass("/edit-images")}>
+                <Link href={editImagesHref} className={linkClass(editImagesHref)}>
                   Edit Images
                 </Link>
               </>
@@ -89,13 +93,13 @@ export function AdminNav({ adminName }: { adminName?: string }) {
                   <Link className={`${linkClass("/admin")} block py-3`} href="/admin">
                     Change Site
                   </Link>
-                  <Link className={`${linkClass("/admin/forms")} block py-3`} href="/admin/forms">
+                  <Link className={`${linkClass(formsHref)} block py-3`} href={formsHref}>
                     Inductions
                   </Link>
-                  <Link className={`${linkClass("/admin/rams")} block py-3`} href="/admin/rams">
+                  <Link className={`${linkClass(ramsHref)} block py-3`} href={ramsHref}>
                     RAMS
                   </Link>
-                  <Link className={`${linkClass("/edit-images")} block py-3`} href="/edit-images">
+                  <Link className={`${linkClass(editImagesHref)} block py-3`} href={editImagesHref}>
                     Edit Images
                   </Link>
                 </>

@@ -1,15 +1,17 @@
 import { notFound } from "next/navigation";
 
 import { SiteWorkspace } from "@/components/admin/SiteWorkspace";
-import { getPortalSite } from "@/lib/admin/sitePortal";
+import { getSite, getSiteWorkspaceSummary } from "@/lib/db/sites";
 
 export default async function AdminSitePage({ params }: { params: Promise<{ siteId: string }> }) {
   const { siteId } = await params;
-  const site = getPortalSite(siteId);
+  const site = await getSite(siteId);
 
   if (!site) {
     notFound();
   }
 
-  return <SiteWorkspace site={site} />;
+  const summary = await getSiteWorkspaceSummary(site.id);
+
+  return <SiteWorkspace site={site} summary={summary} />;
 }

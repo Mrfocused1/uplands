@@ -6,7 +6,7 @@ export const runtime = "nodejs";
 
 const EVIDENCE_TOTAL = 3;
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     await requireAdmin();
   } catch (error) {
@@ -14,10 +14,12 @@ export async function GET() {
     throw error;
   }
 
-  const rows = await listSubmissions();
+  const siteId = new URL(request.url).searchParams.get("siteId");
+  const rows = await listSubmissions({ siteId });
   const submissions = rows.map((row) => ({
     id: row.id,
     reference: row.reference,
+    siteId: row.site_id,
     fullName: row.full_name,
     companyName: row.company_name,
     siteName: row.site_name,

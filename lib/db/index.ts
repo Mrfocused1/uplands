@@ -3,6 +3,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { hashPassword } from "@/lib/auth/password";
+import { DEFAULT_SITE_SEEDS } from "@/config/siteSeeds";
 import { seedSampleSubmissions } from "@/lib/db/sampleSubmissions";
 
 export const DATA_DIR =
@@ -39,9 +40,45 @@ function migrate(db: Db) {
       expires_at TEXT NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS sites (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      location TEXT NOT NULL,
+      summary TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'PLANNED',
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS projects (
+      id TEXT PRIMARY KEY,
+      site_id TEXT NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
+      name TEXT NOT NULL,
+      reference TEXT,
+      status TEXT NOT NULL DEFAULT 'ACTIVE',
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS site_memberships (
+      id TEXT PRIMARY KEY,
+      site_id TEXT NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
+      admin_id TEXT NOT NULL,
+      role TEXT NOT NULL,
+      can_manage_inductions INTEGER NOT NULL DEFAULT 1,
+      can_manage_rams INTEGER NOT NULL DEFAULT 1,
+      can_manage_permits INTEGER NOT NULL DEFAULT 1,
+      can_manage_attendance INTEGER NOT NULL DEFAULT 0,
+      can_manage_handover INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      UNIQUE(site_id, admin_id, role)
+    );
+
     CREATE TABLE IF NOT EXISTS submissions (
       id TEXT PRIMARY KEY,
       reference TEXT,
+      site_id TEXT REFERENCES sites(id) ON DELETE SET NULL,
       full_name TEXT,
       company_name TEXT,
       site_name TEXT,
@@ -76,6 +113,7 @@ function migrate(db: Db) {
     CREATE TABLE IF NOT EXISTS rams_documents (
       id TEXT PRIMARY KEY,
       title TEXT NOT NULL,
+      site_id TEXT REFERENCES sites(id) ON DELETE SET NULL,
       site_name TEXT,
       contractor TEXT NOT NULL,
       document_reference TEXT,
@@ -181,10 +219,17 @@ function migrate(db: Db) {
     CREATE INDEX IF NOT EXISTS idx_rams_review_evidence_document ON rams_review_evidence(rams_document_id, review_question_key);
   `);
 
+  ensureColumn(db, "submissions", "site_id", "TEXT REFERENCES sites(id) ON DELETE SET NULL");
   ensureColumn(db, "submissions", "pinned", "INTEGER NOT NULL DEFAULT 0");
   ensureColumn(db, "submissions", "is_sample", "INTEGER NOT NULL DEFAULT 0");
+  ensureColumn(db, "rams_documents", "site_id", "TEXT REFERENCES sites(id) ON DELETE SET NULL");
   ensureColumn(db, "rams_chunk_boxes", "page_width", "REAL");
   ensureColumn(db, "rams_chunk_boxes", "page_height", "REAL");
+
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_submissions_site ON submissions(site_id, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_rams_documents_site ON rams_documents(site_id, created_at DESC);
+  `);
 }
 
 function seedAdmin(db: Db) {
@@ -207,6 +252,71 @@ function seedAdmin(db: Db) {
   );
 }
 
+function seedSites(db: Db) {
+  const now = new Date().toISOString();
+  const insertSite = db.prepare(
+    `INSERT INTO sites (id, name, location, summary, status, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(id) DO UPDATE SET
+       name = excluded.name,
+       location = excluded.location,
+       summary = excluded.summary,
+       status = excluded.status,
+       updated_at = excluded.updated_at`,
+  );
+  const insertProject = db.prepare(
+    `INSERT INTO projects (id, site_id, name, reference, status, created_at, updated_at)
+     VALUES (?, ?, ?, ?, 'ACTIVE', ?, ?)
+     ON CONFLICT(id) DO UPDATE SET
+       site_id = excluded.site_id,
+       name = excluded.name,
+       reference = excluded.reference,
+       status = excluded.status,
+       updated_at = excluded.updated_at`,
+  );
+
+  const run = db.transaction(() => {
+    for (const site of DEFAULT_SITE_SEEDS) {
+      insertSite.run(site.id, site.name, site.location, site.summary, site.status, now, now);
+      insertProject.run(site.project.id, site.id, site.project.name, site.project.reference, now, now);
+
+      const exactTerms = [site.id, site.name.toLowerCase(), site.location.toLowerCase(), site.project.name.toLowerCase()];
+      const fuzzyTerms = exactTerms.map((term) => `%${term}%`);
+
+      db.prepare(
+        `UPDATE submissions
+         SET site_id = ?
+         WHERE site_id IS NULL
+           AND lower(COALESCE(site_name, '')) IN (?, ?, ?, ?)`,
+      ).run(site.id, ...exactTerms);
+      db.prepare(
+        `UPDATE submissions
+         SET site_id = ?
+         WHERE site_id IS NULL
+           AND (
+             lower(COALESCE(site_name, '')) LIKE ?
+             OR lower(COALESCE(site_name, '')) LIKE ?
+             OR lower(COALESCE(site_name, '')) LIKE ?
+             OR lower(COALESCE(site_name, '')) LIKE ?
+           )`,
+      ).run(site.id, ...fuzzyTerms);
+      db.prepare(
+        `UPDATE rams_documents
+         SET site_id = ?
+         WHERE site_id IS NULL
+           AND (
+             lower(COALESCE(site_name, '')) LIKE ?
+             OR lower(COALESCE(site_name, '')) LIKE ?
+             OR lower(COALESCE(site_name, '')) LIKE ?
+             OR lower(COALESCE(site_name, '')) LIKE ?
+           )`,
+      ).run(site.id, ...fuzzyTerms);
+    }
+  });
+
+  run();
+}
+
 export function getDb(): Db {
   if (!globalForDb.__uplandsDb) {
     fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -219,7 +329,9 @@ export function getDb(): Db {
 
     migrate(db);
     seedAdmin(db);
+    seedSites(db);
     seedSampleSubmissions(db, UPLOADS_DIR);
+    seedSites(db);
 
     globalForDb.__uplandsDb = db;
   }

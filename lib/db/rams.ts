@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { getDb } from "@/lib/db";
 import { env, isSupabaseAdminConfigured } from "@/lib/env";
+import { getSite } from "@/lib/db/sites";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import type {
   RamsChunkBoxRow,
@@ -15,6 +16,7 @@ import type {
 
 export interface CreateRamsDocumentInput {
   title: string;
+  siteId?: string | null;
   siteName?: string | null;
   contractor: string;
   documentReference?: string | null;
@@ -29,6 +31,7 @@ export interface CreateRamsDocumentInput {
 }
 
 export type RamsDocumentWithCounts = RamsDocumentRow & { section_count: number; chunk_count: number };
+export type RamsDocumentListOptions = { siteId?: string | null };
 
 function shouldUseSupabaseRamsDb() {
   const provider = env("RAMS_DATABASE_PROVIDER", "sqlite");
@@ -53,10 +56,31 @@ function isMissingRelationError(error: { message: string } | null) {
   return /schema cache|does not exist|could not find the table/i.test(error.message);
 }
 
+function isMissingSiteIdError(error: { message: string } | null) {
+  if (!error) return false;
+  return /site_id|Could not find .*site_id/i.test(error.message);
+}
+
 function chunkArray<T>(items: T[], size: number) {
   const chunks: T[][] = [];
   for (let index = 0; index < items.length; index += size) chunks.push(items.slice(index, index + size));
   return chunks;
+}
+
+async function filterRowsByLegacySiteName<T extends { site_name: string | null; site_id?: string | null }>(rows: T[], siteId?: string | null) {
+  if (!siteId) return rows.map((row) => ({ ...row, site_id: row.site_id ?? null }));
+
+  const site = await getSite(siteId);
+  if (!site) return [];
+
+  const candidates = [site.id, site.name, site.location, site.project_name].filter((item): item is string => Boolean(item)).map((item) => item.toLowerCase());
+  return rows
+    .filter((row) => {
+      const siteName = row.site_name?.toLowerCase() ?? "";
+      if (!siteName) return false;
+      return row.site_id === siteId || candidates.some((candidate) => siteName.includes(candidate) || candidate.includes(siteName));
+    })
+    .map((row) => ({ ...row, site_id: row.site_id ?? siteId }));
 }
 
 export async function createRamsDocument(input: CreateRamsDocumentInput) {
@@ -65,9 +89,10 @@ export async function createRamsDocument(input: CreateRamsDocumentInput) {
 
   if (shouldUseSupabaseRamsDb()) {
     const supabase = createSupabaseAdminClient();
-    const { error } = await supabase.from("rams_documents").insert({
+    const documentPayload = {
       id,
       title: input.title,
+      site_id: input.siteId ?? null,
       site_name: input.siteName ?? null,
       contractor: input.contractor,
       document_reference: input.documentReference ?? null,
@@ -83,21 +108,29 @@ export async function createRamsDocument(input: CreateRamsDocumentInput) {
       created_by: input.createdBy ?? null,
       created_at: now,
       updated_at: now,
-    });
-    assertNoError(error, "Unable to create RAMS document");
+    };
+    const { error } = await supabase.from("rams_documents").insert(documentPayload);
+    if (isMissingSiteIdError(error)) {
+      const { site_id: removedSiteId, ...legacyPayload } = documentPayload;
+      void removedSiteId;
+      assertNoError((await supabase.from("rams_documents").insert(legacyPayload)).error, "Unable to create RAMS document");
+    } else {
+      assertNoError(error, "Unable to create RAMS document");
+    }
     return id;
   }
 
   getDb()
     .prepare(
       `INSERT INTO rams_documents
-       (id, title, site_name, contractor, document_reference, revision, revision_date, file_name, storage_key,
+       (id, title, site_id, site_name, contractor, document_reference, revision, revision_date, file_name, storage_key,
         file_size, mime_type, page_count, processing_status, text_extraction_status, created_by, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'UPLOADED', 'PENDING', ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'UPLOADED', 'PENDING', ?, ?, ?)`,
     )
     .run(
       id,
       input.title,
+      input.siteId ?? null,
       input.siteName ?? null,
       input.contractor,
       input.documentReference ?? null,
@@ -116,16 +149,55 @@ export async function createRamsDocument(input: CreateRamsDocumentInput) {
   return id;
 }
 
-export async function listRamsDocuments(): Promise<RamsDocumentWithCounts[]> {
+export async function listRamsDocuments(options: RamsDocumentListOptions = {}): Promise<RamsDocumentWithCounts[]> {
   if (shouldUseSupabaseRamsDb()) {
     const supabase = createSupabaseAdminClient();
-    const { data, error } = await supabase.from("rams_documents_with_counts").select("*").order("created_at", { ascending: false });
+    let query = supabase.from("rams_documents_with_counts").select("*").order("created_at", { ascending: false });
+    if (options.siteId) query = query.eq("site_id", options.siteId);
+    const { data, error } = await query;
     if (!isMissingRelationError(error)) {
+      if (isMissingSiteIdError(error)) {
+        const { data: legacyData, error: legacyError } = await supabase.from("rams_documents_with_counts").select("*").order("created_at", { ascending: false });
+        assertNoError(legacyError, "Unable to list RAMS documents");
+        return (await filterRowsByLegacySiteName((legacyData ?? []) as RamsDocumentWithCounts[], options.siteId)) as RamsDocumentWithCounts[];
+      }
       assertNoError(error, "Unable to list RAMS documents");
       return (data ?? []) as RamsDocumentWithCounts[];
     }
 
-    const { data: documents, error: documentsError } = await supabase.from("rams_documents").select("*").order("created_at", { ascending: false });
+    let documentsQuery = supabase.from("rams_documents").select("*").order("created_at", { ascending: false });
+    if (options.siteId) documentsQuery = documentsQuery.eq("site_id", options.siteId);
+    const { data: documents, error: documentsError } = await documentsQuery;
+    if (isMissingSiteIdError(documentsError)) {
+      const { data: legacyDocuments, error: legacyDocumentsError } = await supabase.from("rams_documents").select("*").order("created_at", { ascending: false });
+      assertNoError(legacyDocumentsError, "Unable to list RAMS documents");
+      const rows = await filterRowsByLegacySiteName((legacyDocuments ?? []) as RamsDocumentRow[], options.siteId);
+      if (rows.length === 0) return [];
+
+      const ids = rows.map((row) => row.id);
+      const sectionCounts = new Map<string, number>();
+      const chunkCounts = new Map<string, number>();
+
+      for (const idBatch of chunkArray(ids, 100)) {
+        const { data: sections, error: sectionsError } = await supabase.from("rams_sections").select("rams_document_id").in("rams_document_id", idBatch);
+        assertNoError(sectionsError, "Unable to count RAMS sections");
+        for (const section of (sections ?? []) as Array<{ rams_document_id: string }>) {
+          sectionCounts.set(section.rams_document_id, (sectionCounts.get(section.rams_document_id) ?? 0) + 1);
+        }
+
+        const { data: chunks, error: chunksError } = await supabase.from("rams_chunks").select("rams_document_id").in("rams_document_id", idBatch);
+        assertNoError(chunksError, "Unable to count RAMS chunks");
+        for (const chunk of (chunks ?? []) as Array<{ rams_document_id: string }>) {
+          chunkCounts.set(chunk.rams_document_id, (chunkCounts.get(chunk.rams_document_id) ?? 0) + 1);
+        }
+      }
+
+      return rows.map((row) => ({
+        ...row,
+        section_count: sectionCounts.get(row.id) ?? 0,
+        chunk_count: chunkCounts.get(row.id) ?? 0,
+      }));
+    }
     assertNoError(documentsError, "Unable to list RAMS documents");
     const rows = (documents ?? []) as RamsDocumentRow[];
     if (rows.length === 0) return [];
@@ -155,15 +227,17 @@ export async function listRamsDocuments(): Promise<RamsDocumentWithCounts[]> {
     }));
   }
 
+  const siteFilter = options.siteId ? "WHERE d.site_id = ?" : "";
   return getDb()
     .prepare(
       `SELECT d.*,
               (SELECT COUNT(*) FROM rams_sections s WHERE s.rams_document_id = d.id) AS section_count,
               (SELECT COUNT(*) FROM rams_chunks c WHERE c.rams_document_id = d.id) AS chunk_count
        FROM rams_documents d
+       ${siteFilter}
        ORDER BY d.created_at DESC`,
     )
-    .all() as RamsDocumentWithCounts[];
+    .all(...(options.siteId ? [options.siteId] : [])) as RamsDocumentWithCounts[];
 }
 
 export async function getRamsDocument(id: string): Promise<RamsDocumentRow | undefined> {

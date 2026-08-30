@@ -1,36 +1,46 @@
 import Link from "next/link";
 
-const formWorkflows = [
-  {
-    title: "Inductee Form",
-    summary:
-      "Start, view, download, edit and fill the UHSF16.01 induction record from the inductee side. Use this when an operative needs to complete or test the site induction flow.",
-    actions: [
-      { label: "Start New Induction", href: "/form?returnTo=/admin/forms", primary: true },
-      { label: "View Filled Inductions", href: "/admin/submissions", primary: false },
-    ],
-    details: ["Capture personal details, competency answers, document evidence and signature.", "Download completed induction PDFs from the admin records area."],
-  },
-  {
-    title: "Inductor Form",
-    summary:
-      "Open submitted inductions for inductor review, sign-off, editing, PDF download and document adjustment before the record is filed.",
-    actions: [
-      { label: "Open Induction Records", href: "/admin/submissions", primary: true },
-      { label: "Start New Record", href: "/form?returnTo=/admin/forms", primary: false },
-    ],
-    details: ["Edit inductor name, date, job title and signature on saved records.", "Review evidence uploads, adjust print crops and download the final admin-ready PDF."],
-  },
-];
+import type { SiteRow } from "@/lib/db/sites";
 
-export function AdminFormsHub() {
+function workflowsForSite(site?: Pick<SiteRow, "id"> | null) {
+  const formsHref = site ? `/admin/sites/${site.id}/forms` : "/admin/forms";
+  const submissionsHref = site ? `/admin/submissions?siteId=${encodeURIComponent(site.id)}` : "/admin/submissions";
+  const formReturnHref = site ? `/form?returnTo=${encodeURIComponent(formsHref)}` : "/form?returnTo=/admin/forms";
+
+  return [
+    {
+      title: "Inductee Form",
+      summary:
+        "Start, view, download, edit and fill the UHSF16.01 induction record from the inductee side. Use this when an operative needs to complete or test the site induction flow.",
+      actions: [
+        { label: "Start New Induction", href: formReturnHref, primary: true },
+        { label: "View Filled Inductions", href: submissionsHref, primary: false },
+      ],
+      details: ["Capture personal details, competency answers, document evidence and signature.", "Download completed induction PDFs from the admin records area."],
+    },
+    {
+      title: "Inductor Form",
+      summary:
+        "Open submitted inductions for inductor review, sign-off, editing, PDF download and document adjustment before the record is filed.",
+      actions: [
+        { label: "Open Induction Records", href: submissionsHref, primary: true },
+        { label: "Start New Record", href: formReturnHref, primary: false },
+      ],
+      details: ["Edit inductor name, date, job title and signature on saved records.", "Review evidence uploads, adjust print crops and download the final admin-ready PDF."],
+    },
+  ];
+}
+
+export function AdminFormsHub({ site = null }: { site?: Pick<SiteRow, "id" | "location"> | null }) {
+  const formWorkflows = workflowsForSite(site);
+
   return (
     <div className="space-y-8">
       <section className="border border-zinc-200 bg-white p-5 shadow-soft sm:p-6">
         <p className="text-xs font-bold uppercase tracking-[0.28em] text-uplands-magenta">Admin Forms</p>
         <h1 className="mt-3 font-slab text-4xl leading-tight text-uplands-charcoal sm:text-5xl">Forms Workspace</h1>
         <p className="mt-3 max-w-3xl text-base leading-7 text-uplands-muted">
-          Manage UHSF16.01 forms from both sides of the site induction process. Start new records, open completed
+          Manage UHSF16.01 forms{site ? ` for ${site.location}` : ""} from both sides of the site induction process. Start new records, open completed
           inductions, edit details, review evidence and download finished PDFs.
         </p>
       </section>

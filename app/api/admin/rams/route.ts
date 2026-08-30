@@ -20,6 +20,7 @@ function serializeDocument(row: RamsDocumentWithCounts | Awaited<ReturnType<type
   return {
     id: row.id,
     title: row.title,
+    siteId: row.site_id,
     siteName: row.site_name,
     contractor: row.contractor,
     documentReference: row.document_reference,
@@ -40,7 +41,7 @@ function serializeDocument(row: RamsDocumentWithCounts | Awaited<ReturnType<type
   };
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     await requireAdmin();
   } catch (error) {
@@ -48,7 +49,8 @@ export async function GET() {
     throw error;
   }
 
-  const documents = await listRamsDocuments();
+  const siteId = new URL(request.url).searchParams.get("siteId");
+  const documents = await listRamsDocuments({ siteId });
   return NextResponse.json({ documents: documents.map(serializeDocument).filter(Boolean) });
 }
 
@@ -98,6 +100,7 @@ export async function POST(request: Request) {
 
   const documentId = await createRamsDocument({
     title,
+    siteId: value(formData, "siteId") || null,
     siteName: value(formData, "siteName") || null,
     contractor,
     documentReference: value(formData, "documentReference") || null,

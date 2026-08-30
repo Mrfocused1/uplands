@@ -3,12 +3,14 @@ import { SubmissionsTable } from "@/components/admin/SubmissionsTable";
 
 export const dynamic = "force-dynamic";
 
-export default async function SubmissionsPage() {
-  const rows = await listSubmissions();
+export default async function SubmissionsPage({ searchParams }: { searchParams: Promise<{ siteId?: string }> }) {
+  const params = await searchParams;
+  const rows = await listSubmissions({ siteId: params.siteId });
 
   const submissions = rows.map((row) => ({
     id: row.id,
     reference: row.reference,
+    siteId: row.site_id,
     fullName: row.full_name,
     companyName: row.company_name,
     siteName: row.site_name,

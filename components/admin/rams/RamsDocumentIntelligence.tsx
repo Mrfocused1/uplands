@@ -34,6 +34,7 @@ type PreviewDocument = {
 interface RamsIntelligenceDocument {
   id: string;
   title: string;
+  siteId: string | null;
   siteName: string | null;
   contractor: string;
   documentReference: string | null;
@@ -792,9 +793,11 @@ function fileSize(bytes: number) {
 }
 
 function UploadModal({
+  site,
   onClose,
   onUploaded,
 }: {
+  site?: { id: string; location: string } | null;
   onClose: () => void;
   onUploaded: (document: RamsIntelligenceDocument) => void;
 }) {
@@ -808,11 +811,12 @@ function UploadModal({
 
     const form = event.currentTarget;
     const formData = new FormData(form);
+    const apiUrl = site?.id ? `/api/admin/rams?siteId=${encodeURIComponent(site.id)}` : "/api/admin/rams";
     try {
       const response = await fetch("/api/admin/rams", { method: "POST", body: formData });
       const data = await response.json();
       if (!response.ok && response.status !== 202) throw new Error(data.error || "Unable to upload RAMS.");
-      const refreshed = await fetch("/api/admin/rams").then((item) => item.json());
+      const refreshed = await fetch(apiUrl).then((item) => item.json());
       const document =
         ((refreshed.documents as RamsIntelligenceDocument[] | undefined)?.find((item) => item.id === data.document?.id) as RamsIntelligenceDocument | undefined) ??
         (data.document as RamsIntelligenceDocument | undefined);
@@ -846,7 +850,13 @@ function UploadModal({
           </label>
           <label>
             <span className="text-xs font-bold uppercase text-zinc-700">Project / Site</span>
-            <input name="siteName" className="mt-1 min-h-11 w-full border border-zinc-300 px-3 outline-none focus:border-uplands-magenta" />
+            {site?.id && <input type="hidden" name="siteId" value={site.id} />}
+            <input
+              name="siteName"
+              defaultValue={site?.location ?? ""}
+              readOnly={Boolean(site?.id)}
+              className="mt-1 min-h-11 w-full border border-zinc-300 px-3 outline-none focus:border-uplands-magenta read-only:bg-zinc-100"
+            />
           </label>
           <label>
             <span className="text-xs font-bold uppercase text-zinc-700">Contractor / Subcontractor</span>
@@ -1286,9 +1296,11 @@ function PdfWorkspace({
 }
 
 export function RamsDocumentIntelligence({
+  site,
   legacyReviews = [],
   onWorkspaceChange,
 }: {
+  site?: { id: string; location: string } | null;
   legacyReviews?: LegacyRamsReview[];
   onWorkspaceChange?: (active: boolean) => void;
 }) {
@@ -1300,7 +1312,8 @@ export function RamsDocumentIntelligence({
 
   useEffect(() => {
     let cancelled = false;
-    fetch("/api/admin/rams")
+    const apiUrl = site?.id ? `/api/admin/rams?siteId=${encodeURIComponent(site.id)}` : "/api/admin/rams";
+    fetch(apiUrl)
       .then((response) => response.json())
       .then((data) => {
         if (!cancelled) setDocuments(data.documents ?? []);
@@ -1314,7 +1327,7 @@ export function RamsDocumentIntelligence({
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [site?.id]);
 
   const selectedDocument = useMemo(() => documents.find((document) => document.id === selectedId) ?? null, [documents, selectedId]);
   const selectedLegacyReview = useMemo(() => {
@@ -1390,6 +1403,7 @@ export function RamsDocumentIntelligence({
 
       {uploadOpen && (
         <UploadModal
+          site={site}
           onClose={() => setUploadOpen(false)}
           onUploaded={(document) => {
             setDocuments((current) => [document, ...current.filter((item) => item.id !== document.id)]);

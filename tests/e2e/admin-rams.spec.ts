@@ -60,9 +60,9 @@ test("admin opens the site manager portal before workflow areas", async ({ page 
     await page.getByLabel("Open admin navigation menu").click();
   }
 
-  await expect(page.getByRole("link", { name: /Open inductions/i })).toHaveAttribute("href", "/admin/forms");
-  await expect(page.getByRole("link", { name: /Open RAMS/i })).toHaveAttribute("href", "/admin/rams");
-  await expect(page.getByRole("link", { name: /Start form/i })).toHaveAttribute("href", "/form?returnTo=/admin/forms");
+  await expect(page.getByRole("link", { name: /Open inductions/i })).toHaveAttribute("href", "/admin/sites/newport/forms");
+  await expect(page.getByRole("link", { name: /Open RAMS/i })).toHaveAttribute("href", "/admin/sites/newport/rams");
+  await expect(page.getByRole("link", { name: /Start form/i })).toHaveAttribute("href", "/form?returnTo=%2Fadmin%2Fsites%2Fnewport%2Fforms");
   await expectNoHorizontalOverflow(page);
   await expectNoCriticalA11yViolations(page);
 });

@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 
 import ramsData from "@/config/ramsReviews.json";
 import { RamsDocumentIntelligence, type LegacyRamsReview } from "@/components/admin/rams/RamsDocumentIntelligence";
+import type { SiteRow } from "@/lib/db/sites";
 
 type Answer = "Yes" | "No" | "N/A";
 type StatusCode = "A" | "B" | "C";
@@ -183,7 +184,7 @@ function EvidenceAccordion({ items }: { items: EvidenceItem[] }) {
   );
 }
 
-export function RamsReview() {
+export function RamsReview({ site = null }: { site?: Pick<SiteRow, "id" | "location"> | null }) {
   const [activeTab, setActiveTab] = useState<"hazards" | "questions">("questions");
   const [selectedFormId, setSelectedFormId] = useState<string | null>(null);
   const [previewDocument, setPreviewDocument] = useState<RamsDocument | null>(null);
@@ -221,13 +222,15 @@ export function RamsReview() {
             <p className="text-xs font-bold uppercase tracking-[0.28em] text-uplands-magenta">Admin</p>
             <h1 className="mt-2 font-slab text-3xl leading-tight text-uplands-charcoal sm:text-4xl">RAMS</h1>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-uplands-muted">
-              Review company RAMS submissions, open source documents, view completed review form pages, and download completed review forms.
+              {site
+                ? `Review RAMS submissions and document intelligence for ${site.location}.`
+                : "Review company RAMS submissions, open source documents, view completed review form pages, and download completed review forms."}
             </p>
           </div>
         </div>
       </section>
 
-      <RamsDocumentIntelligence legacyReviews={forms as LegacyRamsReview[]} onWorkspaceChange={setUploadedWorkspaceActive} />
+      <RamsDocumentIntelligence site={site} legacyReviews={forms as LegacyRamsReview[]} onWorkspaceChange={setUploadedWorkspaceActive} />
 
       {!uploadedWorkspaceActive && !selectedForm && (
         <section className="border border-zinc-200 bg-white p-5 shadow-soft">

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 
-import { portalSites, type PortalSite } from "@/lib/admin/sitePortal";
+import type { PortalSite } from "@/lib/admin/sitePortal";
 
 function siteMatches(site: PortalSite, query: string) {
   const value = query.trim().toLowerCase();
@@ -11,10 +11,10 @@ function siteMatches(site: PortalSite, query: string) {
   return [site.name, site.location, site.summary, site.status].some((field) => field.toLowerCase().includes(value));
 }
 
-export function SiteManagerPortal() {
+export function SiteManagerPortal({ sites }: { sites: PortalSite[] }) {
   const [query, setQuery] = useState("");
 
-  const filteredSites = useMemo(() => portalSites.filter((site) => siteMatches(site, query)), [query]);
+  const filteredSites = useMemo(() => sites.filter((site) => siteMatches(site, query)), [query, sites]);
 
   return (
     <div className="space-y-8">

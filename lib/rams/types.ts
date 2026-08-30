@@ -5,6 +5,7 @@ export type RamsDecisionOrigin = "MANUAL" | "AI" | "AI_EDITED" | "SYSTEM";
 export interface RamsDocumentRow {
   id: string;
   title: string;
+  site_id: string | null;
   site_name: string | null;
   contractor: string;
   document_reference: string | null;
