@@ -114,6 +114,34 @@ function migrate(db: Db) {
       UNIQUE(site_id, contractor_id)
     );
 
+    CREATE TABLE IF NOT EXISTS operatives (
+      id TEXT PRIMARY KEY,
+      contractor_id TEXT NOT NULL REFERENCES contractors(id) ON DELETE CASCADE,
+      full_name TEXT NOT NULL,
+      email TEXT,
+      phone TEXT,
+      role TEXT,
+      cscs_card_number TEXT,
+      cscs_expiry TEXT,
+      status TEXT NOT NULL DEFAULT 'ACTIVE',
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS site_operatives (
+      id TEXT PRIMARY KEY,
+      site_id TEXT NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
+      project_id TEXT REFERENCES projects(id) ON DELETE SET NULL,
+      contractor_id TEXT NOT NULL REFERENCES contractors(id) ON DELETE CASCADE,
+      operative_id TEXT NOT NULL REFERENCES operatives(id) ON DELETE CASCADE,
+      induction_submission_id TEXT REFERENCES submissions(id) ON DELETE SET NULL,
+      induction_status TEXT NOT NULL DEFAULT 'NOT_STARTED',
+      status TEXT NOT NULL DEFAULT 'ACTIVE',
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      UNIQUE(site_id, operative_id)
+    );
+
     CREATE TABLE IF NOT EXISTS permit_templates (
       id TEXT PRIMARY KEY,
       code TEXT NOT NULL UNIQUE,
@@ -223,6 +251,10 @@ function migrate(db: Db) {
     CREATE INDEX IF NOT EXISTS idx_contractors_name ON contractors(name);
     CREATE INDEX IF NOT EXISTS idx_site_contractors_site ON site_contractors(site_id, status);
     CREATE INDEX IF NOT EXISTS idx_site_contractors_contractor ON site_contractors(contractor_id);
+    CREATE INDEX IF NOT EXISTS idx_operatives_contractor ON operatives(contractor_id, status);
+    CREATE INDEX IF NOT EXISTS idx_site_operatives_site ON site_operatives(site_id, status);
+    CREATE INDEX IF NOT EXISTS idx_site_operatives_contractor ON site_operatives(site_id, contractor_id, status);
+    CREATE INDEX IF NOT EXISTS idx_site_operatives_operative ON site_operatives(operative_id);
     CREATE INDEX IF NOT EXISTS idx_permit_template_fields_template ON permit_template_fields(template_id, sort_order);
     CREATE INDEX IF NOT EXISTS idx_permit_answers_permit ON permit_answers(permit_id);
     CREATE INDEX IF NOT EXISTS idx_permit_field_values_permit ON permit_field_values(permit_id);
@@ -379,6 +411,8 @@ function migrate(db: Db) {
   ensureColumn(db, "submissions", "is_sample", "INTEGER NOT NULL DEFAULT 0");
   ensureColumn(db, "rams_documents", "site_id", "TEXT REFERENCES sites(id) ON DELETE SET NULL");
   ensureColumn(db, "permits", "contractor_id", "TEXT REFERENCES contractors(id) ON DELETE SET NULL");
+  ensureColumn(db, "submissions", "contractor_id", "TEXT REFERENCES contractors(id) ON DELETE SET NULL");
+  ensureColumn(db, "submissions", "operative_id", "TEXT REFERENCES operatives(id) ON DELETE SET NULL");
   ensureColumn(db, "rams_chunk_boxes", "page_width", "REAL");
   ensureColumn(db, "rams_chunk_boxes", "page_height", "REAL");
 
@@ -614,6 +648,84 @@ function seedContractorsFromExistingRecords(db: Db) {
   run();
 }
 
+function seedOperativesFromExistingSubmissions(db: Db) {
+  const now = new Date().toISOString();
+  const rows = db
+    .prepare(
+      `SELECT
+         s.id AS submission_id,
+         s.site_id,
+         s.full_name,
+         s.company_name,
+         s.print_review_status,
+         c.id AS contractor_id
+       FROM submissions s
+       JOIN contractors c ON c.name = trim(s.company_name)
+       WHERE s.operative_id IS NULL
+         AND trim(COALESCE(s.full_name, '')) <> ''
+         AND trim(COALESCE(s.company_name, '')) <> ''`,
+    )
+    .all() as Array<{
+    submission_id: string;
+    site_id: string | null;
+    full_name: string;
+    company_name: string;
+    print_review_status: string;
+    contractor_id: string;
+  }>;
+
+  const findOperative = db.prepare(
+    `SELECT id FROM operatives
+     WHERE contractor_id = ?
+       AND lower(full_name) = lower(?)
+     ORDER BY created_at
+     LIMIT 1`,
+  );
+  const insertOperative = db.prepare(
+    `INSERT INTO operatives (id, contractor_id, full_name, status, created_at, updated_at)
+     VALUES (?, ?, ?, 'ACTIVE', ?, ?)`,
+  );
+  const insertSiteOperative = db.prepare(
+    `INSERT INTO site_operatives
+       (id, site_id, project_id, contractor_id, operative_id, induction_submission_id, induction_status, status, created_at, updated_at)
+     VALUES (?, ?, NULL, ?, ?, ?, ?, 'ACTIVE', ?, ?)
+     ON CONFLICT(site_id, operative_id) DO UPDATE SET
+       induction_submission_id = COALESCE(site_operatives.induction_submission_id, excluded.induction_submission_id),
+       induction_status = excluded.induction_status,
+       updated_at = excluded.updated_at`,
+  );
+  const updateSubmission = db.prepare("UPDATE submissions SET contractor_id = ?, operative_id = ?, updated_at = ? WHERE id = ?");
+
+  const run = db.transaction(() => {
+    for (const row of rows) {
+      const fullName = row.full_name.trim();
+      if (!fullName) continue;
+
+      let operative = findOperative.get(row.contractor_id, fullName) as { id: string } | undefined;
+      if (!operative) {
+        operative = { id: randomUUID() };
+        insertOperative.run(operative.id, row.contractor_id, fullName, now, now);
+      }
+
+      if (row.site_id) {
+        insertSiteOperative.run(
+          randomUUID(),
+          row.site_id,
+          row.contractor_id,
+          operative.id,
+          row.submission_id,
+          row.print_review_status === "ready" ? "APPROVED" : "PENDING_REVIEW",
+          now,
+          now,
+        );
+      }
+      updateSubmission.run(row.contractor_id, operative.id, now, row.submission_id);
+    }
+  });
+
+  run();
+}
+
 export function getDb(): Db {
   if (!globalForDb.__uplandsDb) {
     fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -629,10 +741,12 @@ export function getDb(): Db {
     seedSites(db);
     seedPermitTemplates(db);
     seedContractorsFromExistingRecords(db);
+    seedOperativesFromExistingSubmissions(db);
     seedSampleSubmissions(db, UPLOADS_DIR);
     seedSites(db);
     seedPermitTemplates(db);
     seedContractorsFromExistingRecords(db);
+    seedOperativesFromExistingSubmissions(db);
 
     globalForDb.__uplandsDb = db;
   }

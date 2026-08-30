@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 
 type Site = { id: string; location: string; project_id: string | null; project_name: string | null };
@@ -16,6 +16,7 @@ type Contractor = {
   primaryContactName: string | null;
   primaryContactEmail: string | null;
   primaryContactPhone: string | null;
+  operativeCount: number;
   permitCount: number;
   ramsCount: number;
   inductionCount: number;
@@ -33,6 +34,40 @@ type ContractorFormState = {
   primaryContactPhone: string;
 };
 
+type Operative = {
+  siteOperativeId: string;
+  siteId: string;
+  projectId: string | null;
+  contractorId: string;
+  contractorName: string;
+  operativeId: string;
+  fullName: string;
+  email: string | null;
+  phone: string | null;
+  role: string | null;
+  cscsCardNumber: string | null;
+  cscsExpiry: string | null;
+  operativeStatus: string;
+  siteStatus: string;
+  inductionStatus: string;
+  inductionSubmissionId: string | null;
+  inductionReference: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+type OperativeFormState = {
+  operativeId: string | null;
+  fullName: string;
+  role: string;
+  siteStatus: string;
+  inductionStatus: string;
+  email: string;
+  phone: string;
+  cscsCardNumber: string;
+  cscsExpiry: string;
+};
+
 const emptyForm: ContractorFormState = {
   contractorId: null,
   name: "",
@@ -41,6 +76,18 @@ const emptyForm: ContractorFormState = {
   primaryContactName: "",
   primaryContactEmail: "",
   primaryContactPhone: "",
+};
+
+const emptyOperativeForm: OperativeFormState = {
+  operativeId: null,
+  fullName: "",
+  role: "",
+  siteStatus: "ACTIVE",
+  inductionStatus: "NOT_STARTED",
+  email: "",
+  phone: "",
+  cscsCardNumber: "",
+  cscsExpiry: "",
 };
 
 function contractorToForm(contractor: Contractor): ContractorFormState {
@@ -55,6 +102,20 @@ function contractorToForm(contractor: Contractor): ContractorFormState {
   };
 }
 
+function operativeToForm(operative: Operative): OperativeFormState {
+  return {
+    operativeId: operative.operativeId,
+    fullName: operative.fullName,
+    role: operative.role ?? "",
+    siteStatus: operative.siteStatus,
+    inductionStatus: operative.inductionStatus,
+    email: operative.email ?? "",
+    phone: operative.phone ?? "",
+    cscsCardNumber: operative.cscsCardNumber ?? "",
+    cscsExpiry: operative.cscsExpiry ?? "",
+  };
+}
+
 function formatStatus(status: string) {
   return status.replaceAll("_", " ");
 }
@@ -66,6 +127,12 @@ export function ContractorsWorkspace({ site, initialContractors }: { site: Site;
   const [query, setQuery] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [operatives, setOperatives] = useState<Operative[]>([]);
+  const [selectedOperativeId, setSelectedOperativeId] = useState("");
+  const [operativeForm, setOperativeForm] = useState<OperativeFormState>(emptyOperativeForm);
+  const [operativesLoading, setOperativesLoading] = useState(false);
+  const [operativeSaving, setOperativeSaving] = useState(false);
+  const [operativeError, setOperativeError] = useState("");
 
   const filteredContractors = useMemo(() => {
     const value = query.trim().toLowerCase();
@@ -79,6 +146,39 @@ export function ContractorsWorkspace({ site, initialContractors }: { site: Site;
   }, [contractors, query]);
 
   const selectedContractor = contractors.find((contractor) => contractor.contractorId === selectedId) ?? null;
+
+  useEffect(() => {
+    if (!selectedId) {
+      setOperatives([]);
+      setSelectedOperativeId("");
+      setOperativeForm(emptyOperativeForm);
+      return;
+    }
+
+    let cancelled = false;
+    setOperativesLoading(true);
+    setOperativeError("");
+    fetch(`/api/admin/sites/${site.id}/contractors/${selectedId}/operatives`)
+      .then(async (response) => {
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "Unable to load operatives.");
+        if (cancelled) return;
+        const nextOperatives = (data.operatives ?? []) as Operative[];
+        setOperatives(nextOperatives);
+        setSelectedOperativeId(nextOperatives[0]?.operativeId ?? "");
+        setOperativeForm(nextOperatives[0] ? operativeToForm(nextOperatives[0]) : emptyOperativeForm);
+      })
+      .catch((caught) => {
+        if (!cancelled) setOperativeError(caught instanceof Error ? caught.message : "Unable to load operatives.");
+      })
+      .finally(() => {
+        if (!cancelled) setOperativesLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedId, site.id]);
 
   async function refreshContractors(nextSelectedId?: string) {
     const response = await fetch(`/api/admin/sites/${site.id}/contractors`);
@@ -96,12 +196,26 @@ export function ContractorsWorkspace({ site, initialContractors }: { site: Site;
     setSelectedId(contractor.contractorId);
     setForm(contractorToForm(contractor));
     setError("");
+    setOperativeError("");
   }
 
   function startNewContractor() {
     setSelectedId("");
     setForm(emptyForm);
     setError("");
+    setOperativeError("");
+  }
+
+  function selectOperative(operative: Operative) {
+    setSelectedOperativeId(operative.operativeId);
+    setOperativeForm(operativeToForm(operative));
+    setOperativeError("");
+  }
+
+  function startNewOperative() {
+    setSelectedOperativeId("");
+    setOperativeForm(emptyOperativeForm);
+    setOperativeError("");
   }
 
   async function saveContractor(event: FormEvent<HTMLFormElement>) {
@@ -135,6 +249,60 @@ export function ContractorsWorkspace({ site, initialContractors }: { site: Site;
       setError(caught instanceof Error ? caught.message : "Unable to save contractor.");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function refreshOperatives(contractorId: string, nextSelectedId?: string) {
+    const response = await fetch(`/api/admin/sites/${site.id}/contractors/${contractorId}/operatives`);
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "Unable to refresh operatives.");
+    const nextOperatives = (data.operatives ?? []) as Operative[];
+    setOperatives(nextOperatives);
+    if (nextSelectedId) {
+      setSelectedOperativeId(nextSelectedId);
+      const next = nextOperatives.find((operative) => operative.operativeId === nextSelectedId);
+      if (next) setOperativeForm(operativeToForm(next));
+    }
+  }
+
+  async function saveOperative(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedContractor) {
+      setOperativeError("Select a contractor before adding an operative.");
+      return;
+    }
+    if (!operativeForm.fullName.trim()) {
+      setOperativeError("Operative name is required.");
+      return;
+    }
+
+    setOperativeSaving(true);
+    setOperativeError("");
+    try {
+      const response = await fetch(`/api/admin/sites/${site.id}/contractors/${selectedContractor.contractorId}/operatives`, {
+        method: operativeForm.operativeId ? "PATCH" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          projectId: site.project_id,
+          operativeId: operativeForm.operativeId,
+          fullName: operativeForm.fullName,
+          role: operativeForm.role,
+          siteStatus: operativeForm.siteStatus,
+          inductionStatus: operativeForm.inductionStatus,
+          email: operativeForm.email,
+          phone: operativeForm.phone,
+          cscsCardNumber: operativeForm.cscsCardNumber,
+          cscsExpiry: operativeForm.cscsExpiry,
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Unable to save operative.");
+      await refreshOperatives(selectedContractor.contractorId, data.operativeId);
+      await refreshContractors(selectedContractor.contractorId);
+    } catch (caught) {
+      setOperativeError(caught instanceof Error ? caught.message : "Unable to save operative.");
+    } finally {
+      setOperativeSaving(false);
     }
   }
 
@@ -210,7 +378,8 @@ export function ContractorsWorkspace({ site, initialContractors }: { site: Site;
           {selectedContractor && (
             <div className="border border-zinc-200 bg-white p-5 shadow-soft">
               <p className="text-xs font-bold uppercase tracking-[0.22em] text-uplands-magenta">Linked Records</p>
-              <div className="mt-4 grid grid-cols-3 gap-3">
+              <div className="mt-4 grid grid-cols-2 gap-3">
+                <Metric label="Operatives" value={selectedContractor.operativeCount} />
                 <Metric label="Permits" value={selectedContractor.permitCount} />
                 <Metric label="RAMS" value={selectedContractor.ramsCount} />
                 <Metric label="Inductions" value={selectedContractor.inductionCount} />
@@ -234,7 +403,7 @@ export function ContractorsWorkspace({ site, initialContractors }: { site: Site;
                 key={contractor.contractorId}
                 type="button"
                 onClick={() => selectContractor(contractor)}
-                className={`grid w-full gap-4 p-4 text-left transition md:grid-cols-[1fr_120px_120px_120px] md:items-center ${
+                className={`grid w-full gap-4 p-4 text-left transition md:grid-cols-[1fr_110px_110px_110px_110px] md:items-center ${
                   selectedId === contractor.contractorId ? "bg-uplands-paper" : "bg-white hover:bg-uplands-paper"
                 }`}
               >
@@ -242,6 +411,10 @@ export function ContractorsWorkspace({ site, initialContractors }: { site: Site;
                   <span className="block font-din text-lg text-uplands-charcoal">{contractor.name}</span>
                   <span className="mt-1 block text-sm text-uplands-muted">{[contractor.trade, contractor.primaryContactName, contractor.primaryContactEmail].filter(Boolean).join(" · ") || "No contact details recorded"}</span>
                   <span className="mt-2 inline-flex border border-zinc-300 px-2 py-1 text-xs font-bold uppercase text-zinc-700">{formatStatus(contractor.siteStatus)}</span>
+                </span>
+                <span className="text-sm text-uplands-muted">
+                  <span className="block text-xs font-bold uppercase">Operatives</span>
+                  <span className="font-slab text-2xl text-uplands-charcoal">{contractor.operativeCount}</span>
                 </span>
                 <span className="text-sm text-uplands-muted">
                   <span className="block text-xs font-bold uppercase">Permits</span>
@@ -261,6 +434,115 @@ export function ContractorsWorkspace({ site, initialContractors }: { site: Site;
           </div>
         </div>
       </section>
+
+      <section className="grid gap-5 lg:grid-cols-[380px_1fr]">
+        <form onSubmit={saveOperative} className="border border-zinc-200 bg-white p-5 shadow-soft">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.22em] text-uplands-magenta">{operativeForm.operativeId ? "Selected Operative" : "New Operative"}</p>
+              <h2 className="mt-1 font-slab text-2xl text-uplands-charcoal">{selectedContractor ? operativeForm.fullName || "Operative Details" : "Select Contractor"}</h2>
+            </div>
+            <button type="button" onClick={startNewOperative} disabled={!selectedContractor} className="min-h-10 border border-zinc-300 px-3 text-xs font-bold uppercase text-zinc-700 disabled:opacity-50">
+              New
+            </button>
+          </div>
+
+          {operativeError && <p className="mt-4 border-l-4 border-red-600 bg-red-50 p-3 text-sm font-bold text-red-700">{operativeError}</p>}
+
+          <div className="mt-4 space-y-3">
+            <label className="block">
+              <span className="text-xs font-bold uppercase text-zinc-700">Full Name</span>
+              <input value={operativeForm.fullName} onChange={(event) => setOperativeForm((current) => ({ ...current, fullName: event.target.value }))} disabled={!selectedContractor} required className="mt-1 min-h-11 w-full border border-zinc-300 px-3 text-sm disabled:bg-zinc-100" />
+            </label>
+            <label className="block">
+              <span className="text-xs font-bold uppercase text-zinc-700">Role / Trade</span>
+              <input value={operativeForm.role} onChange={(event) => setOperativeForm((current) => ({ ...current, role: event.target.value }))} disabled={!selectedContractor} className="mt-1 min-h-11 w-full border border-zinc-300 px-3 text-sm disabled:bg-zinc-100" />
+            </label>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="block">
+                <span className="text-xs font-bold uppercase text-zinc-700">Site Status</span>
+                <select value={operativeForm.siteStatus} onChange={(event) => setOperativeForm((current) => ({ ...current, siteStatus: event.target.value }))} disabled={!selectedContractor} className="mt-1 min-h-11 w-full border border-zinc-300 px-3 text-sm disabled:bg-zinc-100">
+                  <option value="ACTIVE">Active</option>
+                  <option value="INACTIVE">Inactive</option>
+                  <option value="ARCHIVED">Archived</option>
+                </select>
+              </label>
+              <label className="block">
+                <span className="text-xs font-bold uppercase text-zinc-700">Induction</span>
+                <select value={operativeForm.inductionStatus} onChange={(event) => setOperativeForm((current) => ({ ...current, inductionStatus: event.target.value }))} disabled={!selectedContractor} className="mt-1 min-h-11 w-full border border-zinc-300 px-3 text-sm disabled:bg-zinc-100">
+                  <option value="NOT_STARTED">Not Started</option>
+                  <option value="INVITED">Invited</option>
+                  <option value="PENDING_REVIEW">Pending Review</option>
+                  <option value="APPROVED">Approved</option>
+                  <option value="REJECTED">Rejected</option>
+                  <option value="EXPIRED">Expired</option>
+                </select>
+              </label>
+            </div>
+            <label className="block">
+              <span className="text-xs font-bold uppercase text-zinc-700">Email</span>
+              <input value={operativeForm.email} type="email" onChange={(event) => setOperativeForm((current) => ({ ...current, email: event.target.value }))} disabled={!selectedContractor} className="mt-1 min-h-11 w-full border border-zinc-300 px-3 text-sm disabled:bg-zinc-100" />
+            </label>
+            <label className="block">
+              <span className="text-xs font-bold uppercase text-zinc-700">Phone</span>
+              <input value={operativeForm.phone} onChange={(event) => setOperativeForm((current) => ({ ...current, phone: event.target.value }))} disabled={!selectedContractor} className="mt-1 min-h-11 w-full border border-zinc-300 px-3 text-sm disabled:bg-zinc-100" />
+            </label>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="block">
+                <span className="text-xs font-bold uppercase text-zinc-700">CSCS Card</span>
+                <input value={operativeForm.cscsCardNumber} onChange={(event) => setOperativeForm((current) => ({ ...current, cscsCardNumber: event.target.value }))} disabled={!selectedContractor} className="mt-1 min-h-11 w-full border border-zinc-300 px-3 text-sm disabled:bg-zinc-100" />
+              </label>
+              <label className="block">
+                <span className="text-xs font-bold uppercase text-zinc-700">CSCS Expiry</span>
+                <input value={operativeForm.cscsExpiry ?? ""} type="date" onChange={(event) => setOperativeForm((current) => ({ ...current, cscsExpiry: event.target.value }))} disabled={!selectedContractor} className="mt-1 min-h-11 w-full border border-zinc-300 px-3 text-sm disabled:bg-zinc-100" />
+              </label>
+            </div>
+          </div>
+
+          <button type="submit" disabled={!selectedContractor || operativeSaving} className="mt-4 min-h-11 w-full bg-uplands-magenta px-4 text-sm font-bold uppercase text-white disabled:opacity-60">
+            {operativeSaving ? "Saving..." : operativeForm.operativeId ? "Save Operative" : "Add Operative"}
+          </button>
+        </form>
+
+        <div className="border border-zinc-200 bg-white p-5 shadow-soft">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.22em] text-uplands-magenta">Operatives</p>
+              <h2 className="mt-1 font-slab text-3xl text-uplands-charcoal">{selectedContractor?.name ?? "No Contractor Selected"}</h2>
+            </div>
+            {operativesLoading && <p className="text-sm font-bold uppercase text-uplands-muted">Loading</p>}
+          </div>
+
+          <div className="mt-5 divide-y divide-zinc-200 border border-zinc-200">
+            {operatives.map((operative) => (
+              <button
+                key={operative.operativeId}
+                type="button"
+                onClick={() => selectOperative(operative)}
+                className={`grid w-full gap-4 p-4 text-left transition md:grid-cols-[1fr_140px_140px_140px] md:items-center ${
+                  selectedOperativeId === operative.operativeId ? "bg-uplands-paper" : "bg-white hover:bg-uplands-paper"
+                }`}
+              >
+                <span>
+                  <span className="block font-din text-lg text-uplands-charcoal">{operative.fullName}</span>
+                  <span className="mt-1 block text-sm text-uplands-muted">{[operative.role, operative.phone, operative.email].filter(Boolean).join(" · ") || "No contact details recorded"}</span>
+                  {operative.inductionSubmissionId && (
+                    <span className="mt-2 inline-flex text-xs font-bold uppercase text-uplands-magenta">{operative.inductionReference ?? "Induction linked"}</span>
+                  )}
+                </span>
+                <StatusBlock label="Site" value={operative.siteStatus} />
+                <StatusBlock label="Induction" value={operative.inductionStatus} />
+                <span className="text-sm text-uplands-muted">
+                  <span className="block text-xs font-bold uppercase">CSCS</span>
+                  <span className="font-din text-base text-uplands-charcoal">{operative.cscsExpiry || operative.cscsCardNumber ? [operative.cscsCardNumber, operative.cscsExpiry].filter(Boolean).join(" · ") : "Not recorded"}</span>
+                </span>
+              </button>
+            ))}
+            {selectedContractor && !operativesLoading && operatives.length === 0 && <p className="p-5 text-sm text-uplands-muted">No operatives recorded for this contractor yet.</p>}
+            {!selectedContractor && <p className="p-5 text-sm text-uplands-muted">Select a contractor to manage operatives.</p>}
+          </div>
+        </div>
+      </section>
     </div>
   );
 }
@@ -271,5 +553,14 @@ function Metric({ label, value }: { label: string; value: number }) {
       <p className="text-xs font-bold uppercase text-uplands-muted">{label}</p>
       <p className="mt-1 font-slab text-3xl text-uplands-charcoal">{value}</p>
     </div>
+  );
+}
+
+function StatusBlock({ label, value }: { label: string; value: string }) {
+  return (
+    <span className="text-sm text-uplands-muted">
+      <span className="block text-xs font-bold uppercase">{label}</span>
+      <span className="mt-1 inline-flex border border-zinc-300 px-2 py-1 text-xs font-bold uppercase text-zinc-700">{formatStatus(value)}</span>
+    </span>
   );
 }

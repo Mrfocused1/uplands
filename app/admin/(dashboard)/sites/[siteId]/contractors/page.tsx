@@ -44,6 +44,7 @@ export default async function SiteContractorsPage({ params }: { params: Promise<
         primaryContactName: contractor.primary_contact_name,
         primaryContactEmail: contractor.primary_contact_email,
         primaryContactPhone: contractor.primary_contact_phone,
+        operativeCount: contractor.operative_count,
         permitCount: contractor.permit_count,
         ramsCount: contractor.rams_count,
         inductionCount: contractor.induction_count,

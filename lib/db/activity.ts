@@ -7,6 +7,8 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 export type SiteActivityEventType =
   | "contractor_added"
   | "contractor_updated"
+  | "operative_added"
+  | "operative_updated"
   | "permit_created"
   | "permit_updated"
   | "permit_submitted"

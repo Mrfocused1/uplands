@@ -22,6 +22,7 @@ function serializeContractor(row: Awaited<ReturnType<typeof listSiteContractors>
     primaryContactName: row.primary_contact_name,
     primaryContactEmail: row.primary_contact_email,
     primaryContactPhone: row.primary_contact_phone,
+    operativeCount: row.operative_count,
     permitCount: row.permit_count,
     ramsCount: row.rams_count,
     inductionCount: row.induction_count,

@@ -35,6 +35,7 @@ export type SiteContractorRow = {
 };
 
 export type SiteContractorSummaryRow = SiteContractorRow & {
+  operative_count: number;
   permit_count: number;
   rams_count: number;
   induction_count: number;
@@ -105,6 +106,7 @@ export async function listSiteContractors(siteId: string): Promise<SiteContracto
          c.primary_contact_phone,
          sc.created_at,
          sc.updated_at,
+         (SELECT COUNT(*) FROM site_operatives so WHERE so.site_id = sc.site_id AND so.contractor_id = c.id) AS operative_count,
          (SELECT COUNT(*) FROM permits p WHERE p.site_id = sc.site_id AND (p.contractor_id = c.id OR p.contractor = c.name)) AS permit_count,
          (SELECT COUNT(*) FROM rams_documents r WHERE r.site_id = sc.site_id AND r.contractor = c.name) AS rams_count,
          (SELECT COUNT(*) FROM submissions s WHERE s.site_id = sc.site_id AND s.company_name = c.name) AS induction_count
@@ -117,16 +119,19 @@ export async function listSiteContractors(siteId: string): Promise<SiteContracto
 }
 
 async function withSupabaseCounts(supabase: ReturnType<typeof createSupabaseAdminClient>, row: SiteContractorRow): Promise<SiteContractorSummaryRow> {
-  const [permits, rams, inductions] = await Promise.all([
+  const [operatives, permits, rams, inductions] = await Promise.all([
+    supabase.from("site_operatives").select("id", { count: "exact", head: true }).eq("site_id", row.site_id).eq("contractor_id", row.contractor_id),
     supabase.from("permits").select("id", { count: "exact", head: true }).eq("site_id", row.site_id).or(`contractor_id.eq.${row.contractor_id},contractor.eq.${escapeFilterValue(row.name)}`),
     supabase.from("rams_documents").select("id", { count: "exact", head: true }).eq("site_id", row.site_id).eq("contractor", row.name),
     supabase.from("submissions").select("id", { count: "exact", head: true }).eq("site_id", row.site_id).eq("company_name", row.name),
   ]);
+  assertNoError(operatives.error, "Unable to count contractor operatives");
   assertNoError(permits.error, "Unable to count contractor permits");
   assertNoError(rams.error, "Unable to count contractor RAMS");
   assertNoError(inductions.error, "Unable to count contractor inductions");
   return {
     ...row,
+    operative_count: operatives.count ?? 0,
     permit_count: permits.count ?? 0,
     rams_count: rams.count ?? 0,
     induction_count: inductions.count ?? 0,
