@@ -437,6 +437,9 @@ export function ContractorsWorkspace({
     if (!response.ok) throw new Error(data.error || "Unable to refresh operatives.");
     const nextOperatives = (data.operatives ?? []) as Operative[];
     setOperatives(nextOperatives);
+    setContractors((current) =>
+      current.map((contractor) => (contractor.contractorId === contractorId ? { ...contractor, operativeCount: nextOperatives.length } : contractor)),
+    );
     if (nextSelectedId) {
       setSelectedOperativeId(nextSelectedId);
       const next = nextOperatives.find((operative) => operative.operativeId === nextSelectedId);
@@ -556,9 +559,9 @@ export function ContractorsWorkspace({
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Unable to save operative.");
+      await refreshContractors(selectedContractor.contractorId);
       await refreshOperatives(selectedContractor.contractorId, data.operativeId);
       await refreshContractorActivity(selectedContractor.contractorId);
-      await refreshContractors(selectedContractor.contractorId);
     } catch (caught) {
       setOperativeError(caught instanceof Error ? caught.message : "Unable to save operative.");
     } finally {

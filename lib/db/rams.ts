@@ -34,7 +34,7 @@ export interface CreateRamsDocumentInput {
 }
 
 export type RamsDocumentWithCounts = RamsDocumentRow & { section_count: number; chunk_count: number };
-export type RamsDocumentListOptions = { siteId?: string | null };
+export type RamsDocumentListOptions = { siteId?: string | null; contractorId?: string | null; contractorName?: string | null };
 
 function shouldUseSupabaseRamsDb() {
   const provider = env("RAMS_DATABASE_PROVIDER", "sqlite");
@@ -168,24 +168,26 @@ export async function listRamsDocuments(options: RamsDocumentListOptions = {}): 
     const supabase = createSupabaseAdminClient();
     let query = supabase.from("rams_documents_with_counts").select("*").order("created_at", { ascending: false });
     if (options.siteId) query = query.eq("site_id", options.siteId);
+    if (options.contractorId) query = query.eq("contractor_id", options.contractorId);
     const { data, error } = await query;
     if (!isMissingRelationError(error)) {
       if (isMissingSiteIdError(error)) {
         const { data: legacyData, error: legacyError } = await supabase.from("rams_documents_with_counts").select("*").order("created_at", { ascending: false });
         assertNoError(legacyError, "Unable to list RAMS documents");
-        return (await filterRowsByLegacySiteName((legacyData ?? []) as RamsDocumentWithCounts[], options.siteId)) as RamsDocumentWithCounts[];
+        return filterRowsByContractor(await filterRowsByLegacySiteName((legacyData ?? []) as RamsDocumentWithCounts[], options.siteId), options);
       }
       assertNoError(error, "Unable to list RAMS documents");
-      return (data ?? []) as RamsDocumentWithCounts[];
+      return filterRowsByContractor((data ?? []) as RamsDocumentWithCounts[], options);
     }
 
     let documentsQuery = supabase.from("rams_documents").select("*").order("created_at", { ascending: false });
     if (options.siteId) documentsQuery = documentsQuery.eq("site_id", options.siteId);
+    if (options.contractorId) documentsQuery = documentsQuery.eq("contractor_id", options.contractorId);
     const { data: documents, error: documentsError } = await documentsQuery;
     if (isMissingSiteIdError(documentsError)) {
       const { data: legacyDocuments, error: legacyDocumentsError } = await supabase.from("rams_documents").select("*").order("created_at", { ascending: false });
       assertNoError(legacyDocumentsError, "Unable to list RAMS documents");
-      const rows = await filterRowsByLegacySiteName((legacyDocuments ?? []) as RamsDocumentRow[], options.siteId);
+      const rows = filterRowsByContractor(await filterRowsByLegacySiteName((legacyDocuments ?? []) as RamsDocumentRow[], options.siteId), options);
       if (rows.length === 0) return [];
 
       const ids = rows.map((row) => row.id);
@@ -213,7 +215,7 @@ export async function listRamsDocuments(options: RamsDocumentListOptions = {}): 
       }));
     }
     assertNoError(documentsError, "Unable to list RAMS documents");
-    const rows = (documents ?? []) as RamsDocumentRow[];
+    const rows = filterRowsByContractor((documents ?? []) as RamsDocumentRow[], options);
     if (rows.length === 0) return [];
 
     const ids = rows.map((row) => row.id);
@@ -241,17 +243,35 @@ export async function listRamsDocuments(options: RamsDocumentListOptions = {}): 
     }));
   }
 
-  const siteFilter = options.siteId ? "WHERE d.site_id = ?" : "";
+  const filters: string[] = [];
+  const params: string[] = [];
+  if (options.siteId) {
+    filters.push("d.site_id = ?");
+    params.push(options.siteId);
+  }
+  if (options.contractorId) {
+    filters.push("(d.contractor_id = ? OR d.contractor = ?)");
+    params.push(options.contractorId, options.contractorName ?? "");
+  } else if (options.contractorName) {
+    filters.push("d.contractor = ?");
+    params.push(options.contractorName);
+  }
+  const whereClause = filters.length ? `WHERE ${filters.join(" AND ")}` : "";
   return getDb()
     .prepare(
       `SELECT d.*,
               (SELECT COUNT(*) FROM rams_sections s WHERE s.rams_document_id = d.id) AS section_count,
               (SELECT COUNT(*) FROM rams_chunks c WHERE c.rams_document_id = d.id) AS chunk_count
        FROM rams_documents d
-       ${siteFilter}
+       ${whereClause}
        ORDER BY d.created_at DESC`,
     )
-    .all(...(options.siteId ? [options.siteId] : [])) as RamsDocumentWithCounts[];
+    .all(...params) as RamsDocumentWithCounts[];
+}
+
+function filterRowsByContractor<T extends { contractor_id?: string | null; contractor: string }>(rows: T[], options: RamsDocumentListOptions) {
+  if (!options.contractorId && !options.contractorName) return rows;
+  return rows.filter((row) => row.contractor_id === options.contractorId || row.contractor === options.contractorName);
 }
 
 export async function getRamsDocument(id: string): Promise<RamsDocumentRow | undefined> {

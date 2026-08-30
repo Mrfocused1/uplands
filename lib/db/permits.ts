@@ -333,6 +333,34 @@ export async function listPermitsBySite(siteId: string): Promise<PermitRow[]> {
     .all(siteId) as PermitRow[];
 }
 
+export async function listPermitsByContractor(siteId: string, contractorId: string, contractorName: string): Promise<PermitRow[]> {
+  if (shouldUseSupabasePermitsDb()) {
+    const supabase = createSupabaseAdminClient();
+    const { data, error } = await supabase
+      .from("permits_with_template")
+      .select("*")
+      .eq("site_id", siteId)
+      .or(`contractor_id.eq.${contractorId},contractor.eq.${escapeFilterValue(contractorName)}`)
+      .order("created_at", { ascending: false });
+    assertNoError(error, "Unable to list contractor permits");
+    return (data ?? []) as PermitRow[];
+  }
+
+  return getDb()
+    .prepare(
+      `SELECT p.*, t.code AS template_code, t.title AS template_title, s.location AS site_location, pr.name AS project_name,
+              rd.title AS rams_document_title, rd.document_reference AS rams_document_reference, rd.revision AS rams_document_revision
+       FROM permits p
+       JOIN permit_templates t ON t.id = p.template_id
+       JOIN sites s ON s.id = p.site_id
+       LEFT JOIN projects pr ON pr.id = p.project_id
+       LEFT JOIN rams_documents rd ON rd.id = p.rams_document_id
+       WHERE p.site_id = ? AND (p.contractor_id = ? OR p.contractor = ?)
+       ORDER BY p.created_at DESC`,
+    )
+    .all(siteId, contractorId, contractorName) as PermitRow[];
+}
+
 export async function countPermitsBySite(siteId: string) {
   let rows: PermitRow[];
   try {
@@ -375,6 +403,10 @@ export async function listPriorityPermitsBySite(siteId: string, limit = 6): Prom
       return a.valid_to_time.localeCompare(b.valid_to_time);
     })
     .slice(0, limit);
+}
+
+function escapeFilterValue(value: string) {
+  return value.replaceAll("\\", "\\\\").replaceAll(",", "\\,").replaceAll(")", "\\)");
 }
 
 function expiresToday(row: PermitRow) {

@@ -1,13 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { listContractorActivityEvents } from "@/lib/db/activity";
-import { listAttendanceBySite } from "@/lib/db/attendance";
-import { isContractorDatabaseSetupError, listSiteContractors } from "@/lib/db/contractors";
-import { listInductionInvitations } from "@/lib/db/inductionInvitations";
-import { listSiteOperatives } from "@/lib/db/operatives";
-import { listPermitsBySite } from "@/lib/db/permits";
-import { listRamsDocuments } from "@/lib/db/rams";
+import { isContractorDatabaseSetupError } from "@/lib/db/contractors";
+import { getContractorWorkspace } from "@/lib/db/contractorWorkspace";
 import { getSite } from "@/lib/db/sites";
 
 export const metadata = {
@@ -36,9 +31,9 @@ export default async function ContractorWorkspacePage({ params }: { params: Prom
   const site = await getSite(siteId);
   if (!site) notFound();
 
-  let contractors;
+  let workspace;
   try {
-    contractors = await listSiteContractors(site.id);
+    workspace = await getContractorWorkspace(site.id, contractorId);
   } catch (error) {
     if (!isContractorDatabaseSetupError(error)) throw error;
     return (
@@ -50,36 +45,18 @@ export default async function ContractorWorkspacePage({ params }: { params: Prom
     );
   }
 
-  const contractor = contractors.find((row) => row.contractor_id === contractorId);
-  if (!contractor) notFound();
-
-  const [operatives, invitations, activity, sitePermits, siteRams, siteAttendance] = await Promise.all([
-    listSiteOperatives(site.id, contractor.contractor_id),
-    listInductionInvitations(site.id, contractor.contractor_id),
-    listContractorActivityEvents(site.id, contractor.contractor_id),
-    listPermitsBySite(site.id),
-    listRamsDocuments({ siteId: site.id }),
-    listAttendanceBySite(site.id),
-  ]);
-  const permits = sitePermits.filter((permit) => permit.contractor_id === contractor.contractor_id || permit.contractor === contractor.name);
-  const rams = siteRams.filter((document) => document.contractor_id === contractor.contractor_id || document.contractor === contractor.name);
-  const attendance = siteAttendance.filter((record) => record.contractor_id === contractor.contractor_id || record.contractor_name === contractor.name);
-  const currentlyOnSite = attendance.filter((record) => record.status === "SIGNED_IN").length;
-  const activeInvites = invitations.filter((invite) => invite.status === "INVITED").length;
-  const activePermits = permits.filter((permit) => permit.status === "ACTIVE" || permit.status === "AUTHORISED").length;
-  const openPermitStatuses = new Set(["DRAFT", "AWAITING_REVIEW", "AUTHORISED", "ACTIVE", "WORK_COMPLETED"]);
-  const permitsMissingRams = permits.filter((permit) => openPermitStatuses.has(permit.status) && !permit.rams_document_id).length;
-  const permitsWithRams = permits.filter((permit) => permit.rams_document_id).length;
+  if (!workspace) notFound();
+  const { contractor, operatives, invitations, activity, permits, rams, attendance, metrics } = workspace;
 
   const cards = [
-    { title: "Profile", value: formatStatus(contractor.site_status), href: metricHref(site.id, contractor.contractor_id, "#contractor-details") },
-    { title: "On Site", value: String(currentlyOnSite), href: `/admin/sites/${site.id}/attendance?contractorId=${encodeURIComponent(contractor.contractor_id)}` },
+    { title: "Profile", value: formatStatus(contractor.site_status), href: "#profile" },
+    { title: "On Site", value: String(metrics.currentlyOnSite), href: `/admin/sites/${site.id}/attendance?contractorId=${encodeURIComponent(contractor.contractor_id)}` },
     { title: "Operatives", value: String(operatives.length), href: metricHref(site.id, contractor.contractor_id, "#operatives") },
-    { title: "Induction Invites", value: String(activeInvites), href: metricHref(site.id, contractor.contractor_id, "#induction-invite") },
+    { title: "Induction Invites", value: String(metrics.activeInvites), href: metricHref(site.id, contractor.contractor_id, "#induction-invite") },
     { title: "RAMS", value: String(rams.length), href: `/admin/sites/${site.id}/rams?contractorId=${encodeURIComponent(contractor.contractor_id)}` },
     { title: "Permits", value: String(permits.length), href: `/admin/sites/${site.id}/permits?contractorId=${encodeURIComponent(contractor.contractor_id)}` },
-    { title: "Linked RAMS", value: String(permitsWithRams), href: `/admin/sites/${site.id}/permits?contractorId=${encodeURIComponent(contractor.contractor_id)}` },
-    { title: "Missing RAMS", value: String(permitsMissingRams), href: `/admin/sites/${site.id}/permits?contractorId=${encodeURIComponent(contractor.contractor_id)}` },
+    { title: "Linked RAMS", value: String(metrics.permitsWithRams), href: `/admin/sites/${site.id}/permits?contractorId=${encodeURIComponent(contractor.contractor_id)}` },
+    { title: "Missing RAMS", value: String(metrics.permitsMissingRams), href: `/admin/sites/${site.id}/permits?contractorId=${encodeURIComponent(contractor.contractor_id)}` },
     { title: "History", value: String(activity.length), href: "#history" },
   ];
 
@@ -115,11 +92,11 @@ export default async function ContractorWorkspacePage({ params }: { params: Prom
             key={card.title}
             href={card.href}
             className={`flex min-h-40 flex-col justify-between border p-4 shadow-soft transition hover:border-uplands-magenta ${
-              card.title === "Missing RAMS" && permitsMissingRams > 0 ? "border-amber-300 bg-amber-50" : "border-zinc-200 bg-white"
+              card.title === "Missing RAMS" && metrics.permitsMissingRams > 0 ? "border-amber-300 bg-amber-50" : "border-zinc-200 bg-white"
             }`}
           >
             <span className="block text-xs font-bold uppercase tracking-[0.16em] text-uplands-muted">{card.title}</span>
-            <span className={`font-slab text-4xl ${card.title === "Missing RAMS" && permitsMissingRams > 0 ? "text-amber-900" : "text-uplands-charcoal"}`}>{card.value}</span>
+            <span className={`font-slab text-4xl ${card.title === "Missing RAMS" && metrics.permitsMissingRams > 0 ? "text-amber-900" : "text-uplands-charcoal"}`}>{card.value}</span>
           </a>
         ))}
       </section>
@@ -140,7 +117,7 @@ export default async function ContractorWorkspacePage({ params }: { params: Prom
           <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.22em] text-uplands-magenta">Permit Watch</p>
-              <h2 className="mt-1 font-slab text-3xl text-uplands-charcoal">{activePermits} Active / Authorised</h2>
+              <h2 className="mt-1 font-slab text-3xl text-uplands-charcoal">{metrics.activePermits} Active / Authorised</h2>
             </div>
             <Link href={`/admin/sites/${site.id}/permits?contractorId=${encodeURIComponent(contractor.contractor_id)}`} className="w-fit border border-uplands-magenta px-3 py-2 text-xs font-bold uppercase text-uplands-magenta">
               Open permits
@@ -196,7 +173,7 @@ export default async function ContractorWorkspacePage({ params }: { params: Prom
           <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.22em] text-uplands-magenta">Induction Invites</p>
-              <h2 className="mt-1 font-slab text-3xl text-uplands-charcoal">{activeInvites} Active Links</h2>
+              <h2 className="mt-1 font-slab text-3xl text-uplands-charcoal">{metrics.activeInvites} Active Links</h2>
             </div>
             <a href={metricHref(site.id, contractor.contractor_id, "#induction-invite")} className="w-fit border border-uplands-magenta px-3 py-2 text-xs font-bold uppercase text-uplands-magenta">
               Create invite
@@ -265,7 +242,7 @@ export default async function ContractorWorkspacePage({ params }: { params: Prom
         <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p className="text-xs font-bold uppercase tracking-[0.22em] text-uplands-magenta">Attendance</p>
-            <h2 className="mt-1 font-slab text-3xl text-uplands-charcoal">{currentlyOnSite} Currently On Site</h2>
+            <h2 className="mt-1 font-slab text-3xl text-uplands-charcoal">{metrics.currentlyOnSite} Currently On Site</h2>
           </div>
           <Link href={`/admin/sites/${site.id}/attendance?contractorId=${encodeURIComponent(contractor.contractor_id)}`} className="w-fit border border-uplands-magenta px-3 py-2 text-xs font-bold uppercase text-uplands-magenta">
             Open attendance

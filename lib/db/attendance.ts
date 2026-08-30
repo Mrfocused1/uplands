@@ -185,6 +185,44 @@ export async function listAttendanceBySite(siteId: string, limit = 80): Promise<
     .all(siteId, limit) as AttendanceRecordRow[];
 }
 
+export async function listAttendanceByContractor(siteId: string, contractorId: string, limit = 80): Promise<AttendanceRecordRow[]> {
+  if (shouldUseSupabaseAttendanceDb()) {
+    const { data, error } = await createSupabaseAdminClient()
+      .from("attendance_records_with_details")
+      .select("*")
+      .eq("site_id", siteId)
+      .eq("contractor_id", contractorId)
+      .order("signed_in_at", { ascending: false })
+      .limit(limit);
+    assertNoError(error, "Unable to list contractor attendance");
+    return (data ?? []) as AttendanceRecordRow[];
+  }
+
+  return getDb()
+    .prepare(
+      `SELECT
+         ar.*,
+         c.name AS contractor_name,
+         o.full_name,
+         o.email,
+         o.phone,
+         o.role,
+         so.id AS site_operative_id,
+         so.status AS operative_site_status,
+         so.induction_submission_id,
+         s.reference AS induction_reference
+       FROM attendance_records ar
+       JOIN contractors c ON c.id = ar.contractor_id
+       JOIN operatives o ON o.id = ar.operative_id
+       LEFT JOIN site_operatives so ON so.site_id = ar.site_id AND so.operative_id = ar.operative_id
+       LEFT JOIN submissions s ON s.id = so.induction_submission_id
+       WHERE ar.site_id = ? AND ar.contractor_id = ?
+       ORDER BY ar.signed_in_at DESC
+       LIMIT ?`,
+    )
+    .all(siteId, contractorId, limit) as AttendanceRecordRow[];
+}
+
 export async function countCurrentAttendance(siteId: string) {
   if (shouldUseSupabaseAttendanceDb()) {
     const { count, error } = await createSupabaseAdminClient()
