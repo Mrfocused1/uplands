@@ -20,6 +20,23 @@ function formatPermitExpiry(date: string, time: string) {
   return `Expires ${expiry.toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit" })} ${time}`;
 }
 
+function permitTimingLabel(status: string, date: string, time: string) {
+  if (status === "AWAITING_REVIEW") return "Awaiting review";
+  if (status === "WORK_COMPLETED") return "Awaiting final closure";
+  if (status === "DRAFT") return "Draft";
+  if (status === "CLOSED") return "Closed";
+  if (status === "REJECTED" || status === "CANCELLED") return status.replaceAll("_", " ");
+  return formatPermitExpiry(date, time);
+}
+
+function permitStatusClasses(status: string, missingLinkedRams: boolean) {
+  if (missingLinkedRams) return "border-amber-300 bg-amber-50 text-amber-800";
+  if (status === "ACTIVE") return "border-uplands-magenta bg-white text-uplands-magenta";
+  if (status === "WORK_COMPLETED") return "border-blue-300 bg-blue-50 text-blue-800";
+  if (status === "AWAITING_REVIEW") return "border-zinc-300 bg-white text-zinc-700";
+  return "border-zinc-300 bg-white text-zinc-700";
+}
+
 function formatShortDate(value: string) {
   return new Date(value).toLocaleDateString("en-GB", { day: "2-digit", month: "short" });
 }
@@ -64,8 +81,8 @@ export function SiteWorkspace({ site, summary }: { site: SiteRow; summary: SiteW
         <section className="border border-zinc-200 bg-white p-5 shadow-soft sm:p-6">
           <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <p className="text-xs font-bold uppercase tracking-[0.22em] text-uplands-magenta">Active Permits</p>
-              <h2 className="mt-1 font-slab text-3xl text-uplands-charcoal">Permit Watch</h2>
+              <p className="text-xs font-bold uppercase tracking-[0.22em] text-uplands-magenta">Permit Watch</p>
+              <h2 className="mt-1 font-slab text-3xl text-uplands-charcoal">Open / Priority Permits</h2>
             </div>
             <Link href={`/admin/sites/${site.id}/permits`} className="w-fit border border-uplands-magenta px-3 py-2 text-xs font-bold uppercase text-uplands-magenta">
               Open permits
@@ -78,11 +95,11 @@ export function SiteWorkspace({ site, summary }: { site: SiteRow; summary: SiteW
                 <span className="block text-xs font-bold uppercase text-uplands-muted">{permit.permitNumber}</span>
                 <span className="mt-2 block font-slab text-2xl text-uplands-charcoal">{permit.title}</span>
                 <span className="mt-2 block text-sm text-zinc-700">{permit.contractor}</span>
-                <span className="mt-3 inline-flex border border-zinc-300 bg-white px-2.5 py-1 text-xs font-bold uppercase text-zinc-700">{permit.status.replaceAll("_", " ")}</span>
+                <span className={`mt-3 inline-flex border px-2.5 py-1 text-xs font-bold uppercase ${permitStatusClasses(permit.status, permit.missingLinkedRams)}`}>{permit.status.replaceAll("_", " ")}</span>
                 <span className={`mt-2 block text-xs font-bold uppercase ${permit.missingLinkedRams ? "text-amber-800" : "text-uplands-muted"}`}>
                   {permit.linkedRams ?? "Missing linked RAMS"}
                 </span>
-                <span className="mt-2 block text-sm font-bold text-uplands-magenta">{formatPermitExpiry(permit.validToDate, permit.validToTime)}</span>
+                <span className="mt-2 block text-sm font-bold text-uplands-magenta">{permitTimingLabel(permit.status, permit.validToDate, permit.validToTime)}</span>
               </Link>
             ))}
           </div>
@@ -116,8 +133,15 @@ export function SiteWorkspace({ site, summary }: { site: SiteRow; summary: SiteW
           </article>
           <article className="border border-zinc-200 bg-uplands-paper p-4">
             <p className="text-xs font-bold uppercase text-uplands-muted">Permits</p>
-            <p className="mt-2 font-slab text-4xl text-uplands-charcoal">{summary.permits.active}</p>
-            <p className="mt-1 text-sm text-uplands-muted">{summary.permits.expiringSoon} expiring soon, {summary.permits.awaitingClosure} awaiting closure</p>
+            <p className="mt-2 font-slab text-4xl text-uplands-charcoal">{summary.permits.open}</p>
+            <p className="mt-1 text-sm text-uplands-muted">
+              {summary.permits.active} active, {summary.permits.authorised} authorised
+            </p>
+            <p className="mt-1 text-sm text-uplands-muted">
+              {summary.permits.awaitingReview} review, {summary.permits.awaitingClosure} closure
+            </p>
+            {summary.permits.expiringSoon > 0 && <p className="mt-2 text-xs font-bold uppercase text-uplands-magenta">{summary.permits.expiringSoon} expiring within 4h</p>}
+            {summary.permits.expired > 0 && <p className="mt-2 text-xs font-bold uppercase text-red-700">{summary.permits.expired} expired</p>}
             {summary.permits.missingLinkedRams > 0 && <p className="mt-2 text-xs font-bold uppercase text-amber-800">{summary.permits.missingLinkedRams} missing linked RAMS</p>}
           </article>
           <Link href={`/admin/sites/${site.id}/handover`} className="border border-zinc-200 bg-uplands-paper p-4 transition hover:border-uplands-magenta hover:shadow-soft">

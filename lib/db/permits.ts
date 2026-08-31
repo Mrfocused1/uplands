@@ -168,6 +168,21 @@ export type UpsertPermitInput = {
   updatedBy?: string | null;
 };
 
+export type PermitDashboardSummary = {
+  open: number;
+  active: number;
+  authorised: number;
+  awaitingReview: number;
+  awaitingClosure: number;
+  expired: number;
+  expiringSoon: number;
+  missingLinkedRams: number;
+};
+
+const OPEN_PERMIT_STATUSES = new Set<PermitStatus>(["DRAFT", "AWAITING_REVIEW", "AUTHORISED", "ACTIVE", "WORK_COMPLETED"]);
+const EXPIRY_WATCH_STATUSES = new Set<PermitStatus>(["AUTHORISED", "ACTIVE"]);
+const EXPIRING_SOON_HOURS = 4;
+
 function shouldUseSupabasePermitsDb() {
   const provider = env(
     "PERMITS_DATABASE_PROVIDER",
@@ -367,17 +382,20 @@ export async function countPermitsBySite(siteId: string) {
     rows = await listPermitsBySite(siteId);
   } catch (error) {
     if (isPermitDatabaseSetupError(error)) {
-      return { active: 0, expiringSoon: 0, awaitingClosure: 0, missingLinkedRams: 0 };
+      return emptyPermitDashboardSummary();
     }
     throw error;
   }
-  const openStatuses = new Set<PermitStatus>(["DRAFT", "AWAITING_REVIEW", "AUTHORISED", "ACTIVE", "WORK_COMPLETED"]);
   return {
-    active: rows.filter((row) => row.status === "ACTIVE" || row.status === "AUTHORISED").length,
-    expiringSoon: rows.filter((row) => (row.status === "ACTIVE" || row.status === "AUTHORISED") && expiresToday(row)).length,
+    open: rows.filter((row) => OPEN_PERMIT_STATUSES.has(row.status)).length,
+    active: rows.filter((row) => row.status === "ACTIVE").length,
+    authorised: rows.filter((row) => row.status === "AUTHORISED").length,
+    awaitingReview: rows.filter((row) => row.status === "AWAITING_REVIEW").length,
     awaitingClosure: rows.filter((row) => row.status === "WORK_COMPLETED").length,
-    missingLinkedRams: rows.filter((row) => openStatuses.has(row.status) && !row.rams_document_id).length,
-  };
+    expired: rows.filter((row) => row.status === "EXPIRED" || isExpiredOpenPermit(row)).length,
+    expiringSoon: rows.filter((row) => expiresSoon(row)).length,
+    missingLinkedRams: rows.filter((row) => OPEN_PERMIT_STATUSES.has(row.status) && !row.rams_document_id).length,
+  } satisfies PermitDashboardSummary;
 }
 
 export async function listPriorityPermitsBySite(siteId: string, limit = 6): Promise<PermitRow[]> {
@@ -409,9 +427,27 @@ function escapeFilterValue(value: string) {
   return value.replaceAll("\\", "\\\\").replaceAll(",", "\\,").replaceAll(")", "\\)");
 }
 
-function expiresToday(row: PermitRow) {
-  const today = new Date().toISOString().slice(0, 10);
-  return row.valid_to_date === today;
+function emptyPermitDashboardSummary(): PermitDashboardSummary {
+  return { open: 0, active: 0, authorised: 0, awaitingReview: 0, awaitingClosure: 0, expired: 0, expiringSoon: 0, missingLinkedRams: 0 };
+}
+
+function permitExpiry(row: PermitRow) {
+  const value = new Date(`${row.valid_to_date}T${row.valid_to_time || "23:59"}:00`);
+  return Number.isNaN(value.getTime()) ? null : value;
+}
+
+function isExpiredOpenPermit(row: PermitRow) {
+  if (!EXPIRY_WATCH_STATUSES.has(row.status)) return false;
+  const expiry = permitExpiry(row);
+  return Boolean(expiry && expiry.getTime() < Date.now());
+}
+
+function expiresSoon(row: PermitRow) {
+  if (!EXPIRY_WATCH_STATUSES.has(row.status)) return false;
+  const expiry = permitExpiry(row);
+  if (!expiry) return false;
+  const diff = expiry.getTime() - Date.now();
+  return diff >= 0 && diff <= EXPIRING_SOON_HOURS * 60 * 60 * 1000;
 }
 
 export async function createPermit(input: {

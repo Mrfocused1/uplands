@@ -3,7 +3,7 @@ import { countCurrentAttendance, isAttendanceDatabaseSetupError } from "@/lib/db
 import { listSiteActivityEvents, type SiteActivityEventRow } from "@/lib/db/activity";
 import { getDb } from "@/lib/db";
 import { getHandoverDashboardSummary, isHandoverDatabaseSetupError, type HandoverDashboardSummary } from "@/lib/db/handovers";
-import { countPermitsBySite, listPriorityPermitsBySite, type PermitRow } from "@/lib/db/permits";
+import { countPermitsBySite, listPriorityPermitsBySite, type PermitDashboardSummary, type PermitRow } from "@/lib/db/permits";
 import { getSiteActionsDashboardSummary, isSiteActionDatabaseSetupError, type SiteActionsDashboardSummary } from "@/lib/db/siteActions";
 import { env, isSupabaseAdminConfigured } from "@/lib/env";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -58,9 +58,13 @@ export type SiteWorkspaceSummary = {
     processing: number;
   };
   permits: {
+    open: number;
     active: number;
+    authorised: number;
+    awaitingReview: number;
     expiringSoon: number;
     awaitingClosure: number;
+    expired: number;
     missingLinkedRams: number;
   };
   handover: HandoverDashboardSummary;
@@ -296,7 +300,7 @@ function buildSummary(
   inductionRows: SummaryInductionRow[],
   ramsRows: SummaryRamsRow[],
   peopleOnSite = 0,
-  permits = { active: 0, expiringSoon: 0, awaitingClosure: 0, missingLinkedRams: 0 },
+  permits = { open: 0, active: 0, authorised: 0, awaitingReview: 0, expiringSoon: 0, awaitingClosure: 0, expired: 0, missingLinkedRams: 0 } satisfies PermitDashboardSummary,
   priorityPermits: PermitRow[] = [],
   handover: HandoverDashboardSummary = { latest: null, unacknowledged: 0, outstandingActions: 0 },
   actions: SiteActionsDashboardSummary = { open: 0, overdue: 0, dueSoon: 0, blocked: 0, items: [] },
@@ -311,7 +315,7 @@ function buildSummary(
       occurredAt: row.occurred_at,
       href:
         row.entity_type === "permit"
-          ? `/admin/sites/${row.site_id}/permits`
+          ? `/admin/sites/${row.site_id}/permits?permitId=${encodeURIComponent(row.entity_id)}`
           : row.entity_type === "attendance"
             ? `/admin/sites/${row.site_id}/attendance`
             : row.entity_type === "handover"
@@ -351,9 +355,13 @@ function buildSummary(
       processing: ramsRows.filter((row) => row.processing_status === "PROCESSING" || row.processing_status === "UPLOADED").length,
     },
     permits: {
+      open: permits.open,
       active: permits.active,
+      authorised: permits.authorised,
+      awaitingReview: permits.awaitingReview,
       expiringSoon: permits.expiringSoon,
       awaitingClosure: permits.awaitingClosure,
+      expired: permits.expired,
       missingLinkedRams: permits.missingLinkedRams,
     },
     handover,
