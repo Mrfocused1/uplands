@@ -115,6 +115,19 @@ type InvitationEmailDelivery = {
   message: string;
 };
 
+type BatchInvitationInput = {
+  invitedFullName: string;
+  invitedEmail: string;
+  invitedPhone: string;
+  role: string;
+};
+
+type BatchInvitationResult = {
+  invitation: InductionInvitation;
+  inviteUrl: string;
+  mailtoHref: string;
+};
+
 const emptyForm: ContractorFormState = {
   contractorId: null,
   name: "",
@@ -193,6 +206,28 @@ function deliveryNotice(result: InvitationEmailDelivery | null | undefined) {
   return result?.message ?? "";
 }
 
+function parseBatchInviteText(value: string): BatchInvitationInput[] {
+  return value
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const parts = line
+        .split(/\t|,/)
+        .map((part) => part.trim())
+        .filter(Boolean);
+      if (parts.length === 1 && parts[0]?.includes("@")) {
+        return { invitedFullName: "", invitedEmail: parts[0], invitedPhone: "", role: "" };
+      }
+      return {
+        invitedFullName: parts[0] ?? "",
+        invitedEmail: parts[1] ?? "",
+        invitedPhone: parts[2] ?? "",
+        role: parts[3] ?? "",
+      };
+    });
+}
+
 export function ContractorsWorkspace({
   site,
   initialContractors,
@@ -226,6 +261,8 @@ export function ContractorsWorkspace({
   const [invitationForm, setInvitationForm] = useState<InvitationFormState>(() => defaultInvitationForm());
   const [createdInviteUrl, setCreatedInviteUrl] = useState("");
   const [createdMailtoHref, setCreatedMailtoHref] = useState("");
+  const [batchInviteText, setBatchInviteText] = useState("");
+  const [createdBatchInvites, setCreatedBatchInvites] = useState<BatchInvitationResult[]>([]);
 
   const filteredContractors = useMemo(() => {
     const value = query.trim().toLowerCase();
@@ -270,6 +307,8 @@ export function ContractorsWorkspace({
       setInvitationForm(defaultInvitationForm());
       setCreatedInviteUrl("");
       setCreatedMailtoHref("");
+      setBatchInviteText("");
+      setCreatedBatchInvites([]);
       setInvitationNotice("");
       return;
     }
@@ -368,6 +407,8 @@ export function ContractorsWorkspace({
     setContractorActivityError("");
     setCreatedInviteUrl("");
     setCreatedMailtoHref("");
+    setBatchInviteText("");
+    setCreatedBatchInvites([]);
     setInvitationNotice("");
   }
 
@@ -381,6 +422,8 @@ export function ContractorsWorkspace({
     setContractorActivity([]);
     setCreatedInviteUrl("");
     setCreatedMailtoHref("");
+    setBatchInviteText("");
+    setCreatedBatchInvites([]);
     setInvitationNotice("");
   }
 
@@ -473,6 +516,7 @@ export function ContractorsWorkspace({
     setInvitationNotice("");
     setCreatedInviteUrl("");
     setCreatedMailtoHref("");
+    setCreatedBatchInvites([]);
     try {
       const response = await fetch(`/api/admin/sites/${site.id}/contractors/${selectedContractor.contractorId}/invitations`, {
         method: "POST",
@@ -503,6 +547,58 @@ export function ContractorsWorkspace({
     }
   }
 
+  async function createBatchInvitations() {
+    if (!selectedContractor) {
+      setInvitationError("Select a contractor before creating invites.");
+      return;
+    }
+    const invitees = parseBatchInviteText(batchInviteText);
+    if (invitees.length === 0) {
+      setInvitationError("Add at least one batch invitee.");
+      return;
+    }
+
+    setInvitationSaving(true);
+    setInvitationError("");
+    setInvitationNotice("");
+    setCreatedInviteUrl("");
+    setCreatedMailtoHref("");
+    setCreatedBatchInvites([]);
+    try {
+      const response = await fetch(`/api/admin/sites/${site.id}/contractors/${selectedContractor.contractorId}/invitations`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          projectId: site.project_id,
+          expiresAt: invitationForm.expiresAt ? new Date(`${invitationForm.expiresAt}T23:59:59.000Z`).toISOString() : null,
+          deliveryMode: invitationForm.deliveryMode,
+          invitations: invitees,
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Unable to create invitations.");
+      const invitations = (data.invitations ?? []) as InductionInvitation[];
+      const inviteUrls = (data.inviteUrls ?? []) as string[];
+      const mailtoHrefs = (data.mailtoHrefs ?? []) as string[];
+      setCreatedBatchInvites(
+        invitations.map((invitation, index) => ({
+          invitation,
+          inviteUrl: inviteUrls[index] ?? "",
+          mailtoHref: mailtoHrefs[index] ?? "",
+        })),
+      );
+      setBatchInviteText("");
+      setInvitationNotice(`${invitations.length} induction invites created.`);
+      await refreshInvitations(selectedContractor.contractorId);
+      await refreshContractorActivity(selectedContractor.contractorId);
+      await refreshContractors(selectedContractor.contractorId);
+    } catch (caught) {
+      setInvitationError(caught instanceof Error ? caught.message : "Unable to create invitations.");
+    } finally {
+      setInvitationSaving(false);
+    }
+  }
+
   async function revokeInvitation(invitationId: string) {
     if (!selectedContractor) return;
     setInvitationError("");
@@ -524,6 +620,12 @@ export function ContractorsWorkspace({
   async function copyInviteUrl() {
     if (!createdInviteUrl) return;
     await navigator.clipboard?.writeText(createdInviteUrl);
+    setInvitationNotice("Invite link copied.");
+  }
+
+  async function copyBatchInviteUrl(inviteUrl: string) {
+    if (!inviteUrl) return;
+    await navigator.clipboard?.writeText(inviteUrl);
     setInvitationNotice("Invite link copied.");
   }
 
@@ -700,6 +802,28 @@ export function ContractorsWorkspace({
               {invitationSaving ? "Creating..." : invitationForm.deliveryMode === "email" ? "Create & Email Invite" : "Create Invite"}
             </button>
 
+            <div className="mt-5 border-t border-zinc-200 pt-5">
+              <label className="block">
+                <span className="text-xs font-bold uppercase text-zinc-700">Batch Invites</span>
+                <textarea
+                  value={batchInviteText}
+                  onChange={(event) => setBatchInviteText(event.target.value)}
+                  disabled={!selectedContractor}
+                  rows={5}
+                  placeholder="Name, email, phone, role"
+                  className="mt-1 w-full resize-y border border-zinc-300 px-3 py-2 text-sm disabled:bg-zinc-100"
+                />
+              </label>
+              <button
+                type="button"
+                onClick={() => void createBatchInvitations()}
+                disabled={!selectedContractor || invitationSaving || parseBatchInviteText(batchInviteText).length === 0}
+                className="mt-3 min-h-11 w-full border border-zinc-300 px-4 text-sm font-bold uppercase text-zinc-700 hover:border-uplands-magenta hover:text-uplands-magenta disabled:opacity-50"
+              >
+                {invitationSaving ? "Creating..." : "Create Batch Invites"}
+              </button>
+            </div>
+
             {createdInviteUrl && (
               <div className="mt-4 border border-uplands-magenta bg-uplands-paper p-3">
                 <p className="text-xs font-bold uppercase text-uplands-magenta">Invite Link Created</p>
@@ -713,6 +837,30 @@ export function ContractorsWorkspace({
                       Open Email
                     </a>
                   )}
+                </div>
+              </div>
+            )}
+
+            {createdBatchInvites.length > 0 && (
+              <div className="mt-4 border border-uplands-magenta bg-uplands-paper p-3">
+                <p className="text-xs font-bold uppercase text-uplands-magenta">Batch Invite Links Created</p>
+                <div className="mt-3 space-y-3">
+                  {createdBatchInvites.map((result) => (
+                    <div key={result.invitation.id} className="border border-zinc-200 bg-white p-3">
+                      <p className="font-din text-sm text-uplands-charcoal">{result.invitation.invitedFullName || result.invitation.invitedEmail || "Open invite"}</p>
+                      <input value={result.inviteUrl} readOnly className="mt-2 min-h-11 w-full border border-zinc-300 bg-white px-3 text-sm text-uplands-charcoal" />
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        <button type="button" onClick={() => void copyBatchInviteUrl(result.inviteUrl)} className="min-h-10 border border-zinc-300 px-3 text-xs font-bold uppercase text-zinc-700 hover:border-uplands-magenta hover:text-uplands-magenta">
+                          Copy Link
+                        </button>
+                        {result.mailtoHref && (
+                          <a href={result.mailtoHref} className="inline-flex min-h-10 items-center border border-zinc-300 px-3 text-xs font-bold uppercase text-zinc-700 hover:border-uplands-magenta hover:text-uplands-magenta">
+                            Open Email
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
             )}

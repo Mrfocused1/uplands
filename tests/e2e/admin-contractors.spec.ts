@@ -3,7 +3,7 @@ import { expect, test } from "@playwright/test";
 const signature = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAO+/p9sAAAAASUVORK5CYII=";
 
 test("admin can manage contractors inside a site workspace", async ({ page }, testInfo) => {
-  test.setTimeout(45_000);
+  test.setTimeout(75_000);
 
   const contractor = `Contractor Register ${testInfo.project.name} ${Date.now()}`;
 
@@ -77,6 +77,23 @@ test("admin can manage contractors inside a site workspace", async ({ page }, te
   await expect(page.getByText("Invite Link Created")).toBeVisible();
   await expect(page.getByRole("link", { name: "Open Email" })).toHaveAttribute("href", invite.mailtoHref);
   await expect(page.getByText(invitedName).first()).toBeVisible();
+
+  const batchNameOne = `Batch Operative One ${testInfo.project.name} ${Date.now()}`;
+  const batchNameTwo = `Batch Operative Two ${testInfo.project.name} ${Date.now()}`;
+  await invitationForm.getByLabel("Batch Invites").fill(`${batchNameOne}, batch.one@example.com, 07700 900556, Labourer\n${batchNameTwo}, batch.two@example.com, 07700 900557, Supervisor`);
+  const [batchInviteResponse] = await Promise.all([
+    page.waitForResponse((response) => response.url().includes(`/api/admin/sites/newport/contractors/`) && response.url().includes("/invitations") && response.request().method() === "POST"),
+    invitationForm.getByRole("button", { name: "Create Batch Invites" }).click(),
+  ]);
+  expect(batchInviteResponse.ok()).toBe(true);
+  const batchInvites = (await batchInviteResponse.json()) as { invitations: unknown[]; inviteUrls: string[]; mailtoHrefs: string[] };
+  expect(batchInvites.invitations).toHaveLength(2);
+  expect(batchInvites.inviteUrls).toHaveLength(2);
+  expect(batchInvites.mailtoHrefs[0]).toContain("batch.one%40example.com");
+  await expect(page.getByText("2 induction invites created.")).toBeVisible();
+  await expect(page.getByText("Batch Invite Links Created")).toBeVisible();
+  await expect(page.getByText(batchNameOne).first()).toBeVisible();
+  await expect(page.getByText(batchNameTwo).first()).toBeVisible();
 
   await page.evaluate(() => window.localStorage.clear());
   await page.goto(new URL(invite.inviteUrl).pathname);
