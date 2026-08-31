@@ -61,4 +61,54 @@ test("permit validation enforces signature gates", () => {
     ),
     "",
   );
+  assert.equal(
+    validatePermitUpdate(
+      baseState({
+        currentStatus: "AUTHORISED",
+        nextStatus: "ACTIVE",
+        signatures: [{ signatureKey: "manager_authorisation", name: "Site Manager" }],
+      }),
+    ),
+    "Contractor acceptance is required before the permit can become active.",
+  );
+  assert.equal(
+    validatePermitUpdate(
+      baseState({
+        currentStatus: "AUTHORISED",
+        nextStatus: "ACTIVE",
+        signatures: [
+          { signatureKey: "manager_authorisation", name: "Site Manager" },
+          { signatureKey: "contractor_acceptance", name: "Contractor" },
+        ],
+      }),
+    ),
+    "",
+  );
+  assert.equal(
+    validatePermitUpdate(
+      baseState({
+        currentStatus: "ACTIVE",
+        nextStatus: "WORK_COMPLETED",
+        signatures: [
+          { signatureKey: "manager_authorisation", name: "Site Manager" },
+          { signatureKey: "contractor_acceptance", name: "Contractor" },
+        ],
+      }),
+    ),
+    "Contractor completion is required before marking work completed.",
+  );
+  assert.equal(
+    validatePermitUpdate(
+      baseState({
+        currentStatus: "WORK_COMPLETED",
+        nextStatus: "CLOSED",
+        signatures: [
+          { signatureKey: "manager_authorisation", name: "Site Manager" },
+          { signatureKey: "contractor_acceptance", name: "Contractor" },
+          { signatureKey: "contractor_completion", name: "Contractor" },
+        ],
+      }),
+    ),
+    "Contractor completion and manager completion acceptance are required before closure.",
+  );
 });

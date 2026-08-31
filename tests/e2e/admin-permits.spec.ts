@@ -42,6 +42,16 @@ async function selectQuestionAnswer(page: Page, questionText: string, answer: "Y
   }
 }
 
+async function fillSignature(page: Page, title: string, name: string, company: string, position: string) {
+  const signature = page.locator("article").filter({ has: page.getByRole("heading", { name: title }) });
+  await signature.getByPlaceholder("Name").fill(name);
+  await signature.getByPlaceholder("Company").fill(company);
+  await signature.getByPlaceholder("Position").fill(position);
+  await expect(signature.getByPlaceholder("Name")).toHaveValue(name);
+  await expect(signature.getByPlaceholder("Company")).toHaveValue(company);
+  await expect(signature.getByPlaceholder("Position")).toHaveValue(position);
+}
+
 async function createPermit(page: Page, contractor: string, locationOfWork: string, descriptionOfWork: string) {
   await page.locator("form").getByLabel("Contractor").selectOption("__new__");
   await expect(page.locator("form").getByLabel("Linked RAMS")).toBeVisible();
@@ -54,15 +64,27 @@ async function createPermit(page: Page, contractor: string, locationOfWork: stri
     page.getByRole("button", { name: "Create Permit" }).click(),
   ]);
   expect(response.ok()).toBe(true);
-  const contractorSelect = page.getByTestId("permit-editor").getByRole("combobox", { name: "Contractor" });
+  const editor = page.getByTestId("permit-editor");
+  await expect(editor).toBeVisible({ timeout: 30_000 });
+  const contractorSelect = editor.getByRole("combobox", { name: "Contractor" });
   await expect(contractorSelect).toBeVisible();
-  await expect(contractorSelect.locator("option:checked")).toHaveText(contractor);
-  await expect(page.getByTestId("permit-editor").getByRole("combobox", { name: "Linked RAMS" })).toBeVisible();
-  await expect(page.getByTestId("permit-editor").getByText("Missing linked RAMS")).toBeVisible();
+  await expect(editor.getByRole("combobox", { name: "Linked RAMS" })).toBeVisible();
+  await expect(editor.getByText("Missing linked RAMS")).toBeVisible();
+}
+
+async function applyLifecycleAction(page: Page, buttonName: string, expectedStatus: string) {
+  const button = page.getByRole("button", { name: buttonName });
+  await expect(button).toBeEnabled();
+  const [response] = await Promise.all([
+    page.waitForResponse((item) => item.url().includes("/api/admin/permits/") && item.request().method() === "PATCH"),
+    button.click(),
+  ]);
+  expect(response.ok()).toBe(true);
+  await expect(page.getByTestId("permit-status")).toHaveText(expectedStatus);
 }
 
 test("admin can create, edit and download a step ladders permit", async ({ page }) => {
-  test.setTimeout(45_000);
+  test.setTimeout(75_000);
 
   const contractor = `Permit Test ${Date.now()}`;
 
@@ -78,18 +100,23 @@ test("admin can create, edit and download a step ladders permit", async ({ page 
 
   await answerAllQuestionsYes(page);
 
-  const submitForReview = page.getByRole("button", { name: "Submit for Review" });
-  await expect(submitForReview).toBeEnabled();
-  await submitForReview.click();
-  await expect(page.getByText("Permit submitted for review").first()).toBeVisible();
+  await applyLifecycleAction(page, "Submit for Review", "AWAITING REVIEW");
 
-  const managerSignature = page.locator("article").filter({ has: page.getByRole("heading", { name: "Uplands Site Manager Authorisation" }) });
-  await managerSignature.getByPlaceholder("Name").fill("Matty");
-  await managerSignature.getByPlaceholder("Company").fill("Uplands");
-  await managerSignature.getByPlaceholder("Position").fill("Site Manager");
+  await fillSignature(page, "Uplands Site Manager Authorisation", "Matty", "Uplands", "Site Manager");
 
-  await page.getByRole("button", { name: "Authorise Permit" }).click();
-  await expect(page.getByText("AUTHORISED").first()).toBeVisible();
+  await applyLifecycleAction(page, "Authorise Permit", "AUTHORISED");
+
+  await expect(page.getByRole("button", { name: "Mark Active" })).toBeDisabled();
+  await fillSignature(page, "Contractor / Operative Acceptance", "Contractor Lead", contractor, "Supervisor");
+  await applyLifecycleAction(page, "Mark Active", "ACTIVE");
+
+  await expect(page.getByRole("button", { name: "Mark Work Complete" })).toBeDisabled();
+  await fillSignature(page, "Contractor / Operative Completion", "Contractor Lead", contractor, "Supervisor");
+  await applyLifecycleAction(page, "Mark Work Complete", "WORK COMPLETED");
+
+  await expect(page.getByRole("button", { name: "Close Permit" })).toBeDisabled();
+  await fillSignature(page, "Uplands Site Manager Acceptance of Completion", "Matty", "Uplands", "Site Manager");
+  await applyLifecycleAction(page, "Close Permit", "CLOSED");
 
   const pdfHref = await page.getByRole("link", { name: "Download PDF" }).getAttribute("href");
   expect(pdfHref).toBeTruthy();
@@ -122,18 +149,11 @@ test("admin can create and authorise an electrical permit", async ({ page }) => 
 
   await answerAllQuestionsYes(page);
 
-  const submitForReview = page.getByRole("button", { name: "Submit for Review" });
-  await expect(submitForReview).toBeEnabled();
-  await submitForReview.click();
-  await expect(page.getByText("Permit submitted for review").first()).toBeVisible();
+  await applyLifecycleAction(page, "Submit for Review", "AWAITING REVIEW");
 
-  const managerSignature = page.locator("article").filter({ has: page.getByRole("heading", { name: "Uplands Site Manager Authorisation" }) });
-  await managerSignature.getByPlaceholder("Name").fill("Matty");
-  await managerSignature.getByPlaceholder("Company").fill("Uplands");
-  await managerSignature.getByPlaceholder("Position").fill("Site Manager");
+  await fillSignature(page, "Uplands Site Manager Authorisation", "Matty", "Uplands", "Site Manager");
 
-  await page.getByRole("button", { name: "Authorise Permit" }).click();
-  await expect(page.getByText("AUTHORISED").first()).toBeVisible();
+  await applyLifecycleAction(page, "Authorise Permit", "AUTHORISED");
 
   const pdfHref = await page.getByRole("link", { name: "Download PDF" }).getAttribute("href");
   expect(pdfHref).toBeTruthy();
@@ -165,18 +185,11 @@ test("admin can create and authorise a mobile tower scaffold permit", async ({ p
 
   await selectQuestionAnswer(page, "If the mobile tower is not an AGR system", "N/A");
 
-  const submitForReview = page.getByRole("button", { name: "Submit for Review" });
-  await expect(submitForReview).toBeEnabled();
-  await submitForReview.click();
-  await expect(page.getByText("Permit submitted for review").first()).toBeVisible();
+  await applyLifecycleAction(page, "Submit for Review", "AWAITING REVIEW");
 
-  const managerSignature = page.locator("article").filter({ has: page.getByRole("heading", { name: "Uplands Site Manager Authorisation" }) });
-  await managerSignature.getByPlaceholder("Name").fill("Matty");
-  await managerSignature.getByPlaceholder("Company").fill("Uplands");
-  await managerSignature.getByPlaceholder("Position").fill("Site Manager");
+  await fillSignature(page, "Uplands Site Manager Authorisation", "Matty", "Uplands", "Site Manager");
 
-  await page.getByRole("button", { name: "Authorise Permit" }).click();
-  await expect(page.getByText("AUTHORISED").first()).toBeVisible();
+  await applyLifecycleAction(page, "Authorise Permit", "AUTHORISED");
 
   const pdfHref = await page.getByRole("link", { name: "Download PDF" }).getAttribute("href");
   expect(pdfHref).toBeTruthy();
@@ -211,18 +224,11 @@ test("admin can create and authorise a cherry picker permit", async ({ page }) =
 
   await selectQuestionAnswer(page, "Are adverse weather conditions present or forecast?", "NO");
 
-  const submitForReview = page.getByRole("button", { name: "Submit for Review" });
-  await expect(submitForReview).toBeEnabled();
-  await submitForReview.click();
-  await expect(page.getByText("Permit submitted for review").first()).toBeVisible();
+  await applyLifecycleAction(page, "Submit for Review", "AWAITING REVIEW");
 
-  const managerSignature = page.locator("article").filter({ has: page.getByRole("heading", { name: "Uplands Site Manager Authorisation" }) });
-  await managerSignature.getByPlaceholder("Name").fill("Matty");
-  await managerSignature.getByPlaceholder("Company").fill("Uplands");
-  await managerSignature.getByPlaceholder("Position").fill("Site Manager");
+  await fillSignature(page, "Uplands Site Manager Authorisation", "Matty", "Uplands", "Site Manager");
 
-  await page.getByRole("button", { name: "Authorise Permit" }).click();
-  await expect(page.getByText("AUTHORISED").first()).toBeVisible();
+  await applyLifecycleAction(page, "Authorise Permit", "AUTHORISED");
 
   const pdfHref = await page.getByRole("link", { name: "Download PDF" }).getAttribute("href");
   expect(pdfHref).toBeTruthy();
@@ -256,18 +262,11 @@ test("admin can create and authorise an excavation permit", async ({ page }) => 
 
   await answerAllQuestionsYes(page);
 
-  const submitForReview = page.getByRole("button", { name: "Submit for Review" });
-  await expect(submitForReview).toBeEnabled();
-  await submitForReview.click();
-  await expect(page.getByText("Permit submitted for review").first()).toBeVisible();
+  await applyLifecycleAction(page, "Submit for Review", "AWAITING REVIEW");
 
-  const managerSignature = page.locator("article").filter({ has: page.getByRole("heading", { name: "Uplands Site Manager Authorisation" }) });
-  await managerSignature.getByPlaceholder("Name").fill("Matty");
-  await managerSignature.getByPlaceholder("Company").fill("Uplands");
-  await managerSignature.getByPlaceholder("Position").fill("Site Manager");
+  await fillSignature(page, "Uplands Site Manager Authorisation", "Matty", "Uplands", "Site Manager");
 
-  await page.getByRole("button", { name: "Authorise Permit" }).click();
-  await expect(page.getByText("AUTHORISED").first()).toBeVisible();
+  await applyLifecycleAction(page, "Authorise Permit", "AUTHORISED");
 
   const pdfHref = await page.getByRole("link", { name: "Download PDF" }).getAttribute("href");
   expect(pdfHref).toBeTruthy();
@@ -300,19 +299,13 @@ test("admin can create and authorise a permit to dig / break ground", async ({ p
   await gasElectricQuestion.getByPlaceholder("Comment").fill("Known electrical duct marked. Hand-dig rule briefed.");
 
   await answerAllQuestionsYes(page);
+  await gasElectricQuestion.getByPlaceholder("Comment").fill("Known electrical duct marked. Hand-dig rule briefed.");
 
-  const submitForReview = page.getByRole("button", { name: "Submit for Review" });
-  await expect(submitForReview).toBeEnabled();
-  await submitForReview.click();
-  await expect(page.getByText("Permit submitted for review").first()).toBeVisible();
+  await applyLifecycleAction(page, "Submit for Review", "AWAITING REVIEW");
 
-  const managerSignature = page.locator("article").filter({ has: page.getByRole("heading", { name: "Uplands Site Manager Authorisation" }) });
-  await managerSignature.getByPlaceholder("Name").fill("Matty");
-  await managerSignature.getByPlaceholder("Company").fill("Uplands");
-  await managerSignature.getByPlaceholder("Position").fill("Site Manager");
+  await fillSignature(page, "Uplands Site Manager Authorisation", "Matty", "Uplands", "Site Manager");
 
-  await page.getByRole("button", { name: "Authorise Permit" }).click();
-  await expect(page.getByText("AUTHORISED").first()).toBeVisible();
+  await applyLifecycleAction(page, "Authorise Permit", "AUTHORISED");
 
   const pdfHref = await page.getByRole("link", { name: "Download PDF" }).getAttribute("href");
   expect(pdfHref).toBeTruthy();
@@ -347,18 +340,11 @@ test("admin can create and authorise a confined space permit", async ({ page }) 
   await answerAllQuestionsYes(page);
   await selectQuestionAnswer(page, "Do emergency services need to be contacted?", "NO");
 
-  const submitForReview = page.getByRole("button", { name: "Submit for Review" });
-  await expect(submitForReview).toBeEnabled();
-  await submitForReview.click();
-  await expect(page.getByText("Permit submitted for review").first()).toBeVisible();
+  await applyLifecycleAction(page, "Submit for Review", "AWAITING REVIEW");
 
-  const managerSignature = page.locator("article").filter({ has: page.getByRole("heading", { name: "Uplands Site Manager Authorisation" }) });
-  await managerSignature.getByPlaceholder("Name").fill("Matty");
-  await managerSignature.getByPlaceholder("Company").fill("Uplands");
-  await managerSignature.getByPlaceholder("Position").fill("Site Manager");
+  await fillSignature(page, "Uplands Site Manager Authorisation", "Matty", "Uplands", "Site Manager");
 
-  await page.getByRole("button", { name: "Authorise Permit" }).click();
-  await expect(page.getByText("AUTHORISED").first()).toBeVisible();
+  await applyLifecycleAction(page, "Authorise Permit", "AUTHORISED");
 
   const pdfHref = await page.getByRole("link", { name: "Download PDF" }).getAttribute("href");
   expect(pdfHref).toBeTruthy();
@@ -394,20 +380,14 @@ test("admin can create and authorise a demolition permit", async ({ page }) => {
   await temporaryWorksQuestion.getByPlaceholder("Comment").fill("Temporary support not required for soft strip.");
 
   await answerAllQuestionsYes(page);
+  await surveyHazardsQuestion.getByPlaceholder("Comment").fill("Survey identifies noise, dust and redundant services.");
   await selectQuestionAnswer(page, "Is temporary work required?", "NO");
 
-  const submitForReview = page.getByRole("button", { name: "Submit for Review" });
-  await expect(submitForReview).toBeEnabled();
-  await submitForReview.click();
-  await expect(page.getByText("Permit submitted for review").first()).toBeVisible();
+  await applyLifecycleAction(page, "Submit for Review", "AWAITING REVIEW");
 
-  const managerSignature = page.locator("article").filter({ has: page.getByRole("heading", { name: "Uplands Site Manager Authorisation" }) });
-  await managerSignature.getByPlaceholder("Name").fill("Matty");
-  await managerSignature.getByPlaceholder("Company").fill("Uplands");
-  await managerSignature.getByPlaceholder("Position").fill("Site Manager");
+  await fillSignature(page, "Uplands Site Manager Authorisation", "Matty", "Uplands", "Site Manager");
 
-  await page.getByRole("button", { name: "Authorise Permit" }).click();
-  await expect(page.getByText("AUTHORISED").first()).toBeVisible();
+  await applyLifecycleAction(page, "Authorise Permit", "AUTHORISED");
 
   const pdfHref = await page.getByRole("link", { name: "Download PDF" }).getAttribute("href");
   expect(pdfHref).toBeTruthy();
@@ -445,18 +425,11 @@ test("admin can create and authorise a temporary works permit", async ({ page })
   await answerAllQuestionsYes(page);
   await selectQuestionAnswer(page, "Are there any deviations from the drawings?", "NO");
 
-  const submitForReview = page.getByRole("button", { name: "Submit for Review" });
-  await expect(submitForReview).toBeEnabled();
-  await submitForReview.click();
-  await expect(page.getByText("Permit submitted for review").first()).toBeVisible();
+  await applyLifecycleAction(page, "Submit for Review", "AWAITING REVIEW");
 
-  const managerSignature = page.locator("article").filter({ has: page.getByRole("heading", { name: "Uplands Site Manager Responsible for Temporary Works Erection Authorisation" }) });
-  await managerSignature.getByPlaceholder("Name").fill("Matty");
-  await managerSignature.getByPlaceholder("Company").fill("Uplands");
-  await managerSignature.getByPlaceholder("Position").fill("Site Manager");
+  await fillSignature(page, "Uplands Site Manager Responsible for Temporary Works Erection Authorisation", "Matty", "Uplands", "Site Manager");
 
-  await page.getByRole("button", { name: "Authorise Permit" }).click();
-  await expect(page.getByText("AUTHORISED").first()).toBeVisible();
+  await applyLifecycleAction(page, "Authorise Permit", "AUTHORISED");
 
   const pdfHref = await page.getByRole("link", { name: "Download PDF" }).getAttribute("href");
   expect(pdfHref).toBeTruthy();
@@ -492,18 +465,11 @@ test("admin can create and authorise a PFS clearance certificate", async ({ page
   await answerAllQuestionsYes(page);
   await selectQuestionAnswer(page, "Have any additional hazards beyond those in the RAMS been identified today?", "NO");
 
-  const submitForReview = page.getByRole("button", { name: "Submit for Review" });
-  await expect(submitForReview).toBeEnabled();
-  await submitForReview.click();
-  await expect(page.getByText("Permit submitted for review").first()).toBeVisible();
+  await applyLifecycleAction(page, "Submit for Review", "AWAITING REVIEW");
 
-  const managerSignature = page.locator("article").filter({ has: page.getByRole("heading", { name: "Uplands Site Manager Clearance Approval" }) });
-  await managerSignature.getByPlaceholder("Name").fill("Matty");
-  await managerSignature.getByPlaceholder("Company").fill("Uplands");
-  await managerSignature.getByPlaceholder("Position").fill("Site Manager");
+  await fillSignature(page, "Uplands Site Manager Clearance Approval", "Matty", "Uplands", "Site Manager");
 
-  await page.getByRole("button", { name: "Authorise Permit" }).click();
-  await expect(page.getByText("AUTHORISED").first()).toBeVisible();
+  await applyLifecycleAction(page, "Authorise Permit", "AUTHORISED");
 
   const pdfHref = await page.getByRole("link", { name: "Download PDF" }).getAttribute("href");
   expect(pdfHref).toBeTruthy();

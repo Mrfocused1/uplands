@@ -112,6 +112,9 @@ export function validatePermitUpdate(state: PermitValidationState) {
 
   const signed = new Set(state.signatures.filter((signature) => signature.name.trim()).map((signature) => signature.signatureKey));
   if ((state.nextStatus === "AUTHORISED" || state.nextStatus === "ACTIVE") && !signed.has("manager_authorisation")) return "Manager authorisation is required before the permit can be authorised or active.";
+  if ((state.nextStatus === "ACTIVE" || state.nextStatus === "WORK_COMPLETED" || state.nextStatus === "CLOSED") && !signed.has("contractor_acceptance")) {
+    return "Contractor acceptance is required before the permit can become active.";
+  }
   if (state.nextStatus === "WORK_COMPLETED" && !signed.has("contractor_completion")) return "Contractor completion is required before marking work completed.";
   if (state.nextStatus === "CLOSED" && (!signed.has("contractor_completion") || !signed.has("manager_completion_acceptance"))) return "Contractor completion and manager completion acceptance are required before closure.";
 

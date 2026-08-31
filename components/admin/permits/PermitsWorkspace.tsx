@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 
 import { SignaturePad } from "@/components/induction/SignaturePad";
@@ -190,6 +190,7 @@ export function PermitsWorkspace({
   const [creating, setCreating] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const detailRequestVersion = useRef(0);
   const selectedTemplate = templates.find((template) => template.id === selectedTemplateId) ?? templates[0];
   const selectedNewContractor = contractors.find((contractor) => contractor.contractorId === newPermitContractorId);
   const newPermitRamsOptions = useMemo(
@@ -218,12 +219,14 @@ export function PermitsWorkspace({
       setDetail(null);
       return;
     }
+    if (detail?.permit.id === selectedId) return;
     let cancelled = false;
+    const requestVersion = (detailRequestVersion.current += 1);
     setError("");
     setDetail(null);
     fetchPermitDetail(selectedId)
       .then((data) => {
-        if (!cancelled) setDetail(data);
+        if (!cancelled && requestVersion === detailRequestVersion.current) setDetail(data);
       })
       .catch((caught) => {
         if (!cancelled) setError(caught instanceof Error ? caught.message : "Unable to load permit.");
@@ -231,7 +234,7 @@ export function PermitsWorkspace({
     return () => {
       cancelled = true;
     };
-  }, [fetchPermitDetail, selectedId]);
+  }, [detail?.permit.id, fetchPermitDetail, selectedId]);
 
   const answersByKey = useMemo(() => new Map(detail?.answers.map((answer) => [answer.questionKey, answer]) ?? []), [detail]);
   const fieldValuesByKey = useMemo(() => new Map(detail?.fieldValues.map((fieldValue) => [fieldValue.fieldKey, fieldValue.value ?? ""]) ?? []), [detail]);
@@ -256,6 +259,7 @@ export function PermitsWorkspace({
     event.preventDefault();
     setCreating(true);
     setError("");
+    detailRequestVersion.current += 1;
     setDetail(null);
     const form = new FormData(event.currentTarget);
     const selectedContractor = contractors.find((contractor) => contractor.contractorId === newPermitContractorId);
@@ -281,8 +285,18 @@ export function PermitsWorkspace({
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Unable to create permit.");
-      await refreshContractors();
-      await refreshPermits(data.id);
+      const createdId = typeof data.id === "string" ? data.id : "";
+      if (!createdId) throw new Error("Created permit id was not returned.");
+      const requestVersion = (detailRequestVersion.current += 1);
+      const createdDetail = await fetchPermitDetail(createdId);
+      if (requestVersion === detailRequestVersion.current) setDetail(createdDetail);
+      setSelectedId(createdId);
+      void refreshContractors().catch((caught) => {
+        setError(caught instanceof Error ? caught.message : "Unable to refresh contractors.");
+      });
+      void refreshPermits(createdId).catch((caught) => {
+        setError(caught instanceof Error ? caught.message : "Unable to refresh permits.");
+      });
       event.currentTarget.reset();
       setSelectedTemplateId(templates[0]?.id ?? "");
       setNewPermitContractorId(contractorFilter?.contractorId ?? "__new__");
@@ -294,6 +308,7 @@ export function PermitsWorkspace({
   }
 
   function updateDetail(updater: (current: PermitDetail) => PermitDetail) {
+    detailRequestVersion.current += 1;
     setDetail((current) => (current ? updater(current) : current));
   }
 
@@ -362,9 +377,17 @@ export function PermitsWorkspace({
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Unable to save permit.");
-      await refreshContractors();
-      await refreshPermits(detail.permit.id);
-      setDetail(await fetchPermitDetail(detail.permit.id));
+      const requestVersion = (detailRequestVersion.current += 1);
+      setDetail(detailToSave);
+      setSaving(false);
+      void (async () => {
+        await refreshContractors();
+        await refreshPermits(detail.permit.id);
+        const freshDetail = await fetchPermitDetail(detail.permit.id);
+        if (requestVersion === detailRequestVersion.current) setDetail(freshDetail);
+      })().catch((caught) => {
+        setError(caught instanceof Error ? caught.message : "Unable to refresh permit.");
+      });
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Unable to save permit.");
     } finally {
@@ -619,7 +642,9 @@ function PermitEditor({
             <p className="text-xs font-bold uppercase tracking-[0.22em] text-uplands-magenta">{detail.template.code}</p>
             <h2 className="mt-1 font-slab text-3xl text-uplands-charcoal">{detail.template.title}</h2>
             <p className="mt-1 text-sm font-bold text-zinc-700">{detail.permit.permitNumber}</p>
-            <p className="mt-3 inline-flex border border-zinc-300 px-2.5 py-1 text-xs font-bold uppercase text-zinc-700">{statusLabel(detail.permit.status)}</p>
+            <p data-testid="permit-status" className="mt-3 inline-flex border border-zinc-300 px-2.5 py-1 text-xs font-bold uppercase text-zinc-700">
+              {statusLabel(detail.permit.status)}
+            </p>
             {!detail.permit.ramsDocumentId && <p className="mt-2 inline-flex border border-amber-300 bg-amber-50 px-2.5 py-1 text-xs font-bold uppercase text-amber-800">Missing linked RAMS</p>}
           </div>
           <div className="flex flex-wrap gap-3">
