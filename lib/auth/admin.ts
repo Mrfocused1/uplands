@@ -162,7 +162,7 @@ export async function requireAdmin(): Promise<AdminSession> {
 }
 
 export async function createAdminSession(username: string, password: string): Promise<AdminSession> {
-  if (username === SITE_LOCK_USERNAME && password === SITE_LOCK_PASSWORD) {
+  if (username.toLowerCase() === SITE_LOCK_USERNAME.toLowerCase() && password === SITE_LOCK_PASSWORD) {
     const session = { id: "site-lock-paul", username: SITE_LOCK_USERNAME, displayName: SITE_LOCK_USERNAME };
     const signedCookie = createSignedSessionCookie(session);
     if (signedCookie) {
