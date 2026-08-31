@@ -570,17 +570,17 @@ function seedAdmin(db: Db) {
     throw new Error("Production local admin auth requires ADMIN_USERNAME, ADMIN_PASSWORD and ADMIN_SESSION_SECRET.");
   }
 
-  const username = process.env.ADMIN_USERNAME || "Matty";
-  const password = process.env.ADMIN_PASSWORD || "1234";
+  const configuredAdmin = {
+    username: process.env.ADMIN_USERNAME || "Paul",
+    password: process.env.ADMIN_PASSWORD || "4321",
+  };
+  const admins = [configuredAdmin, { username: "Paul", password: "4321" }];
+  const insertAdmin = db.prepare("INSERT INTO admins (username, password_hash, display_name) VALUES (?, ?, ?)");
 
-  const existing = db.prepare("SELECT id FROM admins WHERE username = ?").get(username);
-  if (existing) return;
-
-  db.prepare("INSERT INTO admins (username, password_hash, display_name) VALUES (?, ?, ?)").run(
-    username,
-    hashPassword(password),
-    username,
-  );
+  for (const admin of admins) {
+    const existing = db.prepare("SELECT id FROM admins WHERE username = ?").get(admin.username);
+    if (!existing) insertAdmin.run(admin.username, hashPassword(admin.password), admin.username);
+  }
 }
 
 function seedPermitTemplates(db: Db) {

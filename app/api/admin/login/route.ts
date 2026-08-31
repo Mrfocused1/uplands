@@ -1,18 +1,14 @@
 import { NextResponse } from "next/server";
 import { createAdminSession, UnauthorizedError } from "@/lib/auth/admin";
+import { safeLoginNext } from "@/lib/auth/loginRedirect";
 
 export const runtime = "nodejs";
-
-function safeNext(value: FormDataEntryValue | null) {
-  const next = typeof value === "string" && value.startsWith("/admin") ? value : "/admin";
-  return next === "/admin/login" ? "/admin" : next;
-}
 
 export async function POST(request: Request) {
   const formData = await request.formData();
   const username = typeof formData.get("username") === "string" ? String(formData.get("username")).trim() : "";
   const password = typeof formData.get("password") === "string" ? String(formData.get("password")) : "";
-  const next = safeNext(formData.get("next"));
+  const next = safeLoginNext(formData.get("next"));
 
   try {
     await createAdminSession(username, password);

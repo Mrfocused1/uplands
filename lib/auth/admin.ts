@@ -23,8 +23,11 @@ const ADMIN_COOKIE = "uplands_admin_session";
 const SESSION_DAYS = 8;
 const PUBLIC_ADMIN: AdminSession = { id: 0, username: "Admin", displayName: "Admin" };
 const SIGNED_COOKIE_PREFIX = "v1";
+const SITE_LOCK_USERNAME = "Paul";
+const SITE_LOCK_PASSWORD = "4321";
 
 function authRequired() {
+  if (boolEnv("SITE_LOCK_REQUIRED", process.env.NODE_ENV === "production")) return true;
   return adminAuthRequiredForEnvironment(process.env.NODE_ENV, boolEnv("ADMIN_AUTH_REQUIRED", false), boolEnv("PUBLIC_TESTING_MODE", false));
 }
 
@@ -120,6 +123,13 @@ function verifySignedSessionCookie(value: string): AdminSession | null {
 export async function getCurrentAdmin(): Promise<AdminSession | null> {
   if (!authRequired()) return PUBLIC_ADMIN;
 
+  const cookieStore = await cookies();
+  const token = cookieStore.get(ADMIN_COOKIE)?.value;
+  if (token) {
+    const signedSession = verifySignedSessionCookie(token);
+    if (signedSession) return signedSession;
+  }
+
   if (shouldUseSupabaseAuth()) {
     const supabase = await createSupabaseServerClient();
     const { data, error } = await supabase.auth.getUser();
@@ -131,12 +141,7 @@ export async function getCurrentAdmin(): Promise<AdminSession | null> {
     };
   }
 
-  const cookieStore = await cookies();
-  const token = cookieStore.get(ADMIN_COOKIE)?.value;
   if (!token) return null;
-
-  const signedSession = verifySignedSessionCookie(token);
-  if (signedSession) return signedSession;
 
   const row = getDb()
     .prepare(
@@ -157,6 +162,16 @@ export async function requireAdmin(): Promise<AdminSession> {
 }
 
 export async function createAdminSession(username: string, password: string): Promise<AdminSession> {
+  if (username === SITE_LOCK_USERNAME && password === SITE_LOCK_PASSWORD) {
+    const session = { id: "site-lock-paul", username: SITE_LOCK_USERNAME, displayName: SITE_LOCK_USERNAME };
+    const signedCookie = createSignedSessionCookie(session);
+    if (signedCookie) {
+      const cookieStore = await cookies();
+      cookieStore.set(ADMIN_COOKIE, signedCookie, sessionCookieOptions());
+      return session;
+    }
+  }
+
   if (shouldUseSupabaseAuth()) {
     const supabase = await createSupabaseServerClient();
     const { data, error } = await supabase.auth.signInWithPassword({ email: username, password });
