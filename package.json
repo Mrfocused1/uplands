@@ -27,17 +27,17 @@
     "tesseract.js": "^7.0.0"
   },
   "devDependencies": {
-    "@axe-core/playwright": "^4.13.0",
-    "@playwright/test": "^1.62.1",
+    "@axe-core/playwright": "^4.14.0",
+    "@playwright/test": "^1.64.1",
     "@types/better-sqlite3": "^9.6.0",
-    "@types/node": "^24.3.0",
+    "@types/node": "^26.6.5",
     "@types/react": "^19.1.10",
     "@types/react-dom": "^19.1.7",
-    "autoprefixer": "^10.4.21",
-    "eslint": "^9.39.1",
-    "eslint-config-next": "^16.3.3",
-    "postcss": "^8.5.6",
-    "tailwindcss": "^3.4.17",
-    "typescript": "^5.9.2"
+    "autoprefixer": "^10.6.1",
+    "eslint": "^10.13.0",
+    "eslint-config-next": "^16.4.2",
+    "postcss": "^8.5.31",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^7.0.2"
   }
 }
